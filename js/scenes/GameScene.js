@@ -260,15 +260,7 @@ class GameScene extends Phaser.Scene {
             b.destroy();
         });
         this.physics.add.overlap(this.playerMelees, this.boss.sprite, (m, bossSpr) => {
-            if (!this.boss.alive) return;
-            if (m._hitBoss) return;
-            m._hitBoss = true;
-            this.boss.takeDamage(18, m.x);
-            Effects.hitFlash(this, this.boss.x, this.boss.y - 80);
-            Effects.shake(this, 120, 0.012);
-            Effects.hitStop(this, 60);
-            this.player.gainEnergy(6 * this.hud.getEnergyMultiplier());
-            this.hud.addCombo(this.time.now);
+            this._damageBossFromMelee(m, false);
         });
         this.physics.add.overlap(this.boss.sprite, this.player.sprite, () => {
             if (this.boss && this.boss.alive) this._damagePlayer(this.boss.contactDamage, this.boss.x);
@@ -295,10 +287,20 @@ class GameScene extends Phaser.Scene {
 
     spawnPlayerMelee(x, y, w, h, facing) {
         const m = this.playerMelees.create(x, y, 'particle_white');
+        // 物理组可能复用旧 hitbox，对每次新攻击显式清掉命中记录。
+        m._hitSet = new Set();
+        m._hitBoss = false;
+        m._meleeWidth = w;
+        m._meleeHeight = h;
         m.setVisible(false);
         m.body.allowGravity = false;
         m.body.setSize(w, h);
         m.setVelocity(0, 0);
+
+        // 主动检测 Boss：不完全依赖 Arcade overlap 的时序。
+        this._damageBossFromMelee(m, true);
+        this.time.delayedCall(45, () => this._damageBossFromMelee(m, true));
+        this.time.delayedCall(90, () => this._damageBossFromMelee(m, true));
 
         // 命中可视化（白色矩形闪一下）
         const ghost = this.add.rectangle(x, y, w, h, 0xffffff, 0.3).setDepth(800);
@@ -310,6 +312,36 @@ class GameScene extends Phaser.Scene {
         });
 
         this.time.delayedCall(140, () => m && m.destroy());
+    }
+
+    _damageBossFromMelee(melee, checkBounds) {
+        if (!melee || !melee.active || !this.boss || !this.boss.alive) return false;
+        melee._hitSet = melee._hitSet || new Set();
+        if (melee._hitSet.has(this.boss)) return false;
+
+        if (checkBounds) {
+            const bossBody = this.boss.sprite.body;
+            if (!bossBody) return false;
+            const meleeWidth = melee._meleeWidth || (melee.body && melee.body.width) || 64;
+            const meleeHeight = melee._meleeHeight || (melee.body && melee.body.height) || 48;
+            const meleeRect = new Phaser.Geom.Rectangle(
+                melee.x - meleeWidth / 2,
+                melee.y - meleeHeight / 2,
+                meleeWidth,
+                meleeHeight
+            );
+            const bossRect = new Phaser.Geom.Rectangle(bossBody.x, bossBody.y, bossBody.width, bossBody.height);
+            if (!Phaser.Geom.Intersects.RectangleToRectangle(meleeRect, bossRect)) return false;
+        }
+
+        melee._hitSet.add(this.boss);
+        this.boss.takeDamage(18, melee.x);
+        Effects.hitFlash(this, this.boss.x, this.boss.y - 80);
+        Effects.shake(this, 120, 0.012);
+        Effects.hitStop(this, 60);
+        this.player.gainEnergy(6 * this.hud.getEnergyMultiplier());
+        this.hud.addCombo(this.time.now);
+        return true;
     }
 
     spawnPlayerUltimate(player) {

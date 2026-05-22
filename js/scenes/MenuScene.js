@@ -92,6 +92,7 @@ class MenuScene extends Phaser.Scene {
                 label: '重置存档',
                 accent: Palette.danger,
                 action: () => {
+                    this._keepMenuBGM = true;
                     SaveSystem.reset();
                     this.scene.restart();
                 }
