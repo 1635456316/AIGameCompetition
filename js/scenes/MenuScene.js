@@ -81,6 +81,14 @@ class MenuScene extends Phaser.Scene {
                 action: () => this.scene.start('LevelSelectScene')
             },
             {
+                label: '设置',
+                accent: Palette.energy,
+                action: () => {
+                    this._keepMenuBGM = true;
+                    this.scene.start('SettingsScene');
+                }
+            },
+            {
                 label: '重置存档',
                 accent: Palette.danger,
                 action: () => {
@@ -90,7 +98,7 @@ class MenuScene extends Phaser.Scene {
             }
         ];
 
-        const menuStartY = 438;
+        const menuStartY = 408;
         const pulse = this.add.rectangle(256, menuStartY + 16, 354, 42, Palette.hero, 0.14)
             .setStrokeStyle(1, Palette.hero, 0.5);
         this.tweens.add({
@@ -103,7 +111,7 @@ class MenuScene extends Phaser.Scene {
         });
 
         this.menuButtons = menuItems.map((item, index) => {
-            return this._createMenuButton(78, menuStartY + index * 66, 360, item.label, item.accent, item.action);
+            return this._createMenuButton(78, menuStartY + index * 58, 360, item.label, item.accent, item.action);
         });
 
         this.add.text(78, height - 42, '© 199X DRAGON DEFENSE FORCE', {
@@ -274,7 +282,9 @@ class MenuScene extends Phaser.Scene {
 
         let bgm = this.sound.get('bgm_menu');
         if (!bgm) {
-            bgm = this.sound.add('bgm_menu', { loop: true, volume: 0.55 });
+            bgm = this.sound.add('bgm_menu', { loop: true, volume: SaveSystem.getVolume() });
+        } else {
+            bgm.setVolume(SaveSystem.getVolume());
         }
         this._menuBGM = bgm;
 
@@ -326,6 +336,10 @@ class MenuScene extends Phaser.Scene {
         }
         const bgm = this._menuBGM;
         this._menuBGM = null;
+        if (this._keepMenuBGM) {
+            this._keepMenuBGM = false;
+            return;
+        }
         if (!bgm) return;
         if (!bgm.isPlaying) {
             try { bgm.stop(); } catch (e) {}

@@ -15,7 +15,9 @@ class SaveSystem {
         try {
             const raw = localStorage.getItem(SaveSystem.key);
             if (!raw) return SaveSystem.defaultData();
-            return Object.assign(SaveSystem.defaultData(), JSON.parse(raw));
+            const data = Object.assign(SaveSystem.defaultData(), JSON.parse(raw));
+            data.settings = Object.assign(SaveSystem.defaultData().settings, data.settings || {});
+            return data;
         } catch (e) {
             return SaveSystem.defaultData();
         }
@@ -56,6 +58,21 @@ class SaveSystem {
     static hasPVWatched(pvId) {
         const data = SaveSystem.load();
         return Array.isArray(data.watchedPVs) && data.watchedPVs.includes(pvId);
+    }
+
+    static getVolume() {
+        const data = SaveSystem.load();
+        const volume = data.settings && typeof data.settings.volume === 'number'
+            ? data.settings.volume
+            : SaveSystem.defaultData().settings.volume;
+        return Phaser.Math.Clamp(volume, 0, 1);
+    }
+
+    static setVolume(volume) {
+        const data = SaveSystem.load();
+        data.settings = data.settings || {};
+        data.settings.volume = Phaser.Math.Clamp(volume, 0, 1);
+        SaveSystem.save(data);
     }
 
     static reset() {

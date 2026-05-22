@@ -46,6 +46,9 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
+        // 窗口失焦时不要暂停声音（默认 true 会把 BGM 一并 pauseAll）
+        this.sound.pauseOnBlur = false;
+
         TextureFactory.bakeAll(this);
         this.scene.start('MenuScene');
     }

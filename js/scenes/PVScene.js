@@ -22,7 +22,7 @@ class PVScene extends Phaser.Scene {
 
         this.cameras.main.setBackgroundColor('#000');
         this._finished = false;
-        this.volume = 0.8;
+        this.volume = SaveSystem.getVolume();
         this._pvId = pvId || null;
         this._skippable = pvId ? SaveSystem.hasPVWatched(pvId) : true;
 
@@ -186,6 +186,7 @@ class PVScene extends Phaser.Scene {
 
     _setVolume(v) {
         this.volume = Phaser.Math.Clamp(v, 0, 1);
+        SaveSystem.setVolume(this.volume);
         if (this.domVideo) {
             this.domVideo.muted = this.volume <= 0;
             this.domVideo.volume = this.volume;
