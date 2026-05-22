@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Game Competition</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="js/utils/Palette.js"></script>
+    <script src="js/utils/StateMachine.js"></script>
+    <script src="js/utils/TextureFactory.js"></script>
+    <script src="js/utils/Effects.js"></script>
+    <script src="js/systems/SaveSystem.js"></script>
+    <script src="js/systems/Hazards.js"></script>
+    <script src="js/levels/Level1.js"></script>
+    <script src="js/player/PlayerConfig.js"></script>
+    <script src="js/player/PlayerStates.js"></script>
+    <script src="js/player/Player.js"></script>
+    <script src="js/player/InputController.js"></script>
+    <script src="js/enemies/Enemy.js"></script>
+    <script src="js/enemies/BossConfigs.js"></script>
+    <script src="js/enemies/Boss.js"></script>
+    <script src="js/ui/HUD.js"></script>
+    <script src="js/ui/PauseMenu.js"></script>
+    <script src="js/scenes/BootScene.js"></script>
+    <script src="js/scenes/MenuScene.js"></script>
+    <script src="js/scenes/PVScene.js"></script>
+    <script src="js/scenes/LevelSelectScene.js"></script>
+    <script src="js/scenes/GameScene.js"></script>
+    <script src="js/scenes/ResultScene.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

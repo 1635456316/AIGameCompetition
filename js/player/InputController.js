@@ -1,0 +1,34 @@
+/**
+ * 把键盘原始按键映射成本帧/边沿事件输入。
+ */
+class InputController {
+    constructor(scene) {
+        this.scene = scene;
+        this.cursors = scene.input.keyboard.createCursorKeys();
+        this.keys = scene.input.keyboard.addKeys({
+            W: Phaser.Input.Keyboard.KeyCodes.W,
+            A: Phaser.Input.Keyboard.KeyCodes.A,
+            S: Phaser.Input.Keyboard.KeyCodes.S,
+            D: Phaser.Input.Keyboard.KeyCodes.D,
+            SPACE: Phaser.Input.Keyboard.KeyCodes.SPACE,
+            SHIFT: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+            J: Phaser.Input.Keyboard.KeyCodes.J,
+            K: Phaser.Input.Keyboard.KeyCodes.K,
+            L: Phaser.Input.Keyboard.KeyCodes.L
+        });
+    }
+
+    sample() {
+        const k = this.keys;
+        const c = this.cursors;
+        return {
+            left:  k.A.isDown || c.left.isDown,
+            right: k.D.isDown || c.right.isDown,
+            jumpPressed:     Phaser.Input.Keyboard.JustDown(k.SPACE) || Phaser.Input.Keyboard.JustDown(c.up) || Phaser.Input.Keyboard.JustDown(k.W),
+            dashPressed:     Phaser.Input.Keyboard.JustDown(k.SHIFT),
+            attackPressed:   Phaser.Input.Keyboard.JustDown(k.J),
+            rangedPressed:   Phaser.Input.Keyboard.JustDown(k.K),
+            ultimatePressed: Phaser.Input.Keyboard.JustDown(k.L)
+        };
+    }
+}
