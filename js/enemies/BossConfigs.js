@@ -1,4 +1,22 @@
 const BossConfigs = {
+    // 第 1 关 Boss：磁暴军工厂的开场教学 Boss。
+    // 设计参考策划案：电磁三角主炮（tri）+ 重装冲撞（contact）；二阶段召唤磁暴电流地板（slam）。
+    // HP / 伤害比第 2 关最终 Boss 略低，承担教学职责。
+    steelTriceratops: {
+        name: '钢甲三角龙',
+        title: '钢甲三角龙 · 磁暴军工厂主宰',
+        hp: 260,
+        tint: 0x4a6fb0,        // 工业钢蓝
+        phase2Tint: 0x9a4cff,  // 二阶段磁暴紫电
+        contactDamage: 12,
+        speed: 80,
+        stopDistance: 130,
+        phase1Cooldown: 1750,
+        phase2Cooldown: 1100,
+        phase1Skills: ['tri', 'spread'],
+        phase2Skills: ['tri', 'slam', 'spread']
+    },
+    // 第 2 关（最终关）Boss：废弃城区的钢铁咆哮压轴。
     mechanicalDino: {
         name: '机械暴龙',
         title: '机械暴龙 · 钢铁咆哮',
@@ -16,7 +34,7 @@ const BossConfigs = {
     octopusDoctor: {
         name: '深海章鱼博士',
         title: '深海章鱼博士 · 八腕电光',
-        hp: 720,
+        hp: 220,
         tint: 0x8a2be2,
         phase2Tint: 0x00e5ff,
         contactDamage: 12,

@@ -36,9 +36,32 @@ class BootScene extends Phaser.Scene {
 
         // 音频资源
         this.load.audio('bgm_menu', 'assets/audio/MainMenu.mp3');
+        // 每关 BGM：遍历关卡配置，自动用 `bgm_level_${id}_normal/boss` 作 key 预加载。
+        if (typeof LevelConfigs !== 'undefined') {
+            LevelConfigs.forEach((level) => {
+                if (!level) return;
+                if (level.normalBgmUrl) {
+                    this.load.audio(`bgm_level_${level.id}_normal`, level.normalBgmUrl);
+                }
+                if (level.bossBgmUrl) {
+                    this.load.audio(`bgm_level_${level.id}_boss`, level.bossBgmUrl);
+                }
+            });
+        }
 
         // UI 图片资源
         this.load.image('ui_level_select_bg', 'assets/UI/关卡选择背景.png');
+        this.load.image('bg_level1', 'assets/UI/第一关背景图.png');
+
+        // 每关结算背景：遍历关卡配置，自动用 `result_bg_${id}` 作 key 预加载。
+        // 关卡配置的 resultBgUrl 为空时跳过，ResultScene 会回退到程序生成的 bg_far。
+        if (typeof LevelConfigs !== 'undefined') {
+            LevelConfigs.forEach((level) => {
+                if (level && level.resultBgUrl) {
+                    this.load.image(`result_bg_${level.id}`, level.resultBgUrl);
+                }
+            });
+        }
         this.load.image('ui_logo', 'assets/UI/Logo.png');
         this.load.image('ui_btn_start',    'assets/UI/StartBtn.png');
         this.load.image('ui_btn_continue', 'assets/UI/ContinueBtn.png');
@@ -49,12 +72,12 @@ class BootScene extends Phaser.Scene {
         this.load.image('ui_deco_radar',   'assets/UI/Deco3.png');
         this.load.image('ui_deco_paw',     'assets/UI/Deco4.png');
 
-        // 视频资源（PV / 主菜单待机）
+        // 视频资源（主菜单待机）
         // 主菜单待机：丢弃音轨，便于自动循环播放。后续 BGM 单独接入。
         this.load.video('video_menu_idle', 'assets/video/主界面待机.mp4', true);
-        // PV：保留音轨
-        this.load.video('video_intro_pv',  'assets/video/PV-开始.mp4', false);
-        this.load.video('video_ending_pv', 'assets/video/PV-结束.mp4', false);
+        // 关卡 PV（开始 / 终结）不在这里预加载：PVScene 使用 DOM <video> 直接按 URL 播放，
+        // 视频名称写在 LevelConfigs[*].startVideoUrl / endVideoUrl 里，
+        // 由 LevelSelectScene / GameScene 在合适时机触发。
     }
 
     create() {

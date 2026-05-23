@@ -2,6 +2,7 @@
  * 通用 PV 播放场景：通过 scene.start('PVScene', { videoUrl, nextScene, title, pvId }) 启动。
  *
  * pvId：用于在 SaveSystem 中标记该 PV 已观看过。
+ * holdOnEnd：播放自然结束后停留在最后一帧，并显示 continueButtonText 按钮，点击后再跳转。
  * 跳过：PV 开始 3 秒后右上角出现跳过按钮，同时空格 / 回车 / ESC 也开始生效。
  *
  * 注意：不用 Phaser 的 Video GameObject，改用 DOM <video> 覆盖在 canvas 上。
@@ -43,19 +44,26 @@ class PVScene extends Phaser.Scene {
         }
 
         const finish = () => this._finish();
+        const handleEnded = () => {
+            if (this.params.holdOnEnd) {
+                this._showContinueButton();
+            } else {
+                finish();
+            }
+        };
 
         // 跳过按钮和键盘快捷键：PV 开始 3 秒后才启用，避免用户误操作秒过开场。
         this._createSkipButton(finish);
         this.time.delayedCall(3000, () => this._enableSkip(finish));
 
-        this.domVideo.addEventListener('ended', finish, { once: true });
+        this.domVideo.addEventListener('ended', handleEnded, { once: true });
 
         // 音量
         this.input.keyboard.on('keydown-UP',   () => this._setVolume(this.volume + 0.1));
         this.input.keyboard.on('keydown-DOWN', () => this._setVolume(this.volume - 0.1));
 
         // 安全网：超过 60s 仍未结束（视频损坏等）则强制跳转
-        this.time.delayedCall(60000, () => this._finish());
+        this._forceFinishTimer = this.time.delayedCall(60000, () => this._finish());
     }
 
     _createDomVideo(src) {
@@ -178,7 +186,7 @@ class PVScene extends Phaser.Scene {
     }
 
     _enableSkip(callback) {
-        if (this._finished) return;
+        if (this._finished || this._waitingForContinue) return;
         this._skippable = true;
         if (this._skipBtn) {
             this._skipBtn.style.opacity = '0.7';
@@ -218,9 +226,72 @@ class PVScene extends Phaser.Scene {
         return '音量 ' + '■'.repeat(blocks) + '□'.repeat(10 - blocks);
     }
 
+    _showContinueButton() {
+        if (this._finished || this._waitingForContinue) return;
+        this._waitingForContinue = true;
+        if (this._forceFinishTimer) {
+            this._forceFinishTimer.remove(false);
+            this._forceFinishTimer = null;
+        }
+        if (this.domVideo) {
+            try { this.domVideo.pause(); } catch (e) {}
+        }
+        if (this._skipBtn) {
+            this._skipBtn.style.opacity = '0';
+            this._skipBtn.style.pointerEvents = 'none';
+        }
+        if (this.domHint) {
+            this.domHint.textContent = '点击按钮进入关卡    Enter / 空格：开始';
+        }
+
+        const btn = document.createElement('button');
+        btn.textContent = this.params.continueButtonText || '开始战斗！';
+        btn.style.position = 'fixed';
+        btn.style.left = '50%';
+        btn.style.bottom = '82px';
+        btn.style.transform = 'translateX(-50%)';
+        btn.style.zIndex = '10003';
+        btn.style.padding = '14px 42px';
+        btn.style.fontSize = '28px';
+        btn.style.fontWeight = '900';
+        btn.style.fontFamily = 'Arial, Microsoft YaHei, sans-serif';
+        btn.style.color = '#081018';
+        btn.style.background = '#ffd400';
+        btn.style.border = '3px solid #ffffff';
+        btn.style.borderRadius = '10px';
+        btn.style.cursor = 'pointer';
+        btn.style.letterSpacing = '2px';
+        btn.style.boxShadow = '0 0 18px rgba(255, 212, 0, 0.9), 0 0 32px rgba(255, 43, 43, 0.55)';
+        btn.style.textShadow = '0 1px 0 rgba(255, 255, 255, 0.45)';
+        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '0';
+        btn.style.transition = 'opacity 0.24s ease-out, transform 0.14s ease-out, background 0.14s ease-out';
+        btn.onmouseenter = () => {
+            btn.style.background = '#ffffff';
+            btn.style.transform = 'translateX(-50%) scale(1.05)';
+        };
+        btn.onmouseleave = () => {
+            btn.style.background = '#ffd400';
+            btn.style.transform = 'translateX(-50%) scale(1)';
+        };
+        btn.onclick = () => this._finish();
+        this._continueBtn = btn;
+        document.body.appendChild(btn);
+        requestAnimationFrame(() => {
+            if (this._continueBtn) this._continueBtn.style.opacity = '1';
+        });
+
+        this.input.keyboard.once('keydown-SPACE', () => this._finish());
+        this.input.keyboard.once('keydown-ENTER', () => this._finish());
+    }
+
     _finish() {
         if (this._finished) return;
         this._finished = true;
+        if (this._forceFinishTimer) {
+            this._forceFinishTimer.remove(false);
+            this._forceFinishTimer = null;
+        }
         if (this._boundResize) {
             window.removeEventListener('resize', this._boundResize);
             this._boundResize = null;
@@ -239,6 +310,10 @@ class PVScene extends Phaser.Scene {
         if (this._skipBtn) {
             this._skipBtn.remove();
             this._skipBtn = null;
+        }
+        if (this._continueBtn) {
+            this._continueBtn.remove();
+            this._continueBtn = null;
         }
         const { nextScene, nextSceneData, markIntroWatched } = this.params;
         if (markIntroWatched && typeof SaveSystem !== 'undefined') {

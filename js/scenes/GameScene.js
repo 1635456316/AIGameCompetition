@@ -18,9 +18,7 @@ class GameScene extends Phaser.Scene {
         this.cameras.main.setBounds(0, 0, this.levelWidth, this.levelHeight);
 
         // 视差背景
-        this.bgFar  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_far').setOrigin(0).setScrollFactor(0.1);
-        this.bgMid  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_mid').setOrigin(0).setScrollFactor(0.35);
-        this.bgNear = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_near').setOrigin(0).setScrollFactor(0.6);
+        this._createParallaxBackground(W, H);
 
         // 平台组
         this.solids = this.physics.add.staticGroup();
@@ -89,6 +87,8 @@ class GameScene extends Phaser.Scene {
         this.bossTriggered = false;
         this.paused = false;
         this.startTime = this.time.now;
+        this._playLevelBGM('normal');
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._stopLevelBGM());
 
         // HUD
         this.hud = new HUD(this, this.player);
@@ -106,25 +106,31 @@ class GameScene extends Phaser.Scene {
             SaveSystem.completeLevel(this.levelId);
             const isFinal = this.levelId >= LevelConfigs.length;
             const timeSec = Math.floor((this.time.now - this.startTime) / 1000);
-            this.time.delayedCall(2200, () => {
-                if (isFinal) {
-                    this.scene.start('ResultScene', {
-                        levelId: this.levelId,
-                        score: this.hud.score,
-                        maxCombo: this.hud.maxCombo,
-                        timeSec: timeSec,
-                        damageTaken: this.player.damageTakenCount,
-                        isFinal: true
+            const resultData = {
+                levelId: this.levelId,
+                score: this.hud.score,
+                maxCombo: this.hud.maxCombo,
+                timeSec: timeSec,
+                damageTaken: this.player.damageTakenCount,
+                isFinal: isFinal
+            };
+            // 击败 Boss 后 1 秒：若配置了终结 PV 且尚未观看，先播放 PV 再进结算；
+            // 否则保留原 2.2 秒缓冲后直接结算。
+            const endVideoUrl = this.levelConfig.endVideoUrl;
+            const endPVKey = `level${this.levelId}-end`;
+            const shouldPlayEndPV = endVideoUrl && !SaveSystem.hasPVWatched(endPVKey);
+            const delayMs = shouldPlayEndPV ? 1000 : 2200;
+            this.time.delayedCall(delayMs, () => {
+                if (shouldPlayEndPV) {
+                    this.scene.start('PVScene', {
+                        videoUrl: endVideoUrl,
+                        nextScene: 'ResultScene',
+                        nextSceneData: resultData,
+                        pvId: endPVKey,
+                        title: `第 ${this.levelId} 关 · 终结`
                     });
                 } else {
-                    this.scene.start('ResultScene', {
-                        levelId: this.levelId,
-                        score: this.hud.score,
-                        maxCombo: this.hud.maxCombo,
-                        timeSec: timeSec,
-                        damageTaken: this.player.damageTakenCount,
-                        isFinal: false
-                    });
+                    this.scene.start('ResultScene', resultData);
                 }
             });
         };
@@ -162,6 +168,100 @@ class GameScene extends Phaser.Scene {
         this.hazards = Hazards.spawn(this, this.levelConfig);
 
         Effects.bigText(this, this.levelConfig.title, PaletteHex.warning);
+    }
+
+    _levelBGMKey(kind) {
+        return `bgm_level_${this.levelId}_${kind}`;
+    }
+
+    _playLevelBGM(kind) {
+        if (!this.sound || !this.cache || !this.cache.audio) return;
+        const urlField = kind === 'boss' ? 'bossBgmUrl' : 'normalBgmUrl';
+        if (!this.levelConfig || !this.levelConfig[urlField]) return;
+
+        const key = this._levelBGMKey(kind);
+        if (!this.cache.audio.exists(key)) {
+            console.warn('[GameScene] 关卡 BGM 未加载:', key, this.levelConfig[urlField]);
+            return;
+        }
+        if (this._levelBGMKind === kind && this._levelBGM && this._levelBGM.isPlaying) return;
+
+        this._stopLevelBGM();
+        const bgm = this.sound.add(key, {
+            loop: true,
+            volume: SaveSystem.getVolume()
+        });
+        this._levelBGM = bgm;
+        this._levelBGMKind = kind;
+
+        const tryPlay = () => {
+            try {
+                const ctx = this.sound && this.sound.context;
+                if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                    ctx.resume();
+                }
+            } catch (e) {}
+            if (bgm && !bgm.isPlaying) {
+                try { bgm.play(); } catch (e) {}
+            }
+            return bgm && bgm.isPlaying;
+        };
+
+        if (tryPlay()) return;
+        if (this.sound.locked) {
+            this.sound.once(Phaser.Sound.Events.UNLOCKED, () => tryPlay());
+        }
+
+        if (this._levelBgmCleanup) this._levelBgmCleanup();
+        const events = ['pointerdown', 'mousedown', 'touchstart', 'keydown'];
+        const onInput = () => {
+            if (tryPlay()) cleanup();
+        };
+        const cleanup = () => {
+            events.forEach((ev) => window.removeEventListener(ev, onInput, true));
+            this._levelBgmCleanup = null;
+        };
+        events.forEach((ev) => window.addEventListener(ev, onInput, true));
+        this._levelBgmCleanup = cleanup;
+    }
+
+    _stopLevelBGM() {
+        if (this._levelBgmCleanup) {
+            this._levelBgmCleanup();
+            this._levelBgmCleanup = null;
+        }
+        if (this._levelBGM) {
+            try { this._levelBGM.stop(); } catch (e) {}
+            try { this._levelBGM.destroy(); } catch (e) {}
+            this._levelBGM = null;
+        }
+        this._levelBGMKind = null;
+    }
+
+    /**
+     * 关卡视差背景：
+     * - 第 1 关："磁暴军工厂"使用 assets/UI/第一关背景图.png 作为完整设计稿背景。
+     *   按高度等比缩放，水平方向用 tileSprite 平铺以覆盖整个关卡宽度；
+     *   配合较慢的 scrollFactor 制造视差感。
+     * - 其他关：保持原三层程序生成的视差背景。
+     * - 若图片资源缺失，回退到原三层视差。
+     */
+    _createParallaxBackground(W, H) {
+        const useCustomBg = this.levelId === 1 && this.textures.exists('bg_level1');
+        if (useCustomBg) {
+            const src = this.textures.get('bg_level1').getSourceImage();
+            const tileScale = src && src.height ? (H / src.height) : 1;
+            this.bgFar = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_level1')
+                .setOrigin(0)
+                .setScrollFactor(0.2);
+            if (this.bgFar.setTileScale) this.bgFar.setTileScale(tileScale, tileScale);
+            this.bgFar.setDepth(-10);
+            return;
+        }
+
+        this.bgFar  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_far').setOrigin(0).setScrollFactor(0.1);
+        this.bgMid  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_mid').setOrigin(0).setScrollFactor(0.35);
+        this.bgNear = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_near').setOrigin(0).setScrollFactor(0.6);
     }
 
     _buildLevel() {
@@ -255,6 +355,7 @@ class GameScene extends Phaser.Scene {
         const x = this.levelWidth - (bossInfo.xOffset || 220);
         const y = this.levelHeight - (bossInfo.yOffset || 80);
         const bossConfig = BossConfigs[bossInfo.type] || BossConfigs.mechanicalDino;
+        this._playLevelBGM('boss');
         this.boss = new Boss(this, x, y, bossConfig);
         this.physics.add.collider(this.boss.sprite, this.solids);
         this.physics.add.overlap(this.playerBullets, this.boss.sprite, (b, bossSpr) => {

@@ -46,6 +46,11 @@ class SaveSystem {
         SaveSystem.save(data);
     }
 
+    static hasIntroWatched() {
+        const data = SaveSystem.load();
+        return !!data.hasWatchedIntroPV;
+    }
+
     static markPVWatched(pvId) {
         const data = SaveSystem.load();
         if (!Array.isArray(data.watchedPVs)) data.watchedPVs = [];

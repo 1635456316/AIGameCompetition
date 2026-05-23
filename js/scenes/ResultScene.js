@@ -16,7 +16,23 @@ class ResultScene extends Phaser.Scene {
         const W = GAME_WIDTH;
         const H = GAME_HEIGHT;
 
-        this.add.image(W / 2, H / 2, 'bg_far').setDisplaySize(W, H);
+        // 优先使用关卡配置中的结算背景（key 形如 result_bg_1）；
+        // 资源不存在则回退到程序生成的 bg_far 远景，保持原黑色风格。
+        const bgKey = `result_bg_${this.levelId}`;
+        if (this.textures.exists(bgKey)) {
+            const bg = this.add.image(W / 2, H / 2, bgKey);
+            const tex = this.textures.get(bgKey).getSourceImage();
+            if (tex && tex.width && tex.height) {
+                // 等比 cover：高度/宽度取 max，确保填满整个画布无空白
+                const scale = Math.max(W / tex.width, H / tex.height);
+                bg.setScale(scale);
+            } else {
+                bg.setDisplaySize(W, H);
+            }
+        } else {
+            this.add.image(W / 2, H / 2, 'bg_far').setDisplaySize(W, H);
+        }
+        // 暗化叠层，提升文字对比度（结算页有大量评级 / 统计数据要看清）
         this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6);
 
         const scan = this.add.graphics().setDepth(1000);
@@ -66,8 +82,10 @@ class ResultScene extends Phaser.Scene {
         const btnY = 540;
         const buttons = [];
 
+        // 通关 → 显示"下一关"；通关最后一关 → 显示"返回主菜单"。
+        // 旧的"观看结尾 / 倒计时自动播放"逻辑已迁移到 GameScene（Boss 击败后 1 秒自动播放）。
         if (this.isFinal) {
-            buttons.push({ label: '观看结尾', action: () => this._playEnding() });
+            buttons.push({ label: '返回主菜单', action: () => this.scene.start('MenuScene') });
         } else {
             buttons.push({ label: '下一关', action: () => this.scene.start('GameScene', { levelId: this.levelId + 1 }) });
         }
@@ -102,16 +120,6 @@ class ResultScene extends Phaser.Scene {
         return m + ':' + (s < 10 ? '0' : '') + s;
     }
 
-    _playEnding() {
-        this.scene.start('PVScene', {
-            videoKey: 'video_ending_pv',
-            videoUrl: 'assets/video/PV-结束.mp4',
-            nextScene: 'MenuScene',
-            pvId: 'ending',
-            title: '结尾 PV'
-        });
-    }
-
     _createButton(x, y, label, action) {
         const bg = this.add.rectangle(x, y, 180, 50, 0x0a1020, 0.9)
             .setStrokeStyle(2, Palette.warning, 0.8)
@@ -130,5 +138,6 @@ class ResultScene extends Phaser.Scene {
             text.setColor('#ffffff');
         });
         bg.on('pointerdown', action);
+        return { bg, text };
     }
 }
