@@ -2,8 +2,8 @@
  * 通用 PV 播放场景：通过 scene.start('PVScene', { videoUrl, nextScene, title, pvId }) 启动。
  *
  * pvId：用于在 SaveSystem 中标记该 PV 已观看过。
- * holdOnEnd：播放自然结束后停留在最后一帧，并显示 continueButtonText 按钮，点击后再跳转。
- * 跳过：PV 开始 3 秒后右上角出现跳过按钮，同时空格 / 回车 / ESC 也开始生效。
+ * holdOnEnd：播放自然结束后停留在最后一帧；continueButtonText 按钮从一开始显示，点击后跳转。
+ * 跳过：普通 PV 从一开始显示跳过按钮，同时空格 / 回车 / ESC 生效。
  *
  * 注意：不用 Phaser 的 Video GameObject，改用 DOM <video> 覆盖在 canvas 上。
  * 这样可以避免部分浏览器/显卡/视频编码组合出现"有声音但画面黑"的问题。
@@ -26,7 +26,6 @@ class PVScene extends Phaser.Scene {
         this._finished = false;
         this.volume = SaveSystem.getVolume();
         this._pvId = pvId || null;
-        this._skippable = false; // 3 秒后置为 true
 
         this.domVideo = this._createDomVideo(videoUrl);
         document.body.appendChild(this.domVideo);
@@ -34,14 +33,6 @@ class PVScene extends Phaser.Scene {
         document.body.appendChild(this.domOverlay);
         this._fitDomVideo();
         window.addEventListener('resize', this._boundResize = () => this._fitDomVideo());
-
-        const playPromise = this.domVideo.play();
-        if (playPromise && playPromise.catch) {
-            playPromise.catch(() => {
-                this.domVideo.muted = true;
-                this.domVideo.play().catch(() => {});
-            });
-        }
 
         const finish = () => this._finish();
         const handleEnded = () => {
@@ -52,9 +43,17 @@ class PVScene extends Phaser.Scene {
             }
         };
 
-        // 跳过按钮和键盘快捷键：PV 开始 3 秒后才启用，避免用户误操作秒过开场。
-        this._createSkipButton(finish);
-        this.time.delayedCall(3000, () => this._enableSkip(finish));
+        if (this.params.holdOnEnd) {
+            this._showContinueButton();
+        } else {
+            this._createSkipButton(finish);
+            this.input.keyboard.once('keydown-SPACE', finish);
+            this.input.keyboard.once('keydown-ENTER', finish);
+            this.input.keyboard.once('keydown-ESC', finish);
+            if (this.domHint) {
+                this.domHint.textContent = '空格 / 回车 / ESC：跳过    ↑↓：音量';
+            }
+        }
 
         this.domVideo.addEventListener('ended', handleEnded, { once: true });
 
@@ -62,8 +61,13 @@ class PVScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-UP',   () => this._setVolume(this.volume + 0.1));
         this.input.keyboard.on('keydown-DOWN', () => this._setVolume(this.volume - 0.1));
 
-        // 安全网：超过 60s 仍未结束（视频损坏等）则强制跳转
-        this._forceFinishTimer = this.time.delayedCall(60000, () => this._finish());
+        const playPromise = this.domVideo.play();
+        if (playPromise && playPromise.catch) {
+            playPromise.catch(() => {
+                this.domVideo.muted = true;
+                this.domVideo.play().catch(() => {});
+            });
+        }
     }
 
     _createDomVideo(src) {
@@ -112,7 +116,6 @@ class PVScene extends Phaser.Scene {
         }
 
         const hint = document.createElement('div');
-        // 初始仅显示音量提示，3 秒后会换成包含"跳过"的完整提示。
         hint.textContent = '↑↓：音量';
         hint.style.position = 'absolute';
         hint.style.right = '22px';
@@ -163,9 +166,8 @@ class PVScene extends Phaser.Scene {
         btn.style.borderRadius = '4px';
         btn.style.cursor = 'pointer';
         btn.style.letterSpacing = '1px';
-        // 初始隐藏；3 秒后通过 _enableSkip 淡入。
-        btn.style.opacity = '0';
-        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.7';
+        btn.style.pointerEvents = 'auto';
         btn.style.transition = 'opacity 0.35s ease-out, background 0.15s, border-color 0.15s, color 0.15s';
         btn.onmouseenter = () => {
             btn.style.background = 'rgba(255, 212, 0, 0.2)';
@@ -178,26 +180,10 @@ class PVScene extends Phaser.Scene {
             btn.style.color = 'rgba(255, 255, 255, 0.85)';
         };
         btn.onclick = () => {
-            if (!this._skippable) return;
             callback();
         };
         this._skipBtn = btn;
         document.body.appendChild(btn);
-    }
-
-    _enableSkip(callback) {
-        if (this._finished || this._waitingForContinue) return;
-        this._skippable = true;
-        if (this._skipBtn) {
-            this._skipBtn.style.opacity = '0.7';
-            this._skipBtn.style.pointerEvents = 'auto';
-        }
-        if (this.domHint) {
-            this.domHint.textContent = '空格 / 回车 / ESC：跳过    ↑↓：音量';
-        }
-        this.input.keyboard.once('keydown-SPACE', callback);
-        this.input.keyboard.once('keydown-ENTER', callback);
-        this.input.keyboard.once('keydown-ESC', callback);
     }
 
     _fitDomVideo() {
@@ -229,13 +215,6 @@ class PVScene extends Phaser.Scene {
     _showContinueButton() {
         if (this._finished || this._waitingForContinue) return;
         this._waitingForContinue = true;
-        if (this._forceFinishTimer) {
-            this._forceFinishTimer.remove(false);
-            this._forceFinishTimer = null;
-        }
-        if (this.domVideo) {
-            try { this.domVideo.pause(); } catch (e) {}
-        }
         if (this._skipBtn) {
             this._skipBtn.style.opacity = '0';
             this._skipBtn.style.pointerEvents = 'none';
@@ -245,7 +224,7 @@ class PVScene extends Phaser.Scene {
         }
 
         const btn = document.createElement('button');
-        btn.textContent = this.params.continueButtonText || '开始战斗！';
+        btn.textContent = this.params.continueButtonText || '开始战斗!';
         btn.style.position = 'fixed';
         btn.style.left = '50%';
         btn.style.bottom = '82px';
@@ -255,23 +234,28 @@ class PVScene extends Phaser.Scene {
         btn.style.fontSize = '28px';
         btn.style.fontWeight = '900';
         btn.style.fontFamily = 'Arial, Microsoft YaHei, sans-serif';
-        btn.style.color = '#081018';
-        btn.style.background = '#ffd400';
+        btn.style.color = '#ffffff';
+        btn.style.background = '#d71920';
         btn.style.border = '3px solid #ffffff';
         btn.style.borderRadius = '10px';
         btn.style.cursor = 'pointer';
         btn.style.letterSpacing = '2px';
-        btn.style.boxShadow = '0 0 18px rgba(255, 212, 0, 0.9), 0 0 32px rgba(255, 43, 43, 0.55)';
-        btn.style.textShadow = '0 1px 0 rgba(255, 255, 255, 0.45)';
+        btn.style.display = 'flex';
+        btn.style.alignItems = 'center';
+        btn.style.justifyContent = 'center';
+        btn.style.textAlign = 'center';
+        btn.style.lineHeight = '1';
+        btn.style.boxShadow = '0 0 18px rgba(215, 25, 32, 0.9), 0 0 34px rgba(255, 78, 46, 0.65)';
+        btn.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.55)';
         btn.style.pointerEvents = 'auto';
         btn.style.opacity = '0';
         btn.style.transition = 'opacity 0.24s ease-out, transform 0.14s ease-out, background 0.14s ease-out';
         btn.onmouseenter = () => {
-            btn.style.background = '#ffffff';
+            btn.style.background = '#ff2b2b';
             btn.style.transform = 'translateX(-50%) scale(1.05)';
         };
         btn.onmouseleave = () => {
-            btn.style.background = '#ffd400';
+            btn.style.background = '#d71920';
             btn.style.transform = 'translateX(-50%) scale(1)';
         };
         btn.onclick = () => this._finish();
@@ -288,10 +272,6 @@ class PVScene extends Phaser.Scene {
     _finish() {
         if (this._finished) return;
         this._finished = true;
-        if (this._forceFinishTimer) {
-            this._forceFinishTimer.remove(false);
-            this._forceFinishTimer = null;
-        }
         if (this._boundResize) {
             window.removeEventListener('resize', this._boundResize);
             this._boundResize = null;

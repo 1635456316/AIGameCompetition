@@ -85,6 +85,7 @@ class GameScene extends Phaser.Scene {
         // Boss（关卡尾部触发）
         this.boss = null;
         this.bossTriggered = false;
+        this.bossGateHintShown = false;
         this.paused = false;
         this.startTime = this.time.now;
         this._playLevelBGM('normal');
@@ -308,11 +309,12 @@ class GameScene extends Phaser.Scene {
     update(time, delta) {
         if (this.paused || this.gameOver) return;
 
-        // 关卡尾部触发 Boss
-        const triggerOffset = this.levelConfig.bossTriggerOffset || 600;
-        if (!this.bossTriggered && this.player.x > this.levelWidth - triggerOffset) {
+        // 小怪清理完毕，并且走到配置位置后，才触发 Boss。
+        if (!this.bossTriggered && this._shouldSpawnBoss()) {
             this.bossTriggered = true;
             this._spawnBoss();
+        } else if (!this.bossTriggered && this._playerReachedBossTrigger() && !this._allMinionsCleared()) {
+            this._showBossGateHint();
         }
 
         // 玩家
@@ -348,6 +350,25 @@ class GameScene extends Phaser.Scene {
         });
 
         this.hud.update(time);
+    }
+
+    _playerReachedBossTrigger() {
+        const triggerOffset = this.levelConfig.bossTriggerOffset || 600;
+        return this.player && this.player.x > this.levelWidth - triggerOffset;
+    }
+
+    _allMinionsCleared() {
+        return !this.enemies || this.enemies.every(enemy => !enemy.alive);
+    }
+
+    _shouldSpawnBoss() {
+        return this._playerReachedBossTrigger() && this._allMinionsCleared();
+    }
+
+    _showBossGateHint() {
+        if (this.bossGateHintShown) return;
+        this.bossGateHintShown = true;
+        Effects.bigText(this, '先 清 理 残 敌', PaletteHex.warning);
     }
 
     _spawnBoss() {
