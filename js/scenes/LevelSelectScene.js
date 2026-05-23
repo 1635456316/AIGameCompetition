@@ -9,9 +9,16 @@ class LevelSelectScene extends Phaser.Scene {
         const save = SaveSystem.load();
         const unlocked = save.unlockedLevel || 1;
 
-        this.add.image(w / 2, h / 2, 'bg_far').setDisplaySize(w, h);
-        this.add.image(w / 2, h / 2, 'bg_mid').setDisplaySize(w, h).setAlpha(0.9);
-        this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.45);
+        const bg = this.add.image(w / 2, h / 2, 'ui_level_select_bg');
+        // 等比缩放铺满（cover），避免变形；居中显示。
+        const tex = this.textures.get('ui_level_select_bg').getSourceImage();
+        if (tex && tex.width && tex.height) {
+            const scale = Math.max(w / tex.width, h / tex.height);
+            bg.setScale(scale);
+        } else {
+            bg.setDisplaySize(w, h);
+        }
+        this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.35);
 
         const scan = this.add.graphics().setDepth(1000);
         scan.fillStyle(0x000000, 0.16);
@@ -72,8 +79,16 @@ class LevelSelectScene extends Phaser.Scene {
             }
         });
 
-        this.add.text(w / 2, h - 70, 'ESC：返回主菜单    R：重置存档', {
-            font: '16px Arial', color: '#bbbbbb'
+        this._createTextButton(w / 2 - 130, h - 70, 200, 44, '返回主菜单', Palette.hero, () => {
+            this.scene.start('MenuScene');
+        });
+        this._createTextButton(w / 2 + 130, h - 70, 200, 44, '重置存档', Palette.danger, () => {
+            SaveSystem.reset();
+            this.scene.restart();
+        });
+
+        this.add.text(w / 2, h - 30, '快捷键：ESC 返回主菜单    R 重置存档', {
+            font: '12px Arial', color: '#7f8998'
         }).setOrigin(0.5);
 
         this.input.keyboard.on('keydown-ESC', () => this.scene.start('MenuScene'));
@@ -81,5 +96,26 @@ class LevelSelectScene extends Phaser.Scene {
             SaveSystem.reset();
             this.scene.restart();
         });
+    }
+
+    _createTextButton(x, y, width, height, label, accent, action) {
+        const bg = this.add.rectangle(x, y, width, height, 0x0a1020, 0.92)
+            .setStrokeStyle(2, accent, 0.85)
+            .setInteractive({ useHandCursor: true });
+        const text = this.add.text(x, y, label, {
+            font: 'bold 18px Arial', color: '#ffffff',
+            stroke: '#000', strokeThickness: 4
+        }).setOrigin(0.5);
+        bg.on('pointerover', () => {
+            bg.setFillStyle(0x12243a, 1);
+            bg.setStrokeStyle(3, accent, 1);
+            text.setColor(PaletteHex.warning);
+        });
+        bg.on('pointerout', () => {
+            bg.setFillStyle(0x0a1020, 0.92);
+            bg.setStrokeStyle(2, accent, 0.85);
+            text.setColor('#ffffff');
+        });
+        bg.on('pointerdown', action);
     }
 }

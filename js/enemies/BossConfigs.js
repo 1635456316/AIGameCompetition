@@ -2,7 +2,7 @@ const BossConfigs = {
     mechanicalDino: {
         name: '机械暴龙',
         title: '机械暴龙 · 钢铁咆哮',
-        hp: 650,
+        hp: 300,
         tint: 0xff2b2b,
         phase2Tint: 0xff5577,
         contactDamage: 14,

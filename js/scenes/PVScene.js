@@ -1,7 +1,8 @@
 /**
  * 通用 PV 播放场景：通过 scene.start('PVScene', { videoUrl, nextScene, title, pvId }) 启动。
  *
- * pvId：用于跟踪该 PV 是否已看过。首次观看不可跳过，再次观看右上角出现"跳过"按钮。
+ * pvId：用于在 SaveSystem 中标记该 PV 已观看过。
+ * 跳过：PV 开始 3 秒后右上角出现跳过按钮，同时空格 / 回车 / ESC 也开始生效。
  *
  * 注意：不用 Phaser 的 Video GameObject，改用 DOM <video> 覆盖在 canvas 上。
  * 这样可以避免部分浏览器/显卡/视频编码组合出现"有声音但画面黑"的问题。
@@ -24,7 +25,7 @@ class PVScene extends Phaser.Scene {
         this._finished = false;
         this.volume = SaveSystem.getVolume();
         this._pvId = pvId || null;
-        this._skippable = pvId ? SaveSystem.hasPVWatched(pvId) : true;
+        this._skippable = false; // 3 秒后置为 true
 
         this.domVideo = this._createDomVideo(videoUrl);
         document.body.appendChild(this.domVideo);
@@ -43,12 +44,9 @@ class PVScene extends Phaser.Scene {
 
         const finish = () => this._finish();
 
-        if (this._skippable) {
-            this.input.keyboard.once('keydown-SPACE', finish);
-            this.input.keyboard.once('keydown-ENTER', finish);
-            this.input.keyboard.once('keydown-ESC', finish);
-            this._createSkipButton(finish);
-        }
+        // 跳过按钮和键盘快捷键：PV 开始 3 秒后才启用，避免用户误操作秒过开场。
+        this._createSkipButton(finish);
+        this.time.delayedCall(3000, () => this._enableSkip(finish));
 
         this.domVideo.addEventListener('ended', finish, { once: true });
 
@@ -106,11 +104,8 @@ class PVScene extends Phaser.Scene {
         }
 
         const hint = document.createElement('div');
-        if (this._skippable) {
-            hint.textContent = '空格 / 回车 / ESC：跳过    ↑↓：音量';
-        } else {
-            hint.textContent = '↑↓：音量';
-        }
+        // 初始仅显示音量提示，3 秒后会换成包含"跳过"的完整提示。
+        hint.textContent = '↑↓：音量';
         hint.style.position = 'absolute';
         hint.style.right = '22px';
         hint.style.bottom = '18px';
@@ -118,6 +113,7 @@ class PVScene extends Phaser.Scene {
         hint.style.fontWeight = '700';
         hint.style.textShadow = '0 0 6px #000';
         overlay.appendChild(hint);
+        this.domHint = hint;
 
         this.domVolText = document.createElement('div');
         this.domVolText.textContent = this._volLabel();
@@ -144,33 +140,56 @@ class PVScene extends Phaser.Scene {
 
     _createSkipButton(callback) {
         const btn = document.createElement('button');
-        btn.textContent = '跳过 ▸▸';
+        btn.textContent = '跳过 ▸';
         btn.style.position = 'fixed';
-        btn.style.top = '24px';
-        btn.style.right = '28px';
+        btn.style.top = '18px';
+        btn.style.right = '20px';
         btn.style.zIndex = '10002';
-        btn.style.padding = '10px 28px';
-        btn.style.fontSize = '18px';
-        btn.style.fontWeight = '900';
+        btn.style.padding = '4px 12px';
+        btn.style.fontSize = '12px';
+        btn.style.fontWeight = '700';
         btn.style.fontFamily = 'Arial, Microsoft YaHei, sans-serif';
-        btn.style.color = '#fff';
-        btn.style.background = 'rgba(0, 0, 0, 0.6)';
-        btn.style.border = '2px solid rgba(255, 212, 0, 0.7)';
-        btn.style.borderRadius = '6px';
+        btn.style.color = 'rgba(255, 255, 255, 0.85)';
+        btn.style.background = 'rgba(0, 0, 0, 0.35)';
+        btn.style.border = '1px solid rgba(255, 212, 0, 0.45)';
+        btn.style.borderRadius = '4px';
         btn.style.cursor = 'pointer';
-        btn.style.pointerEvents = 'auto';
-        btn.style.transition = 'background 0.15s, border-color 0.15s';
+        btn.style.letterSpacing = '1px';
+        // 初始隐藏；3 秒后通过 _enableSkip 淡入。
+        btn.style.opacity = '0';
+        btn.style.pointerEvents = 'none';
+        btn.style.transition = 'opacity 0.35s ease-out, background 0.15s, border-color 0.15s, color 0.15s';
         btn.onmouseenter = () => {
-            btn.style.background = 'rgba(255, 212, 0, 0.25)';
+            btn.style.background = 'rgba(255, 212, 0, 0.2)';
             btn.style.borderColor = '#ffd400';
+            btn.style.color = '#fff';
         };
         btn.onmouseleave = () => {
-            btn.style.background = 'rgba(0, 0, 0, 0.6)';
-            btn.style.borderColor = 'rgba(255, 212, 0, 0.7)';
+            btn.style.background = 'rgba(0, 0, 0, 0.35)';
+            btn.style.borderColor = 'rgba(255, 212, 0, 0.45)';
+            btn.style.color = 'rgba(255, 255, 255, 0.85)';
         };
-        btn.onclick = callback;
+        btn.onclick = () => {
+            if (!this._skippable) return;
+            callback();
+        };
         this._skipBtn = btn;
         document.body.appendChild(btn);
+    }
+
+    _enableSkip(callback) {
+        if (this._finished) return;
+        this._skippable = true;
+        if (this._skipBtn) {
+            this._skipBtn.style.opacity = '0.7';
+            this._skipBtn.style.pointerEvents = 'auto';
+        }
+        if (this.domHint) {
+            this.domHint.textContent = '空格 / 回车 / ESC：跳过    ↑↓：音量';
+        }
+        this.input.keyboard.once('keydown-SPACE', callback);
+        this.input.keyboard.once('keydown-ENTER', callback);
+        this.input.keyboard.once('keydown-ESC', callback);
     }
 
     _fitDomVideo() {
@@ -215,6 +234,7 @@ class PVScene extends Phaser.Scene {
             this.domOverlay.remove();
             this.domOverlay = null;
             this.domVolText = null;
+            this.domHint = null;
         }
         if (this._skipBtn) {
             this._skipBtn.remove();

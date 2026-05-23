@@ -23,9 +23,36 @@ class HUD {
             font: 'bold 28px Arial', color: PaletteHex.hero
         }).setOrigin(1, 0);
 
-        container.add([this.hpBg, this.hpFill, this.hpLabel, this.enBg, this.enFill, this.enLabel, this.scoreText, this.comboText]);
+        // 暂停按钮（鼠标）
+        const pauseBtnW = 96;
+        const pauseBtnH = 32;
+        const pauseBtnX = GAME_WIDTH - 20 - pauseBtnW / 2;
+        const pauseBtnY = 90;
+        this.pauseBtnBg = scene.add.rectangle(pauseBtnX, pauseBtnY, pauseBtnW, pauseBtnH, 0x0a1020, 0.85)
+            .setStrokeStyle(2, Palette.warning, 0.85)
+            .setInteractive({ useHandCursor: true });
+        this.pauseBtnText = scene.add.text(pauseBtnX, pauseBtnY, '‖ 暂停 (ESC)', {
+            font: 'bold 14px Arial', color: '#ffffff',
+            stroke: '#000', strokeThickness: 3
+        }).setOrigin(0.5);
+        this.pauseBtnBg.on('pointerover', () => {
+            this.pauseBtnBg.setFillStyle(0x12243a, 1);
+            this.pauseBtnText.setColor(PaletteHex.warning);
+        });
+        this.pauseBtnBg.on('pointerout', () => {
+            this.pauseBtnBg.setFillStyle(0x0a1020, 0.85);
+            this.pauseBtnText.setColor('#ffffff');
+        });
+        this.pauseBtnBg.on('pointerdown', () => {
+            if (scene.gameOver) return;
+            if (scene.pauseMenu) scene.pauseMenu.show();
+        });
 
-        [this.hpBg, this.hpFill, this.hpLabel, this.enBg, this.enFill, this.enLabel, this.scoreText, this.comboText]
+        container.add([this.hpBg, this.hpFill, this.hpLabel, this.enBg, this.enFill, this.enLabel,
+            this.scoreText, this.comboText, this.pauseBtnBg, this.pauseBtnText]);
+
+        [this.hpBg, this.hpFill, this.hpLabel, this.enBg, this.enFill, this.enLabel,
+            this.scoreText, this.comboText, this.pauseBtnBg, this.pauseBtnText]
             .forEach(o => o.setScrollFactor(0).setDepth(1000));
 
         this.combo = 0;

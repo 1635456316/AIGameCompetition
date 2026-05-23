@@ -37,6 +37,18 @@ class BootScene extends Phaser.Scene {
         // 音频资源
         this.load.audio('bgm_menu', 'assets/audio/MainMenu.mp3');
 
+        // UI 图片资源
+        this.load.image('ui_level_select_bg', 'assets/UI/关卡选择背景.png');
+        this.load.image('ui_logo', 'assets/UI/Logo.png');
+        this.load.image('ui_btn_start',    'assets/UI/StartBtn.png');
+        this.load.image('ui_btn_continue', 'assets/UI/ContinueBtn.png');
+        this.load.image('ui_btn_setting',  'assets/UI/SettingBtn.png');
+        this.load.image('ui_btn_exit',     'assets/UI/ExitBtn.png');
+        this.load.image('ui_deco_battery', 'assets/UI/Deco1.png');
+        this.load.image('ui_deco_warning', 'assets/UI/Deco2.png');
+        this.load.image('ui_deco_radar',   'assets/UI/Deco3.png');
+        this.load.image('ui_deco_paw',     'assets/UI/Deco4.png');
+
         // 视频资源（PV / 主菜单待机）
         // 主菜单待机：丢弃音轨，便于自动循环播放。后续 BGM 单独接入。
         this.load.video('video_menu_idle', 'assets/video/主界面待机.mp4', true);

@@ -59,6 +59,8 @@ class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.enemyBullets, this.player.sprite, (a, b) => {
             const bullet = this.enemyBullets.contains(a) ? a : (this.enemyBullets.contains(b) ? b : null);
             if (!bullet || !bullet.active) return;
+            // 冲刺无敌时完全穿过子弹，不触发受击特效，也不销毁子弹。
+            if (this._playerIsPhasing()) return;
             this._damagePlayer(8, bullet.x);
             Effects.hitFlash(this, bullet.x, bullet.y);
             bullet.destroy();
@@ -78,6 +80,7 @@ class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.enemySprites, this.player.sprite, (eSpr, pSpr) => {
             const enemy = eSpr.owner;
             if (!enemy || !enemy.alive) return;
+            if (this._playerIsPhasing()) return;
             this._damagePlayer(enemy.contactDamage, enemy.x);
         });
 
@@ -126,14 +129,10 @@ class GameScene extends Phaser.Scene {
             });
         };
         this.onPlayerDead = () => {
-            this.time.delayedCall(800, () => {
-                this.add.text(this.cameras.main.scrollX + GAME_WIDTH / 2,
-                              this.cameras.main.scrollY + GAME_HEIGHT / 2,
-                              '失败  按 R 重试 / ESC 返回菜单', {
-                    font: 'bold 36px Arial', color: PaletteHex.danger,
-                    stroke: '#000', strokeThickness: 6
-                }).setOrigin(0.5).setScrollFactor(0).setDepth(2000);
-            });
+            if (this.gameOver) return;
+            this.gameOver = true;
+            Effects.shake(this, 400, 0.02);
+            this.time.delayedCall(900, () => this._showGameOver());
         };
 
         // 暂停菜单
@@ -141,6 +140,10 @@ class GameScene extends Phaser.Scene {
 
         // 系统快捷键
         this.input.keyboard.on('keydown-ESC', () => {
+            if (this.gameOver) {
+                this.scene.start('MenuScene');
+                return;
+            }
             if (this.paused) {
                 this.pauseMenu.hide();
             } else {
@@ -148,6 +151,10 @@ class GameScene extends Phaser.Scene {
             }
         });
         this.input.keyboard.on('keydown-R', () => {
+            if (this.gameOver) {
+                this.scene.restart();
+                return;
+            }
             if (!this.paused) this.scene.restart();
         });
 
@@ -199,7 +206,7 @@ class GameScene extends Phaser.Scene {
     }
 
     update(time, delta) {
-        if (this.paused) return;
+        if (this.paused || this.gameOver) return;
 
         // 关卡尾部触发 Boss
         const triggerOffset = this.levelConfig.bossTriggerOffset || 600;
@@ -263,6 +270,7 @@ class GameScene extends Phaser.Scene {
             this._damageBossFromMelee(m, false);
         });
         this.physics.add.overlap(this.boss.sprite, this.player.sprite, () => {
+            if (this._playerIsPhasing()) return;
             if (this.boss && this.boss.alive) this._damagePlayer(this.boss.contactDamage, this.boss.x);
         });
 
@@ -393,7 +401,78 @@ class GameScene extends Phaser.Scene {
     }
 
     _damagePlayer(amount, fromX) {
+        if (this._playerIsPhasing()) return;
         this.player.takeDamage(amount, fromX);
         Effects.shake(this, 140, 0.012);
+    }
+
+    _playerIsPhasing() {
+        if (!this.player || !this.player.fsm) return false;
+        return this.player.fsm.is('dash') || this.player.fsm.is('dead');
+    }
+
+    _showGameOver() {
+        if (this._gameOverShown) return;
+        this._gameOverShown = true;
+
+        const w = GAME_WIDTH;
+        const h = GAME_HEIGHT;
+
+        // 暂停物理世界，让玩家"画面冻结"。视觉 tween 保留，方便覆盖层淡入。
+        this.physics.world.pause();
+
+        const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0)
+            .setScrollFactor(0).setDepth(2500);
+        this.tweens.add({ targets: overlay, alpha: 0.78, duration: 320, ease: 'Sine.easeOut' });
+
+        const panel = this.add.rectangle(w / 2, h / 2, 540, 320, 0x0a1020, 0.95)
+            .setStrokeStyle(3, Palette.danger, 0.95)
+            .setScrollFactor(0).setDepth(2501).setAlpha(0);
+        this.tweens.add({ targets: panel, alpha: 1, duration: 280, delay: 120 });
+
+        const title = this.add.text(w / 2, h / 2 - 90, '挑 战 失 败', {
+            font: 'bold 56px Arial', color: PaletteHex.danger,
+            stroke: '#000', strokeThickness: 8
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2502).setAlpha(0);
+        this.tweens.add({ targets: title, alpha: 1, duration: 300, delay: 160 });
+
+        const subtitle = this.add.text(w / 2, h / 2 - 30, this.levelConfig.title || '', {
+            font: 'bold 18px Arial', color: '#cbd7e6'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2502).setAlpha(0);
+        this.tweens.add({ targets: subtitle, alpha: 1, duration: 260, delay: 240 });
+
+        this._createGameOverButton(w / 2 - 110, h / 2 + 60, '重新挑战', Palette.warning, () => {
+            this.scene.restart();
+        });
+        this._createGameOverButton(w / 2 + 110, h / 2 + 60, '返回主菜单', Palette.hero, () => {
+            this.scene.start('MenuScene');
+        });
+
+        this.add.text(w / 2, h / 2 + 130, 'R：重新挑战    ESC：返回主菜单', {
+            font: '14px Arial', color: '#7f8998'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2502);
+    }
+
+    _createGameOverButton(x, y, label, accent, action) {
+        const bg = this.add.rectangle(x, y, 190, 52, 0x070b12, 0.95)
+            .setStrokeStyle(2, accent, 0.85)
+            .setScrollFactor(0).setDepth(2503)
+            .setInteractive({ useHandCursor: true });
+        const text = this.add.text(x, y, label, {
+            font: 'bold 22px Arial', color: '#ffffff',
+            stroke: '#000', strokeThickness: 4
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2504);
+
+        bg.on('pointerover', () => {
+            bg.setFillStyle(0x12243a, 1);
+            bg.setStrokeStyle(3, accent, 1);
+            text.setColor(PaletteHex.warning);
+        });
+        bg.on('pointerout', () => {
+            bg.setFillStyle(0x070b12, 0.95);
+            bg.setStrokeStyle(2, accent, 0.85);
+            text.setColor('#ffffff');
+        });
+        bg.on('pointerdown', action);
     }
 }

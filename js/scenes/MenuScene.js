@@ -7,8 +7,9 @@ class MenuScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         const save = SaveSystem.load();
-        const unlockedLevel = save.unlockedLevel || 1;
-        const completedCount = Array.isArray(save.completedLevels) ? save.completedLevels.length : 0;
+        const hasProgress = !!save.hasWatchedIntroPV
+            || (Array.isArray(save.completedLevels) && save.completedLevels.length > 0)
+            || (save.unlockedLevel && save.unlockedLevel > 1);
 
         // 主菜单待机视频：使用 DOM video 放在 canvas 后面，避免 Phaser 视频黑屏。
         this._createMenuVideoBackground();
@@ -17,196 +18,175 @@ class MenuScene extends Phaser.Scene {
         // 主菜单 BGM
         this._startMenuBGM();
 
-        this._createVideoGrade(width, height);
-        this._createWarningFrame(width, height);
+        // 暗化背景，提升 UI 对比度
+        this.add.rectangle(width / 2, height / 2, width, height, 0x05060e, 0.34);
 
-        const scan = this.add.graphics();
-        scan.fillStyle(0x000000, 0.14);
-        for (let y = 0; y < height; y += 4) {
-            scan.fillRect(0, y, width, 2);
-        }
-        scan.setDepth(1000);
+        // 扫描线，特摄电视质感
+        const scan = this.add.graphics().setDepth(1000);
+        scan.fillStyle(0x000000, 0.12);
+        for (let y = 0; y < height; y += 4) scan.fillRect(0, y, width, 2);
 
-        const titleShadow = this.add.text(82, 116, '无敌\n暴龙战士', {
-            font: 'bold 86px Arial',
-            color: '#050509',
-            stroke: '#050509',
-            strokeThickness: 16,
-            lineSpacing: -14
-        }).setOrigin(0, 0);
+        // 装饰：左上电池条 / 右上警告框
+        this._addDeco('ui_deco_battery', 115, 60, 240);
+        this._addDeco('ui_deco_warning', 1070, 90, 430);
 
-        const title = this.add.text(72, 108, '无敌\n暴龙战士', {
-            font: 'bold 86px Arial',
-            color: PaletteHex.danger,
-            stroke: '#050509',
-            strokeThickness: 12,
-            lineSpacing: -14
-        }).setOrigin(0, 0);
-
-        title.setShadow(0, 0, '#ff2b2b', 18, true, true);
+        // 标题 Logo（右半画面）
+        const logo = this.add.image(800, 320, 'ui_logo');
+        const logoTargetWidth = 560;
+        if (logo.width > 0) logo.setScale(logoTargetWidth / logo.width);
+        logo.setDepth(20);
         this.tweens.add({
-            targets: [title, titleShadow],
-            x: '+=8',
-            duration: 70,
+            targets: logo,
+            scale: { from: logo.scale, to: logo.scale * 1.025 },
+            duration: 1800,
             yoyo: true,
             repeat: -1,
-            repeatDelay: 1300,
-            ease: 'Stepped'
+            ease: 'Sine.easeInOut'
         });
 
-        this.add.text(78, 292, 'INVINCIBLE DRAGON FIGHTER', {
-            font: 'bold 22px Arial',
-            color: PaletteHex.warning,
-            stroke: '#000000',
-            strokeThickness: 5
-        }).setOrigin(0, 0.5);
-
-        this.add.text(78, 334, 'TOKUSATSU EMERGENCY BROADCAST', {
-            font: 'bold 13px Arial',
-            color: '#9eefff'
-        }).setOrigin(0, 0.5).setAlpha(0.9);
-
-        const progressLabel = `LEVEL ${unlockedLevel} READY  /  ${completedCount} CLEARED`;
-        this._createStatusPill(78, 374, progressLabel);
-
+        // 4 个按钮（左半画面）
         const menuItems = [
             {
-                label: save.hasWatchedIntroPV ? '继续作战' : '开始游戏',
-                accent: Palette.hero,
-                action: () => this._startGameFlow(save)
+                key: 'ui_btn_start',
+                label: '开始游戏',
+                enabled: true,
+                action: () => this._startGameFlow(save, false)
             },
             {
-                label: '关卡选择',
-                accent: Palette.warning,
-                action: () => this.scene.start('LevelSelectScene')
+                key: 'ui_btn_continue',
+                label: '继续游戏',
+                enabled: hasProgress,
+                action: () => this._startGameFlow(save, true)
             },
             {
-                label: '设置',
-                accent: Palette.energy,
+                key: 'ui_btn_setting',
+                label: '游戏设置',
+                enabled: true,
                 action: () => {
                     this._keepMenuBGM = true;
                     this.scene.start('SettingsScene');
                 }
             },
             {
-                label: '重置存档',
-                accent: Palette.danger,
-                action: () => {
-                    this._keepMenuBGM = true;
-                    SaveSystem.reset();
-                    this.scene.restart();
-                }
+                key: 'ui_btn_exit',
+                label: '退出游戏',
+                enabled: true,
+                action: () => this._exitGame()
             }
         ];
 
-        const menuStartY = 408;
-        const pulse = this.add.rectangle(256, menuStartY + 16, 354, 42, Palette.hero, 0.14)
-            .setStrokeStyle(1, Palette.hero, 0.5);
-        this.tweens.add({
-            targets: pulse,
-            alpha: { from: 0.14, to: 0.34 },
-            duration: 760,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
-        });
-
+        const btnStartY = 315;
+        const btnGap = 105;
+        const btnX = 210;
         this.menuButtons = menuItems.map((item, index) => {
-            return this._createMenuButton(78, menuStartY + index * 58, 360, item.label, item.accent, item.action);
+            return this._createImageButton(
+                btnX,
+                btnStartY + index * btnGap,
+                item.key,
+                item.label,
+                item.enabled,
+                item.action
+            );
         });
 
-        this.add.text(78, height - 42, '© 199X DRAGON DEFENSE FORCE', {
-            font: 'bold 12px Arial',
+        // 右下角装饰：雷达状态 + 爪印徽章
+        this._addDeco('ui_deco_radar', 1040, 645, 320);
+        this._addDeco('ui_deco_paw',   1230, 640, 90);
+
+        // 底部版权
+        this.add.text(width / 2, height - 14, '© 199X DRAGON DEFENSE FORCE', {
+            font: 'bold 11px Arial',
             color: '#7f8998'
-        }).setOrigin(0, 0.5).setAlpha(0.85);
+        }).setOrigin(0.5).setAlpha(0.7).setDepth(20);
 
-        this.input.keyboard.once('keydown-ENTER', () => this._startGameFlow(save));
+        // Enter 快捷键：开始游戏
+        this.input.keyboard.once('keydown-ENTER', () => this._startGameFlow(save, false));
     }
 
-    _createVideoGrade(width, height) {
-        this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.26);
-        this.add.rectangle(260, height / 2, 560, height, 0x03040a, 0.72);
-        this.add.rectangle(590, height / 2, 140, height, 0x03040a, 0.34).setAngle(-8);
-
-        const vignette = this.add.graphics();
-        vignette.fillStyle(0x000000, 0.36);
-        vignette.fillRect(0, 0, width, 46);
-        vignette.fillRect(0, height - 56, width, 56);
-        vignette.fillRect(0, 0, 42, height);
-        vignette.fillRect(width - 42, 0, 42, height);
-    }
-
-    _createWarningFrame(width, height) {
-        const frame = this.add.graphics();
-        frame.lineStyle(3, Palette.danger, 0.82);
-        frame.strokeRect(28, 24, width - 56, height - 48);
-        frame.lineStyle(1, Palette.warning, 0.55);
-        frame.strokeRect(42, 38, width - 84, height - 76);
-
-        for (let index = 0; index < 9; index++) {
-            const x = 50 + index * 44;
-            frame.fillStyle(index % 2 === 0 ? Palette.danger : Palette.warning, 0.78);
-            frame.fillRect(x, 48, 26, 5);
+    _addDeco(key, x, y, targetWidth) {
+        const img = this.add.image(x, y, key).setDepth(15);
+        if (img.width > 0 && targetWidth) {
+            img.setScale(targetWidth / img.width);
         }
-
-        this.add.text(width - 54, 50, 'SIGNAL: LIVE', {
-            font: 'bold 13px Arial',
-            color: PaletteHex.warning,
-            stroke: '#000000',
-            strokeThickness: 4
-        }).setOrigin(1, 0.5);
+        return img;
     }
 
-    _createStatusPill(x, y, label) {
-        const width = 318;
-        this.add.rectangle(x + width / 2, y, width, 30, 0x08121c, 0.86)
-            .setStrokeStyle(2, Palette.hero, 0.76);
-        this.add.text(x + 16, y, label, {
-            font: 'bold 13px Arial',
-            color: '#dffbff'
-        }).setOrigin(0, 0.5);
-    }
+    _createImageButton(x, y, textureKey, label, enabled, action) {
+        const container = this.add.container(x, y).setDepth(30);
 
-    _createMenuButton(x, y, width, label, accent, action) {
-        const button = this.add.container(x, y);
-        const background = this.add.rectangle(width / 2, 0, width, 50, 0x070b12, 0.88)
-            .setStrokeStyle(2, accent, 0.72);
-        const marker = this.add.rectangle(16, 0, 8, 34, accent, 0.95);
-        const text = this.add.text(42, 0, label, {
-            font: 'bold 25px Arial',
-            color: '#ffffff',
-            stroke: '#000000',
+        const bg = this.add.image(0, 0, textureKey);
+        const targetWidth = 380;
+        if (bg.width > 0) bg.setScale(targetWidth / bg.width);
+        bg.setOrigin(0.5, 0.5);
+
+        // 文字：按钮图右半部分（左半已被图标 + START/头盔/齿轮/退出 占用）
+        const text = this.add.text(50, -2, label, {
+            font: 'bold 28px Microsoft YaHei, Arial',
+            color: '#e8faff',
+            stroke: '#001428',
             strokeThickness: 5
-        }).setOrigin(0, 0.5);
-        const chevron = this.add.text(width - 30, 0, '>', {
-            font: 'bold 26px Arial',
-            color: PaletteHex.warning,
-            stroke: '#000000',
-            strokeThickness: 4
         }).setOrigin(0.5);
 
-        button.add([background, marker, text, chevron]);
-        const hitZone = this.add.zone(x + width / 2, y, width, 50).setInteractive({ useHandCursor: true });
+        container.add([bg, text]);
 
+        if (!enabled) {
+            container.setAlpha(0.45);
+            bg.setTint(0x4d5566);
+            text.setColor('#88a0b8');
+            return container;
+        }
+
+        // 命中区域：用按钮图的真实显示尺寸
+        const hitW = bg.displayWidth * 0.92;
+        const hitH = bg.displayHeight * 0.72;
+        const hitZone = this.add.zone(x, y, hitW, hitH)
+            .setInteractive({ useHandCursor: true })
+            .setDepth(31);
+
+        const baseScale = container.scale;
         hitZone.on('pointerover', () => {
-            background.setFillStyle(0x101c2d, 0.96);
-            background.setStrokeStyle(3, Palette.warning, 0.95);
-            marker.setScale(1.25, 1);
-            text.setColor(PaletteHex.warning);
-            this.tweens.add({ targets: button, x: x + 10, duration: 90, ease: 'Sine.easeOut' });
+            bg.setTint(0xb8f4ff);
+            text.setColor('#ffd400');
+            this.tweens.add({
+                targets: container,
+                scale: baseScale * 1.05,
+                duration: 110,
+                ease: 'Sine.easeOut'
+            });
         });
         hitZone.on('pointerout', () => {
-            background.setFillStyle(0x070b12, 0.88);
-            background.setStrokeStyle(2, accent, 0.72);
-            marker.setScale(1, 1);
-            text.setColor('#ffffff');
-            this.tweens.add({ targets: button, x, duration: 120, ease: 'Sine.easeOut' });
+            bg.clearTint();
+            text.setColor('#e8faff');
+            this.tweens.add({
+                targets: container,
+                scale: baseScale,
+                duration: 130,
+                ease: 'Sine.easeOut'
+            });
         });
-        hitZone.on('pointerdown', action);
-        return button;
+        hitZone.on('pointerdown', () => {
+            this.tweens.add({
+                targets: container,
+                scale: baseScale * 0.96,
+                duration: 70,
+                yoyo: true,
+                onComplete: action
+            });
+        });
+
+        return container;
     }
 
-    _startGameFlow(save) {
+    /**
+     * fromContinue=false 表示"开始游戏"——播放开场 PV 后进入选关；
+     * fromContinue=true 表示"继续游戏"——直接进入选关。
+     */
+    _startGameFlow(save, fromContinue) {
+        if (fromContinue) {
+            this.scene.start('LevelSelectScene');
+            return;
+        }
+
         if (save.hasWatchedIntroPV) {
             this.scene.start('LevelSelectScene');
             return;
@@ -222,12 +202,40 @@ class MenuScene extends Phaser.Scene {
         });
     }
 
+    _exitGame() {
+        // 浏览器一般会拒绝 window.close() 关闭非脚本打开的窗口，做一个 fallback 黑屏。
+        try { window.close(); } catch (e) {}
+
+        const w = this.cameras.main.width;
+        const h = this.cameras.main.height;
+        const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0)
+            .setDepth(5000);
+        const tip = this.add.text(w / 2, h / 2, '感 谢 游 玩\n请关闭网页窗口', {
+            font: 'bold 36px Microsoft YaHei, Arial',
+            color: '#ffffff',
+            align: 'center',
+            stroke: '#000', strokeThickness: 6
+        }).setOrigin(0.5).setDepth(5001).setAlpha(0);
+
+        this.tweens.add({ targets: overlay, alpha: 0.95, duration: 380 });
+        this.tweens.add({ targets: tip, alpha: 1, duration: 380, delay: 200 });
+        this._destroyMenuVideoBackground();
+    }
+
     _createMenuVideoBackground() {
         this._destroyMenuVideoBackground();
 
-        this.game.canvas.style.position = 'relative';
-        this.game.canvas.style.zIndex = '1';
-        this.game.canvas.style.background = 'transparent';
+        const canvas = this.game.canvas;
+        // 先把原始 inline 样式存下来，离开主菜单时恢复，避免污染其它场景的居中/缩放。
+        this._canvasOriginalStyle = {
+            position: canvas.style.position,
+            zIndex: canvas.style.zIndex,
+            background: canvas.style.background
+        };
+        // 用 relative 不脱离 body 的 flex 居中，只为了让 zIndex 生效。
+        canvas.style.position = 'relative';
+        canvas.style.zIndex = '2';
+        canvas.style.background = 'transparent';
 
         const video = document.createElement('video');
         video.src = 'assets/video/主界面待机.mp4';
@@ -237,26 +245,29 @@ class MenuScene extends Phaser.Scene {
         video.muted = true;
         video.volume = 0;
         video.playsInline = true;
+        // 跟随 canvas 的实际显示区域，避免 UI 在中间而视频铺满整个窗口的不协调感。
         video.style.position = 'fixed';
-        video.style.left = '50%';
-        video.style.top = '50%';
-        video.style.transform = 'translate(-50%, -50%)';
-        video.style.zIndex = '0';
+        video.style.zIndex = '1';
         video.style.pointerEvents = 'none';
         video.style.background = '#000';
+        video.style.objectFit = 'cover';
         this._menuDomVideo = video;
         document.body.appendChild(video);
 
         this._menuVideoResize = () => {
-            const vw = video.videoWidth || 1280;
-            const vh = video.videoHeight || 720;
-            const scale = Math.max(window.innerWidth / vw, window.innerHeight / vh);
-            video.style.width = `${vw * scale}px`;
-            video.style.height = `${vh * scale}px`;
+            const rect = canvas.getBoundingClientRect();
+            video.style.left = `${rect.left}px`;
+            video.style.top = `${rect.top}px`;
+            video.style.width = `${rect.width}px`;
+            video.style.height = `${rect.height}px`;
         };
         video.addEventListener('loadedmetadata', this._menuVideoResize);
         window.addEventListener('resize', this._menuVideoResize);
+        // Phaser 的 scale 事件比 window.resize 更准（包含 autoCenter 等内部计算）。
+        this.scale.on('resize', this._menuVideoResize);
+        // 初次延后一帧执行，保证 canvas 已经布局完成。
         this._menuVideoResize();
+        requestAnimationFrame(this._menuVideoResize);
 
         video.play().catch(() => {});
 
@@ -266,12 +277,23 @@ class MenuScene extends Phaser.Scene {
     _destroyMenuVideoBackground() {
         if (this._menuVideoResize) {
             window.removeEventListener('resize', this._menuVideoResize);
+            try { this.scale.off('resize', this._menuVideoResize); } catch (e) {}
             this._menuVideoResize = null;
         }
         if (this._menuDomVideo) {
             try { this._menuDomVideo.pause(); } catch (e) {}
             this._menuDomVideo.remove();
             this._menuDomVideo = null;
+        }
+        // 恢复 canvas inline 样式，避免影响 LevelSelectScene 等后续场景。
+        if (this._canvasOriginalStyle) {
+            const canvas = this.game.canvas;
+            canvas.style.position = this._canvasOriginalStyle.position || '';
+            canvas.style.zIndex = this._canvasOriginalStyle.zIndex || '';
+            canvas.style.background = this._canvasOriginalStyle.background || '';
+            this._canvasOriginalStyle = null;
+            // 让 ScaleManager 重新计算一次，确保 FIT 居中正常。
+            try { this.scale.refresh(); } catch (e) {}
         }
     }
 
