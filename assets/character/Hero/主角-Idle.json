@@ -1,0 +1,99 @@
+{
+  "source": "主角-Idle.mp4",
+  "videoSize": {
+    "width": 640,
+    "height": 640
+  },
+  "frameWidth": 640,
+  "frameHeight": 640,
+  "columns": 9,
+  "rows": 1,
+  "padding": 0,
+  "sheetWidth": 5760,
+  "sheetHeight": 640,
+  "transparent": true,
+  "background": null,
+  "fit": "origin",
+  "chromaKey": {
+    "color": "#ffffff",
+    "tolerance": 109,
+    "feather": 100,
+    "spill": true,
+    "flood": true
+  },
+  "count": 9,
+  "frames": [
+    {
+      "index": 0,
+      "time": 0,
+      "x": 0,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 1,
+      "time": 0.199998,
+      "x": 640,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 2,
+      "time": 0.399996,
+      "x": 1280,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 3,
+      "time": 0.599994,
+      "x": 1920,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 4,
+      "time": 0.799992,
+      "x": 2560,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 5,
+      "time": 0.99999,
+      "x": 3200,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 6,
+      "time": 1.199988,
+      "x": 3840,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 7,
+      "time": 1.33332,
+      "x": 4480,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 8,
+      "time": 1.478,
+      "x": 5120,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    }
+  ]
+}

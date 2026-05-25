@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频生成序列帧</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top-bar">
+        <h1>视频生成序列帧</h1>
+        <div class="top-actions">
+            <label class="btn primary">
+                <input type="file" id="file-input" accept="video/*" hidden>
+                选择视频文件
+            </label>
+            <span id="file-name" class="file-name">未选择</span>
+        </div>
+    </header>
+
+    <main class="content">
+        <!-- 拖入区域 / 播放器容器 -->
+        <section id="drop-zone" class="drop-zone">
+            <div id="drop-hint" class="drop-hint">
+                <div class="drop-icon">+</div>
+                <div>拖拽视频文件到此处，或点击上方"选择视频文件"</div>
+                <div class="hint-sub">支持 mp4 / webm / mov 等浏览器可解码的格式</div>
+            </div>
+            <video id="video" playsinline></video>
+        </section>
+
+        <!-- 时间轴 & 控制 -->
+        <section class="timeline-section" id="timeline-section" hidden>
+            <div class="timeline-row">
+                <span id="time-current" class="time-text">00:00.000</span>
+                <div class="seek-wrap">
+                    <input type="range" id="seek-bar" min="0" max="0" step="0.001" value="0">
+                    <div id="seek-marks" class="seek-marks"></div>
+                </div>
+                <span id="time-total" class="time-text">00:00.000</span>
+            </div>
+            <div class="controls-row">
+                <button class="btn" id="btn-play">播放</button>
+                <button class="btn" id="btn-prev-frame" title="上一帧 (←)">‹ 帧</button>
+                <button class="btn" id="btn-next-frame" title="下一帧 (→)">帧 ›</button>
+                <label class="inline-field">
+                    FPS
+                    <input type="number" id="fps-input" min="1" max="240" step="1" value="30">
+                </label>
+                <span class="ctrl-divider"></span>
+                <button class="btn primary" id="btn-mark" title="标记当前帧 (M)">★ 标记当前帧</button>
+                <label class="inline-field">
+                    平均
+                    <input type="number" id="bulk-count" min="1" max="500" step="1" value="12">
+                    帧
+                </label>
+                <button class="btn" id="btn-bulk-mark" title="在视频时长上等距均匀采样 N 帧（高速模式）">⚡ 一键均匀标记</button>
+                <span class="ctrl-divider"></span>
+                <button class="btn danger" id="btn-clear-marks">清空标记</button>
+                <span class="grow"></span>
+                <span class="bulk-status" id="bulk-status"></span>
+                <span class="mark-count">已标记 <b id="mark-count">0</b> 帧</span>
+            </div>
+        </section>
+
+        <!-- 已标记帧列表 + 动画预览 -->
+        <section class="marks-section" id="marks-section" hidden>
+            <div class="marks-header">
+                <h2>动画预览 &amp; 已标记帧</h2>
+            </div>
+
+            <div class="anim-preview">
+                <div class="anim-canvas-box">
+                    <canvas id="anim-canvas"></canvas>
+                    <div id="anim-empty" class="anim-empty">标记至少一帧后即可在此预览动画</div>
+                </div>
+                <div class="anim-controls">
+                    <button class="btn primary" id="btn-anim-play" disabled>▶ 播放动画</button>
+                    <button class="btn" id="btn-anim-stop" disabled>■ 停止</button>
+                    <label class="inline-field">
+                        间隔 (ms)
+                        <input type="number" id="anim-interval" min="10" max="5000" step="10" value="100">
+                    </label>
+                    <label class="inline-field">
+                        FPS
+                        <input type="number" id="anim-fps" min="0.1" max="240" step="0.1" value="10">
+                    </label>
+                    <label class="inline-field checkbox-inline">
+                        <input type="checkbox" id="anim-loop" checked>
+                        循环
+                    </label>
+                    <label class="inline-field checkbox-inline">
+                        <input type="checkbox" id="anim-pingpong">
+                        来回播放
+                    </label>
+                    <span class="grow"></span>
+                    <span class="anim-status" id="anim-status">第 0 / 0 帧</span>
+                </div>
+            </div>
+
+            <div id="marks-list" class="marks-list"></div>
+        </section>
+
+        <!-- 背景抠图 / Chroma Key -->
+        <section class="chroma-section" id="chroma-section" hidden>
+            <h2>背景抠图 (Chroma Key) <span class="hint-tag">视频本身不带透明，需要在这里指定背景色把它"抠掉"</span></h2>
+            <div class="config-grid">
+                <label class="field checkbox-field">
+                    <input type="checkbox" id="cfg-chroma-enable">
+                    启用抠图
+                </label>
+                <label class="field">
+                    抠除颜色
+                    <div class="color-row">
+                        <input type="color" id="cfg-chroma-color" value="#ffffff">
+                        <button class="btn small" type="button" id="btn-pick-color" title="点击按钮后再点视频画面取色">从画面取色</button>
+                    </div>
+                </label>
+                <label class="field">
+                    容差 <span class="range-val" id="cfg-chroma-tol-val">30</span>
+                    <input type="range" id="cfg-chroma-tol" min="0" max="200" step="1" value="30">
+                </label>
+                <label class="field">
+                    边缘羽化 <span class="range-val" id="cfg-chroma-feather-val">15</span>
+                    <input type="range" id="cfg-chroma-feather" min="0" max="100" step="1" value="15">
+                </label>
+                <label class="field checkbox-field" title="只把和画面边缘相连的同色区域抠掉，角色内部相同颜色（眼睛/高光）会被保留">
+                    <input type="checkbox" id="cfg-chroma-flood" checked>
+                    仅从边缘抠除（保留内部）
+                </label>
+                <label class="field checkbox-field" title="同时移除接近抠除颜色的颜色溢出（去边）">
+                    <input type="checkbox" id="cfg-chroma-spill">
+                    去边（spill）
+                </label>
+            </div>
+            <div class="chroma-tip" id="chroma-pick-hint" hidden>
+                取色模式：点击上方视频画面 或 动画预览画布上的背景区域来吸取颜色（按 Esc 取消）
+            </div>
+        </section>
+
+        <!-- 导出配置 -->
+        <section class="export-section" id="export-section" hidden>
+            <h2>导出配置</h2>
+            <div class="config-grid">
+                <label class="field">
+                    列数（N）
+                    <input type="number" id="cfg-columns" min="1" max="100" step="1" value="8">
+                </label>
+                <label class="field checkbox-field">
+                    <input type="checkbox" id="cfg-use-origin" checked>
+                    使用原始分辨率
+                </label>
+                <label class="field">
+                    目标宽度
+                    <input type="number" id="cfg-width" min="1" step="1" value="256" disabled>
+                </label>
+                <label class="field">
+                    目标高度
+                    <input type="number" id="cfg-height" min="1" step="1" value="256" disabled>
+                </label>
+                <label class="field">
+                    缩放模式
+                    <select id="cfg-fit" disabled>
+                        <option value="contain">等比 contain（留空）</option>
+                        <option value="cover">等比 cover（裁切）</option>
+                        <option value="stretch">拉伸 stretch</option>
+                    </select>
+                </label>
+                <label class="field">
+                    帧间距 (px)
+                    <input type="number" id="cfg-padding" min="0" step="1" value="0">
+                </label>
+                <label class="field checkbox-field">
+                    <input type="checkbox" id="cfg-transparent" checked>
+                    透明背景
+                </label>
+                <label class="field">
+                    背景颜色
+                    <input type="color" id="cfg-bg-color" value="#000000" disabled>
+                </label>
+            </div>
+
+            <div class="export-actions">
+                <button class="btn primary big" id="btn-generate">生成预览</button>
+                <button class="btn success big" id="btn-export" disabled>导出 PNG + JSON</button>
+                <div id="export-progress" class="export-progress" hidden>
+                    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                    <div class="progress-text" id="progress-text">准备中…</div>
+                </div>
+            </div>
+
+            <div class="preview-wrap">
+                <h3>预览</h3>
+                <div class="preview-box">
+                    <canvas id="preview-canvas"></canvas>
+                </div>
+                <div id="preview-meta" class="preview-meta"></div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        快捷键：<kbd>Space</kbd> 播放/暂停 · <kbd>←</kbd>/<kbd>→</kbd> 上一帧/下一帧 · <kbd>M</kbd> 标记当前帧
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+</html>

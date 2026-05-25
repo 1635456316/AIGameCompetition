@@ -3,8 +3,7 @@
  */
 class TextureFactory {
     static bakeAll(scene) {
-        TextureFactory.heroIdle(scene, 'hero_idle');
-        TextureFactory.heroRun(scene, 'hero_run');
+        // idle / run 使用真实序列帧资源，见 HeroAnimLoader
         TextureFactory.heroJump(scene, 'hero_jump');
         TextureFactory.heroAttack(scene, 'hero_attack');
         TextureFactory.heroDash(scene, 'hero_dash');

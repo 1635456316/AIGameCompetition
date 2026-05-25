@@ -6,10 +6,17 @@
 class Player {
     constructor(scene, x, y) {
         this.scene = scene;
-        this.sprite = scene.physics.add.sprite(x, y, 'hero_idle');
+        const idleTex = scene.textures.exists('tex_hero_idle') ? 'tex_hero_idle' : 'hero_jump';
+        const idleFrame = scene.textures.exists('tex_hero_idle') ? 'idle_0' : undefined;
+        this.sprite = scene.physics.add.sprite(x, y, idleTex, idleFrame);
         this.sprite.setOrigin(0.5, 1);
-        this.sprite.body.setSize(28, 60);
-        this.sprite.body.setOffset(10, 4);
+        if (scene.textures.exists('tex_hero_idle')) {
+            this._applySheetHeroBody();
+            this._applySheetHeroScale();
+        } else {
+            this._applyStaticHeroBody();
+            this.sprite.setScale(PlayerConfig.heroDisplayHeight / 64);
+        }
         this.sprite.setCollideWorldBounds(true);
         this.sprite.setMaxVelocity(800, 1400);
         this.sprite.owner = this;
@@ -49,6 +56,44 @@ class Player {
         this.fsm.change('idle');
     }
 
+    playHeroAnim(animKey) {
+        if (!this.scene.anims.exists(animKey)) {
+            this.showHeroTexture('hero_jump');
+            return;
+        }
+        if (this._currentHeroAnim === animKey && this.sprite.anims.isPlaying) return;
+        this._currentHeroAnim = animKey;
+        this._applySheetHeroScale();
+        this._applySheetHeroBody();
+        this.sprite.anims.play(animKey, true);
+    }
+
+    showHeroTexture(textureKey) {
+        this._currentHeroAnim = null;
+        this.sprite.anims.stop();
+        this.sprite.setTexture(textureKey);
+        const frame = this.sprite.frame;
+        const frameH = frame ? frame.height : 64;
+        this.sprite.setScale(PlayerConfig.heroDisplayHeight / frameH);
+        this._applyStaticHeroBody();
+    }
+
+    _applySheetHeroScale() {
+        this.sprite.setScale(PlayerConfig.heroDisplayHeight / PlayerConfig.heroFrameHeight);
+    }
+
+    _applySheetHeroBody() {
+        const b = PlayerConfig.heroSheetBody;
+        this.sprite.body.setSize(b.width, b.height);
+        this.sprite.body.setOffset(b.offsetX, b.offsetY);
+    }
+
+    _applyStaticHeroBody() {
+        const b = PlayerConfig.heroStaticBody;
+        this.sprite.body.setSize(b.width, b.height);
+        this.sprite.body.setOffset(b.offsetX, b.offsetY);
+    }
+
     get body() { return this.sprite.body; }
     get x() { return this.sprite.x; }
     get y() { return this.sprite.y; }
@@ -65,6 +110,7 @@ class Player {
 
     canDash() {
         return this.scene.time.now - this.lastDashAt >= PlayerConfig.dashCooldown
+            && this.energy >= PlayerConfig.dashEnergyCost
             && !this.fsm.is('dash') && !this.fsm.is('hurt') && !this.fsm.is('dead');
     }
     canAttack() {

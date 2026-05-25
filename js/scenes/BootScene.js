@@ -72,6 +72,12 @@ class BootScene extends Phaser.Scene {
         this.load.image('ui_deco_radar',   'assets/UI/Deco3.png');
         this.load.image('ui_deco_paw',     'assets/UI/Deco4.png');
 
+        // 主角序列帧（视频生成序列帧工具导出）
+        this.load.image('tex_hero_idle', 'assets/character/Hero/主角-Idle.png');
+        this.load.image('tex_hero_run', 'assets/character/Hero/主角-奔跑.png');
+        this.load.json('hero_idle_meta', 'assets/character/Hero/主角-Idle.json');
+        this.load.json('hero_run_meta', 'assets/character/Hero/主角-奔跑.json');
+
         // 视频资源（主菜单待机）
         // 主菜单待机：丢弃音轨，便于自动循环播放。后续 BGM 单独接入。
         this.load.video('video_menu_idle', 'assets/video/主界面待机.mp4', true);
@@ -84,6 +90,7 @@ class BootScene extends Phaser.Scene {
         // 窗口失焦时不要暂停声音（默认 true 会把 BGM 一并 pauseAll）
         this.sound.pauseOnBlur = false;
 
+        HeroAnimLoader.registerAll(this);
         TextureFactory.bakeAll(this);
         this.scene.start('MenuScene');
     }

@@ -23,7 +23,14 @@ class PVScene extends Phaser.Scene {
         const { videoUrl, title, pvId } = this.params;
 
         this.cameras.main.setBackgroundColor('#000');
+        // 注意：Phaser Scene 实例跨 scene.start() 复用，必须在 create() 里把所有
+        // 流程标记位 / DOM 引用复位，否则二次进入时会被上一次残留的状态阻断。
+        // 之前漏掉 _waitingForContinue 导致"重玩同一关 PV 时 _showContinueButton
+        // 直接 return，开始战斗按钮不显示"的 bug。
         this._finished = false;
+        this._waitingForContinue = false;
+        this._skipBtn = null;
+        this._continueBtn = null;
         this.volume = SaveSystem.getVolume();
         this._pvId = pvId || null;
 

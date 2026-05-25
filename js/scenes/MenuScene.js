@@ -28,23 +28,14 @@ class MenuScene extends Phaser.Scene {
         for (let y = 0; y < height; y += 4) scan.fillRect(0, y, width, 2);
 
         // 装饰：左上电池条 / 右上警告框
-        this._addDeco('ui_deco_battery', 125, 50, 240);
-        this._addDeco('ui_deco_warning', 1070, 90, 430);
+        // this._addDeco('ui_deco_battery', 110, 42, 180);
+        this._addDeco('ui_deco_warning', width - 150, 68, 240);
 
-        // 标题 Logo（画面顶部居中偏左，让出右半边给暴龙战士角色作为视觉主体）
-        // 设计稿位置：x≈480, y≈115；尺寸缩小到约 400px 宽，避免挡住角色。
-        const logo = this.add.image(480, 115, 'ui_logo');
-        const logoTargetWidth = 400;
+        // 标题 Logo：左上区域
+        const logo = this.add.image(250, 115, 'ui_logo');
+        const logoTargetWidth = 440;
         if (logo.width > 0) logo.setScale(logoTargetWidth / logo.width);
         logo.setDepth(20);
-        this.tweens.add({
-            targets: logo,
-            scale: { from: logo.scale, to: logo.scale * 1.03 },
-            duration: 1800,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
-        });
 
         // 4 个按钮（左半画面）
         // 按钮 1：首次开始游戏 → 强制播放总开场 PV，再进入关卡选择界面。
@@ -77,18 +68,30 @@ class MenuScene extends Phaser.Scene {
             }
         ];
 
-        // 按钮组居中偏上，让画面整体留白更平衡：4 个按钮范围 y=270~585
-        const btnStartY = 270;
-        const btnGap = 105;
-        const btnX = 210;
+        // 按钮组：左下角 2×2 网格
+        const btnTargetWidth = 185;
+        const btnColGap = 12;
+        const btnRowGap = 60;
+        const gridX0 = 128;
+        const gridX1 = gridX0 + btnTargetWidth + btnColGap;
+        const gridY0 = 610;
+        const gridY1 = gridY0 + btnRowGap;
+        const btnPositions = [
+            [gridX0, gridY0],
+            [gridX1, gridY0],
+            [gridX0, gridY1],
+            [gridX1, gridY1]
+        ];
         this.menuButtons = menuItems.map((item, index) => {
+            const [bx, by] = btnPositions[index];
             return this._createImageButton(
-                btnX,
-                btnStartY + index * btnGap,
+                bx,
+                by,
                 item.key,
                 item.label,
                 item.enabled,
-                item.action
+                item.action,
+                btnTargetWidth
             );
         });
 
@@ -108,12 +111,12 @@ class MenuScene extends Phaser.Scene {
         });
 
         // 右下角装饰：雷达状态 + 爪印徽章
-        this._addDeco('ui_deco_radar', 1040, 645, 320);
-        this._addDeco('ui_deco_paw',   1230, 640, 90);
+        this._addDeco('ui_deco_radar', 1075, 655, 240);
+        this._addDeco('ui_deco_paw',   1225, 652, 68);
 
         // 底部版权
-        this.add.text(width / 2, height - 14, '© 199X DRAGON DEFENSE FORCE', {
-            font: 'bold 11px Arial',
+        this.add.text(width / 2, height - 12, '© 199X DRAGON DEFENSE FORCE', {
+            font: 'bold 9px Arial',
             color: '#7f8998'
         }).setOrigin(0.5).setAlpha(0.7).setDepth(20);
 
@@ -144,20 +147,19 @@ class MenuScene extends Phaser.Scene {
         return img;
     }
 
-    _createImageButton(x, y, textureKey, label, enabled, action) {
+    _createImageButton(x, y, textureKey, label, enabled, action, targetWidth = 185) {
         const container = this.add.container(x, y).setDepth(30);
 
         const bg = this.add.image(0, 0, textureKey);
-        const targetWidth = 380;
         if (bg.width > 0) bg.setScale(targetWidth / bg.width);
         bg.setOrigin(0.5, 0.5);
 
-        // 文字：按钮图右半部分（左半已被图标 + START/头盔/齿轮/退出 占用）
-        const text = this.add.text(50, -2, label, {
-            font: 'bold 28px Microsoft YaHei, Arial',
+        const textScale = targetWidth / 185;
+        const text = this.add.text(30 * textScale, -1, label, {
+            font: `bold ${Math.round(17 * textScale)}px Microsoft YaHei, Arial`,
             color: '#e8faff',
             stroke: '#001428',
-            strokeThickness: 5
+            strokeThickness: Math.max(3, Math.round(4 * textScale))
         }).setOrigin(0.5);
 
         container.add([bg, text]);
@@ -253,10 +255,10 @@ class MenuScene extends Phaser.Scene {
         const rows = [
             ['移  动', 'A / D    或    ← / →'],
             ['跳  跃', 'W / 空格 / ↑（支持二段跳）'],
-            ['冲  刺', 'Shift（冲刺期间无敌，可穿过子弹）'],
+            ['冲  刺', 'L（消耗少量能量；冲刺期间无敌，可穿过子弹）'],
             ['近  战', 'J    (主要攻击手段)'],
             ['远程射击', 'K    (消耗能量)'],
-            ['终 极 技', 'L    (能量满时释放)'],
+            ['终 极 技', 'O    (能量满时释放)'],
             ['暂  停', 'ESC    或    点击右上角"暂停"按钮']
         ];
         const colLabelX = w / 2 - panelW / 2 + 70;
@@ -531,7 +533,8 @@ class MenuScene extends Phaser.Scene {
         // 主菜单待机视频播放列表：按顺序循环（待机1 → 待机2 → 待机1 → ...）
         this._menuVideoPlaylist = [
             'assets/video/主界面待机1.mp4',
-            'assets/video/主界面待机2.mp4'
+            'assets/video/主界面待机2.mp4',
+            'assets/video/主界面待机3.mp4'
         ];
         // 跨场景实例记忆：每次"重新进入主菜单"也轮换到下一个视频，而不是固定从第 0 个开始。
         // 静态字段初值是 -1，第一次进主菜单时 +1 → 从索引 0 开始；后续每次进入都接力上一次的下一个。

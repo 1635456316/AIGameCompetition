@@ -7,9 +7,15 @@ class Effects {
     }
 
     static hitStop(scene, ms = 60) {
-        if (scene.physics.world.isPaused) return;
-        scene.physics.world.pause();
-        scene.time.delayedCall(ms, () => scene.physics.world.resume());
+        if (scene.paused || scene.gameOver) return;
+        const world = scene.physics.world;
+        if (world.isPaused) return;
+        world.pause();
+        scene.time.delayedCall(ms, () => {
+            if (!scene.paused && !scene.gameOver && world.isPaused) {
+                world.resume();
+            }
+        });
     }
 
     static bigText(scene, text, color = PaletteHex.warning) {

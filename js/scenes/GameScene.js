@@ -6,6 +6,10 @@ class GameScene extends Phaser.Scene {
     init(data) {
         this.levelId = data?.levelId || 1;
         this.levelConfig = LevelConfigs.find(level => level.id === this.levelId) || LevelConfigs[0];
+        // restart 复用同一 Scene 实例，必须清掉上一局的死亡/结算状态
+        this.gameOver = false;
+        this._gameOverShown = false;
+        this.paused = false;
     }
 
     create() {
@@ -15,6 +19,7 @@ class GameScene extends Phaser.Scene {
         this.levelHeight = H;
 
         this.physics.world.setBounds(0, 0, this.levelWidth, this.levelHeight);
+        this.physics.world.resume();
         this.cameras.main.setBounds(0, 0, this.levelWidth, this.levelHeight);
 
         // 视差背景
@@ -37,25 +42,28 @@ class GameScene extends Phaser.Scene {
         this.enemySprites = this.physics.add.group();
         this._spawnEnemies();
         this.physics.add.collider(this.enemySprites, this.solids);
+        this.physics.add.collider(this.player.sprite, this.enemySprites);
 
         // 子弹组
         this.playerBullets = this.physics.add.group();
         this.enemyBullets = this.physics.add.group();
         this.playerMelees = this.physics.add.group(); // 一次性 hitbox
 
-        // 碰撞 / 重叠规则
-        this.physics.add.overlap(this.playerBullets, this.enemySprites, (b, eSpr) => {
-            const enemy = eSpr.owner;
+        // 碰撞 / 重叠规则（overlap 回调参数顺序不固定，用对象特征识别而非 group.contains）
+        this.physics.add.overlap(this.playerBullets, this.enemySprites, (a, b) => {
+            const bullet = this._pickPlayerBullet(a, b);
+            const enemy = this._pickEnemyFromOverlap(a, b);
+            if (!bullet || !bullet.active) return;
             if (enemy && enemy.alive) {
-                enemy.takeDamage(15, b.x);
-                Effects.hitFlash(this, b.x, b.y);
+                enemy.takeDamage(15, bullet.x);
+                Effects.hitFlash(this, bullet.x, bullet.y);
                 this.player.gainEnergy(4 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
             }
-            b.destroy();
+            bullet.destroy();
         });
         this.physics.add.overlap(this.enemyBullets, this.player.sprite, (a, b) => {
-            const bullet = this.enemyBullets.contains(a) ? a : (this.enemyBullets.contains(b) ? b : null);
+            const bullet = this._pickEnemyBullet(a, b);
             if (!bullet || !bullet.active) return;
             // 冲刺无敌时完全穿过子弹，不触发受击特效，也不销毁子弹。
             if (this._playerIsPhasing()) return;
@@ -63,20 +71,21 @@ class GameScene extends Phaser.Scene {
             Effects.hitFlash(this, bullet.x, bullet.y);
             bullet.destroy();
         });
-        this.physics.add.overlap(this.playerMelees, this.enemySprites, (m, eSpr) => {
-            const enemy = eSpr.owner;
-            if (!enemy || !enemy.alive) return;
-            if (m._hitSet && m._hitSet.has(enemy)) return;
-            (m._hitSet = m._hitSet || new Set()).add(enemy);
-            enemy.takeDamage(25, m.x);
+        this.physics.add.overlap(this.playerMelees, this.enemySprites, (a, b) => {
+            const melee = this._pickPlayerMelee(a, b);
+            const enemy = this._pickEnemyFromOverlap(a, b);
+            if (!melee || !melee.active || !enemy || !enemy.alive) return;
+            if (melee._hitSet && melee._hitSet.has(enemy)) return;
+            (melee._hitSet = melee._hitSet || new Set()).add(enemy);
+            enemy.takeDamage(25, melee.x);
             Effects.hitFlash(this, enemy.x, enemy.y - 24);
             Effects.shake(this, 90, 0.008);
             Effects.hitStop(this, 50);
             this.player.gainEnergy(6 * this.hud.getEnergyMultiplier());
             this.hud.addCombo(this.time.now);
         });
-        this.physics.add.overlap(this.enemySprites, this.player.sprite, (eSpr, pSpr) => {
-            const enemy = eSpr.owner;
+        this.physics.add.overlap(this.enemySprites, this.player.sprite, (a, b) => {
+            const enemy = this._pickEnemyFromOverlap(a, b);
             if (!enemy || !enemy.alive) return;
             if (this._playerIsPhasing()) return;
             this._damagePlayer(enemy.contactDamage, enemy.x);
@@ -86,7 +95,6 @@ class GameScene extends Phaser.Scene {
         this.boss = null;
         this.bossTriggered = false;
         this.bossGateHintShown = false;
-        this.paused = false;
         this.startTime = this.time.now;
         this._playLevelBGM('normal');
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._stopLevelBGM());
@@ -145,8 +153,10 @@ class GameScene extends Phaser.Scene {
         // 暂停菜单
         this.pauseMenu = new PauseMenu(this);
 
-        // 系统快捷键
-        this.input.keyboard.on('keydown-ESC', () => {
+        // 系统快捷键（restart 前先解绑，避免重复注册）
+        if (this._onEscKey) this.input.keyboard.off('keydown-ESC', this._onEscKey);
+        if (this._onRKey) this.input.keyboard.off('keydown-R', this._onRKey);
+        this._onEscKey = () => {
             if (this.gameOver) {
                 this.scene.start('MenuScene');
                 return;
@@ -156,13 +166,19 @@ class GameScene extends Phaser.Scene {
             } else {
                 this.pauseMenu.show();
             }
-        });
-        this.input.keyboard.on('keydown-R', () => {
+        };
+        this._onRKey = () => {
             if (this.gameOver) {
                 this.scene.restart();
                 return;
             }
             if (!this.paused) this.scene.restart();
+        };
+        this.input.keyboard.on('keydown-ESC', this._onEscKey);
+        this.input.keyboard.on('keydown-R', this._onRKey);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            if (this._onEscKey) this.input.keyboard.off('keydown-ESC', this._onEscKey);
+            if (this._onRKey) this.input.keyboard.off('keydown-R', this._onRKey);
         });
 
         // 关卡机关
@@ -384,17 +400,21 @@ class GameScene extends Phaser.Scene {
         this._playLevelBGM('boss');
         this.boss = new Boss(this, x, y, bossConfig);
         this.physics.add.collider(this.boss.sprite, this.solids);
-        this.physics.add.overlap(this.playerBullets, this.boss.sprite, (b, bossSpr) => {
-            if (this.boss.alive) {
-                this.boss.takeDamage(10, b.x);
-                Effects.hitFlash(this, b.x, b.y);
+        this.physics.add.overlap(this.playerBullets, this.boss.sprite, (a, b) => {
+            const bullet = this._pickPlayerBullet(a, b);
+            if (!bullet || !bullet.active) return;
+            if (this.boss && this.boss.alive) {
+                this.boss.takeDamage(10, bullet.x);
+                Effects.hitFlash(this, bullet.x, bullet.y);
                 this.player.gainEnergy(3 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
             }
-            b.destroy();
+            bullet.destroy();
         });
-        this.physics.add.overlap(this.playerMelees, this.boss.sprite, (m, bossSpr) => {
-            this._damageBossFromMelee(m, false);
+        this.physics.add.overlap(this.playerMelees, this.boss.sprite, (a, b) => {
+            const melee = this._pickPlayerMelee(a, b);
+            if (!melee || !melee.active) return;
+            this._damageBossFromMelee(melee, false);
         });
         this.physics.add.overlap(this.boss.sprite, this.player.sprite, () => {
             if (this._playerIsPhasing()) return;
@@ -536,6 +556,47 @@ class GameScene extends Phaser.Scene {
     _playerIsPhasing() {
         if (!this.player || !this.player.fsm) return false;
         return this.player.fsm.is('dash') || this.player.fsm.is('dead');
+    }
+
+    _otherFromPair(a, b, target) {
+        if (a === target) return b;
+        if (b === target) return a;
+        return null;
+    }
+
+    _pickEnemyFromOverlap(a, b) {
+        for (const obj of [a, b]) {
+            if (!obj || obj === this.player.sprite) continue;
+            const owner = obj.owner;
+            if (owner && typeof owner.alive === 'boolean' && typeof owner.contactDamage === 'number') {
+                return owner;
+            }
+        }
+        return null;
+    }
+
+    _pickPlayerBullet(a, b) {
+        for (const obj of [a, b]) {
+            if (!obj || !obj.active || obj === this.player.sprite || obj === this.boss?.sprite) continue;
+            if (obj.texture && obj.texture.key === 'bullet_hero') return obj;
+        }
+        return null;
+    }
+
+    _pickEnemyBullet(a, b) {
+        for (const obj of [a, b]) {
+            if (!obj || !obj.active || obj === this.player.sprite) continue;
+            if (obj.texture && obj.texture.key === 'bullet_enemy') return obj;
+        }
+        return null;
+    }
+
+    _pickPlayerMelee(a, b) {
+        for (const obj of [a, b]) {
+            if (!obj || !obj.active || obj === this.player.sprite || obj === this.boss?.sprite) continue;
+            if (obj._meleeWidth != null) return obj;
+        }
+        return null;
     }
 
     _showGameOver() {

@@ -1,7 +1,7 @@
 const IdleState = {
     enter(player) {
         player.setVelocityX(0);
-        player.sprite.setTexture('hero_idle');
+        player.playHeroAnim('hero_idle');
     },
     update(player, time, delta) {
         if (player.input.left || player.input.right) {
@@ -29,7 +29,7 @@ const IdleState = {
 
 const RunState = {
     enter(player) {
-        player.sprite.setTexture('hero_run');
+        player.playHeroAnim('hero_run');
     },
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
@@ -50,7 +50,7 @@ const RunState = {
 
 const JumpState = {
     enter(player) {
-        player.sprite.setTexture('hero_jump');
+        player.showHeroTexture('hero_jump');
         player.performJump();
     },
     update(player, time, delta) {
@@ -64,7 +64,7 @@ const JumpState = {
     handleInput(player, input) {
         if (input.jumpPressed && player.jumpsRemaining > 0) {
             player.performJump();
-            player.sprite.setTexture('hero_jump');
+            player.showHeroTexture('hero_jump');
         } else if (input.dashPressed && player.canDash()) {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
@@ -79,7 +79,7 @@ const JumpState = {
 
 const FallState = {
     enter(player) {
-        player.sprite.setTexture('hero_jump');
+        player.showHeroTexture('hero_jump');
     },
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
@@ -92,7 +92,7 @@ const FallState = {
     handleInput(player, input) {
         if (input.jumpPressed && player.jumpsRemaining > 0) {
             player.performJump();
-            player.sprite.setTexture('hero_jump');
+            player.showHeroTexture('hero_jump');
             player.fsm.change('jump');
         } else if (input.dashPressed && player.canDash()) {
             player.fsm.change('dash');
@@ -108,9 +108,10 @@ const FallState = {
 
 const DashState = {
     enter(player) {
-        player.sprite.setTexture('hero_dash');
+        player.showHeroTexture('hero_dash');
         player.dashEndAt = player.scene.time.now + PlayerConfig.dashDuration;
         player.lastDashAt = player.scene.time.now;
+        player.energy = Math.max(0, player.energy - PlayerConfig.dashEnergyCost);
         player.invulnerableUntil = Math.max(
             player.invulnerableUntil,
             player.dashEndAt
@@ -144,7 +145,7 @@ const DashState = {
 
 const AttackState = {
     enter(player) {
-        player.sprite.setTexture('hero_attack');
+        player.showHeroTexture('hero_attack');
         player.attackEndAt = player.scene.time.now + PlayerConfig.attackDuration;
         player.lastAttackAt = player.scene.time.now;
         player.spawnMeleeHitbox();
@@ -171,7 +172,7 @@ const AttackState = {
 
 const HurtState = {
     enter(player, params) {
-        player.sprite.setTexture('hero_idle');
+        player.playHeroAnim('hero_idle');
         player.hurtEndAt = player.scene.time.now + PlayerConfig.hurtDuration;
         const knockDir = params.fromRight ? -1 : 1;
         player.setVelocityX(knockDir * 220);
@@ -197,7 +198,7 @@ const DeadState = {
 
 const UltimateState = {
     enter(player) {
-        player.sprite.setTexture('hero_attack');
+        player.showHeroTexture('hero_attack');
         player.ultEndAt = player.scene.time.now + PlayerConfig.ultimateDuration;
         player.setVelocity(0, 0);
         player.body.allowGravity = false;

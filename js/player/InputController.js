@@ -11,10 +11,10 @@ class InputController {
             S: Phaser.Input.Keyboard.KeyCodes.S,
             D: Phaser.Input.Keyboard.KeyCodes.D,
             SPACE: Phaser.Input.Keyboard.KeyCodes.SPACE,
-            SHIFT: Phaser.Input.Keyboard.KeyCodes.SHIFT,
             J: Phaser.Input.Keyboard.KeyCodes.J,
             K: Phaser.Input.Keyboard.KeyCodes.K,
-            L: Phaser.Input.Keyboard.KeyCodes.L
+            L: Phaser.Input.Keyboard.KeyCodes.L,
+            O: Phaser.Input.Keyboard.KeyCodes.O
         });
     }
 
@@ -25,10 +25,10 @@ class InputController {
             left:  k.A.isDown || c.left.isDown,
             right: k.D.isDown || c.right.isDown,
             jumpPressed:     Phaser.Input.Keyboard.JustDown(k.SPACE) || Phaser.Input.Keyboard.JustDown(c.up) || Phaser.Input.Keyboard.JustDown(k.W),
-            dashPressed:     Phaser.Input.Keyboard.JustDown(k.SHIFT),
+            dashPressed:     Phaser.Input.Keyboard.JustDown(k.L),
             attackPressed:   Phaser.Input.Keyboard.JustDown(k.J),
             rangedPressed:   Phaser.Input.Keyboard.JustDown(k.K),
-            ultimatePressed: Phaser.Input.Keyboard.JustDown(k.L)
+            ultimatePressed: Phaser.Input.Keyboard.JustDown(k.O)
         };
     }
 }

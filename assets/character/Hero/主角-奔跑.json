@@ -1,0 +1,67 @@
+{
+  "source": "主角-奔跑.mp4",
+  "videoSize": {
+    "width": 640,
+    "height": 640
+  },
+  "frameWidth": 640,
+  "frameHeight": 640,
+  "columns": 5,
+  "rows": 1,
+  "padding": 0,
+  "sheetWidth": 3200,
+  "sheetHeight": 640,
+  "transparent": true,
+  "background": null,
+  "fit": "origin",
+  "chromaKey": {
+    "color": "#ffffff",
+    "tolerance": 79,
+    "feather": 100,
+    "spill": false,
+    "flood": true
+  },
+  "count": 5,
+  "frames": [
+    {
+      "index": 0,
+      "time": 0.125655,
+      "x": 0,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 1,
+      "time": 0.258992,
+      "x": 640,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 2,
+      "time": 0.392328,
+      "x": 1280,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 3,
+      "time": 0.525664,
+      "x": 1920,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    },
+    {
+      "index": 4,
+      "time": 0.659,
+      "x": 2560,
+      "y": 0,
+      "w": 640,
+      "h": 640
+    }
+  ]
+}
