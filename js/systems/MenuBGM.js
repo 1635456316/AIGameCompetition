@@ -20,6 +20,8 @@ class MenuBGM {
 
     static play(scene) {
         if (!scene || !scene.sound || !scene.cache || !scene.cache.audio) return;
+        // 页面失焦/隐藏时不让 Phaser 自动暂停；后续 focus/visibilitychange 会主动重试播放。
+        scene.sound.pauseOnBlur = false;
         if (!scene.cache.audio.exists('bgm_menu')) {
             console.warn('[MenuBGM] bgm_menu 未在音频缓存中，请检查 BootScene 是否成功加载 assets/audio/MainMenu.mp3');
             return;
@@ -57,17 +59,21 @@ class MenuBGM {
             scene.sound.once(Phaser.Sound.Events.UNLOCKED, () => tryPlay());
         }
 
-        // 全局 user gesture 兜底：场景级 input 在 SHUTDOWN 后会被清除。
+        // 全局兜底：场景级 input 在 SHUTDOWN 后会被清除。
+        // focus / visibilitychange 用于处理"页面启动时没焦点，AudioContext 仍 suspended"的情况。
         if (MenuBGM._globalCleanup) MenuBGM._globalCleanup();
-        const events = ['pointerdown', 'mousedown', 'touchstart', 'keydown'];
+        const windowEvents = ['pointerdown', 'mousedown', 'touchstart', 'keydown', 'focus', 'pageshow'];
+        const documentEvents = ['visibilitychange'];
         const onInput = () => {
             if (tryPlay()) cleanup();
         };
         const cleanup = () => {
-            events.forEach((ev) => window.removeEventListener(ev, onInput, true));
+            windowEvents.forEach((ev) => window.removeEventListener(ev, onInput, true));
+            documentEvents.forEach((ev) => document.removeEventListener(ev, onInput, true));
             MenuBGM._globalCleanup = null;
         };
-        events.forEach((ev) => window.addEventListener(ev, onInput, true));
+        windowEvents.forEach((ev) => window.addEventListener(ev, onInput, true));
+        documentEvents.forEach((ev) => document.addEventListener(ev, onInput, true));
         MenuBGM._globalCleanup = cleanup;
     }
 

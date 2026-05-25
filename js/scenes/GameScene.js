@@ -177,6 +177,8 @@ class GameScene extends Phaser.Scene {
 
     _playLevelBGM(kind) {
         if (!this.sound || !this.cache || !this.cache.audio) return;
+        // 页面失焦/隐藏时不自动暂停，回到页面后通过全局事件主动恢复播放。
+        this.sound.pauseOnBlur = false;
         const urlField = kind === 'boss' ? 'bossBgmUrl' : 'normalBgmUrl';
         if (!this.levelConfig || !this.levelConfig[urlField]) return;
 
@@ -214,15 +216,18 @@ class GameScene extends Phaser.Scene {
         }
 
         if (this._levelBgmCleanup) this._levelBgmCleanup();
-        const events = ['pointerdown', 'mousedown', 'touchstart', 'keydown'];
+        const windowEvents = ['pointerdown', 'mousedown', 'touchstart', 'keydown', 'focus', 'pageshow'];
+        const documentEvents = ['visibilitychange'];
         const onInput = () => {
             if (tryPlay()) cleanup();
         };
         const cleanup = () => {
-            events.forEach((ev) => window.removeEventListener(ev, onInput, true));
+            windowEvents.forEach((ev) => window.removeEventListener(ev, onInput, true));
+            documentEvents.forEach((ev) => document.removeEventListener(ev, onInput, true));
             this._levelBgmCleanup = null;
         };
-        events.forEach((ev) => window.addEventListener(ev, onInput, true));
+        windowEvents.forEach((ev) => window.addEventListener(ev, onInput, true));
+        documentEvents.forEach((ev) => document.addEventListener(ev, onInput, true));
         this._levelBgmCleanup = cleanup;
     }
 
