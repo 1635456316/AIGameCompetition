@@ -136,7 +136,7 @@ class LevelSelectScene extends Phaser.Scene {
 
     /**
      * 统一的"进入某关"入口（通用 PV 检查）：
-     * - 关卡配置了 startVideoUrl 且尚未观看过 → 先跳 PVScene 播放开始 PV，结束后由 PV 跳到 GameScene。
+     * - 关卡配置了 startVideoUrl → 每次都先跳 PVScene 播放开始 PV，结束后由 PV 跳到 GameScene。
      * - 否则 → 直接进入 GameScene。
      * 任意一种情况下都先停掉菜单 BGM，让 PV / 游戏自己接管音频。
      */
@@ -146,7 +146,7 @@ class LevelSelectScene extends Phaser.Scene {
         MenuBGM.stop();
 
         const startKey = LevelSelectScene.startPVKey(levelId);
-        if (level.startVideoUrl && !SaveSystem.hasPVWatched(startKey)) {
+        if (level.startVideoUrl) {
             this.scene.start('PVScene', {
                 videoUrl: level.startVideoUrl,
                 nextScene: 'GameScene',

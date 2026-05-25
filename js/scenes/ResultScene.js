@@ -87,7 +87,7 @@ class ResultScene extends Phaser.Scene {
         if (this.isFinal) {
             buttons.push({ label: '返回主菜单', action: () => this.scene.start('MenuScene') });
         } else {
-            buttons.push({ label: '下一关', action: () => this.scene.start('GameScene', { levelId: this.levelId + 1 }) });
+            buttons.push({ label: '下一关', action: () => this._enterNextLevel() });
         }
         buttons.push({ label: '重新挑战', action: () => this.scene.start('GameScene', { levelId: this.levelId }) });
         buttons.push({ label: '返回选关', action: () => this.scene.start('LevelSelectScene') });
@@ -106,6 +106,41 @@ class ResultScene extends Phaser.Scene {
 
         this.input.keyboard.once('keydown-ENTER', buttons[0].action);
         this.input.keyboard.once('keydown-ESC', () => this.scene.start('LevelSelectScene'));
+    }
+
+    _enterNextLevel() {
+        const nextLevelId = this.levelId + 1;
+        const nextLevel = LevelConfigs.find(level => level.id === nextLevelId);
+        if (!nextLevel) {
+            this.scene.start('LevelSelectScene');
+            return;
+        }
+
+        this._enterLevel(nextLevelId);
+    }
+
+    _enterLevel(levelId) {
+        const level = LevelConfigs.find(item => item.id === levelId);
+        if (!level) {
+            this.scene.start('LevelSelectScene');
+            return;
+        }
+
+        const startKey = LevelSelectScene.startPVKey(levelId);
+        if (level.startVideoUrl) {
+            this.scene.start('PVScene', {
+                videoUrl: level.startVideoUrl,
+                nextScene: 'GameScene',
+                nextSceneData: { levelId: levelId },
+                pvId: startKey,
+                title: `第 ${levelId} 关 · 开场`,
+                holdOnEnd: true,
+                continueButtonText: '开始战斗！'
+            });
+            return;
+        }
+
+        this.scene.start('GameScene', { levelId: levelId });
     }
 
     _calcRank() {

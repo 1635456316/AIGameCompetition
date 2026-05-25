@@ -57,7 +57,7 @@ const LevelConfigs = [
         bossTriggerOffset: 600,
         boss: { type: 'mechanicalDino', xOffset: 220, yOffset: 80 },
         // 当前可用素材：暂用 PV-结束作为最终关 Boss 终结动画；开场 PV 等专属素材到位后再填。
-        startVideoUrl: null,
+        startVideoUrl: 'assets/video/最终Boss出场.mp4',
         endVideoUrl: 'assets/video/PV-结束.mp4',
         normalBgmUrl: 'assets/audio/第一关普通曲.mp3',
         bossBgmUrl: 'assets/audio/第一关Boss曲.mp3',

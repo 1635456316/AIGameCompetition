@@ -248,7 +248,7 @@ class PVScene extends Phaser.Scene {
         btn.style.boxShadow = '0 0 18px rgba(215, 25, 32, 0.9), 0 0 34px rgba(255, 78, 46, 0.65)';
         btn.style.textShadow = '0 2px 4px rgba(0, 0, 0, 0.55)';
         btn.style.pointerEvents = 'auto';
-        btn.style.opacity = '0';
+        btn.style.opacity = '1';
         btn.style.transition = 'opacity 0.24s ease-out, transform 0.14s ease-out, background 0.14s ease-out';
         btn.onmouseenter = () => {
             btn.style.background = '#ff2b2b';
@@ -261,9 +261,6 @@ class PVScene extends Phaser.Scene {
         btn.onclick = () => this._finish();
         this._continueBtn = btn;
         document.body.appendChild(btn);
-        requestAnimationFrame(() => {
-            if (this._continueBtn) this._continueBtn.style.opacity = '1';
-        });
 
         this.input.keyboard.once('keydown-SPACE', () => this._finish());
         this.input.keyboard.once('keydown-ENTER', () => this._finish());
