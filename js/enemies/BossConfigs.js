@@ -14,7 +14,15 @@ const BossConfigs = {
         phase1Cooldown: 1750,
         phase2Cooldown: 1100,
         phase1Skills: ['tri', 'spread'],
-        phase2Skills: ['tri', 'slam', 'spread']
+        phase2Skills: ['tri', 'slam', 'spread'],
+        visual: {
+            idleTexture: 'tex_boss1_idle',
+            framePrefix: 'idle',
+            idleAnim: 'boss1_idle',
+            displayHeight: 210,
+            referenceFrameHeight: 1024,
+            sheetBody: { width: 260, height: 300, offsetX: 638 }
+        }
     },
     // 第 2 关（最终关）Boss：废弃城区的钢铁咆哮压轴。
     mechanicalDino: {
@@ -29,7 +37,15 @@ const BossConfigs = {
         phase1Cooldown: 1700,
         phase2Cooldown: 1050,
         phase1Skills: ['tri', 'spread'],
-        phase2Skills: ['tri', 'spread', 'slam']
+        phase2Skills: ['tri', 'spread', 'slam'],
+        visual: {
+            idleTexture: 'tex_boss_final_idle',
+            framePrefix: 'final_idle',
+            idleAnim: 'boss_final_idle',
+            displayHeight: 220,
+            referenceFrameHeight: 1024,
+            sheetBody: { width: 240, height: 320, offsetX: 392 }
+        }
     },
     octopusDoctor: {
         name: '深海章鱼博士',

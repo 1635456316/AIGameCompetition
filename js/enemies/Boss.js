@@ -5,14 +5,26 @@ class Boss {
     constructor(scene, x, y, config) {
         this.scene = scene;
         this.config = config || BossConfigs.mechanicalDino;
-        this.sprite = scene.physics.add.sprite(x, y, 'boss_default');
+        this._useSheetVisual = this._hasSheetVisual();
+
+        const vis = this.config.visual;
+        const texKey = this._useSheetVisual ? vis.idleTexture : 'boss_default';
+        const frameKey = this._useSheetVisual
+            ? (vis.idleFrame || `${vis.framePrefix || 'idle'}_0`)
+            : undefined;
+        this.sprite = scene.physics.add.sprite(x, y, texKey, frameKey);
         this.sprite.setOrigin(0.5, 1);
         this.sprite.setCollideWorldBounds(true);
-        this.sprite.body.setSize(120, 158);
-        this.sprite.body.setOffset(20, 2);
+        this._applyBossVisualScale();
+        this._applyBossBody();
         this.sprite.body.setAllowGravity(true);
         this.sprite.owner = this;
-        this.sprite.setTint(this.config.tint || Palette.boss);
+
+        if (this._useSheetVisual) {
+            this._playBossIdle(true);
+        } else {
+            this.sprite.setTint(this.config.tint || Palette.boss);
+        }
 
         this.maxHp = this.config.hp || 800;
         this.hp = this.maxHp;
@@ -22,14 +34,101 @@ class Boss {
         this.nextSkillAt = scene.time.now + 1500;
         this.contactDamage = this.config.contactDamage || 14;
 
-        // HUD blood bar
-        this.bossBarBg = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 36, 800, 22, 0x000000, 0.7)
+        // HUD blood bar（屏幕上方居中）
+        const barY = 80;
+        this.bossBarBg = scene.add.rectangle(GAME_WIDTH / 2, barY, 800, 22, 0x000000, 0.7)
             .setScrollFactor(0).setDepth(1000);
-        this.bossBarFill = scene.add.rectangle(GAME_WIDTH / 2 - 396, GAME_HEIGHT - 36, 792, 16, Palette.boss)
+        this.bossBarFill = scene.add.rectangle(GAME_WIDTH / 2 - 396, barY, 792, 16, Palette.boss)
             .setOrigin(0, 0.5).setScrollFactor(0).setDepth(1000);
-        this.bossLabel = scene.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 60, this.config.title || this.config.name || '未知 Boss', {
+        this.bossLabel = scene.add.text(GAME_WIDTH / 2, 12, this.config.title || this.config.name || '未知 Boss', {
             font: 'bold 18px Arial', color: PaletteHex.warning
         }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
+    }
+
+    _hasSheetVisual() {
+        const vis = this.config.visual;
+        return !!(vis && this.scene.textures.exists(vis.idleTexture));
+    }
+
+    _applyBossVisualScale() {
+        const vis = this.config.visual;
+        const displayH = vis?.displayHeight || 140;
+        const refH = vis?.referenceFrameHeight
+            || (this.sprite.frame && this.sprite.frame.height)
+            || 640;
+        this.sprite.setScale(displayH / refH);
+    }
+
+    _applyBossBody() {
+        const vis = this.config.visual;
+        if (this._useSheetVisual && vis?.sheetBody) {
+            const b = vis.sheetBody;
+            const refH = vis.referenceFrameHeight
+                || (this.sprite.frame && this.sprite.frame.height)
+                || 640;
+            const height = b.height;
+            const offsetY = b.feetAlign === false && b.offsetY != null
+                ? b.offsetY
+                : (refH - height);
+            this.sprite.body.setSize(b.width, height);
+            this.sprite.body.setOffset(b.offsetX, offsetY);
+            return;
+        }
+        this.sprite.body.setSize(120, 158);
+        this.sprite.body.setOffset(20, 2);
+    }
+
+    /** 将碰撞盒底边与地面对齐（origin 为脚底时，sprite.y 即地面高度） */
+    snapFeetToGroundY(groundY) {
+        const body = this.sprite?.body;
+        if (!body) return;
+        // body.position 只在 preUpdate 时根据当前 origin/scale/offset 重算。
+        // 这里在构造完成后立即调用，必须先 updateFromGameObject() 触发刷新，
+        // 否则读到的是 sprite 创建那一刻的旧 body.bottom，会把 Boss 推到地下。
+        body.updateFromGameObject();
+        const correction = body.bottom - groundY;
+        if (Math.abs(correction) > 0.5) {
+            this.sprite.y -= correction;
+            body.updateFromGameObject();
+        }
+        // 清掉竖向速度，避免第一帧重力把 Boss 又踹进地里
+        body.setVelocityY(0);
+        if (typeof console !== 'undefined') {
+            console.log('[Boss] snapFeetToGroundY', {
+                groundY,
+                spriteY: this.sprite.y,
+                bodyBottom: body.bottom,
+                bodyHeight: body.height,
+                bodyOffsetY: body.offset.y,
+                scaleY: this.sprite.scaleY,
+                originY: this.sprite.originY,
+                frameH: this.sprite.frame && this.sprite.frame.height
+            });
+        }
+    }
+
+    _playBossIdle(forceRestart = false) {
+        if (!this._useSheetVisual) return;
+        const animKey = this.config.visual?.idleAnim;
+        if (!animKey || !this.scene.anims.exists(animKey)) return;
+        if (!forceRestart && this.sprite.anims.isPlaying) return;
+        this.sprite.anims.play(animKey, forceRestart);
+        this._applyBossVisualScale();
+    }
+
+    _restoreBossTint() {
+        if (!this.sprite) return;
+        if (this._useSheetVisual) {
+            if (this.phase === 2) {
+                this.sprite.setTint(this.config.phase2Tint || 0xff5577);
+            } else {
+                this.sprite.clearTint();
+            }
+            return;
+        }
+        this.sprite.setTint(this.phase === 2
+            ? (this.config.phase2Tint || 0xff5577)
+            : (this.config.tint || Palette.boss));
     }
 
     get x() { return this.sprite.x; }
@@ -74,7 +173,7 @@ class Boss {
 
     enterPhase2() {
         this.phase = 2;
-        this.sprite.setTint(this.config.phase2Tint || 0xff5577);
+        this._restoreBossTint();
         Effects.bigText(this.scene, '暴 走！！', PaletteHex.danger);
         Effects.shake(this.scene, 320, 0.02);
     }
@@ -139,12 +238,7 @@ class Boss {
         this.hp = Math.max(0, this.hp - amount);
         this._syncBossBar();
         this.sprite.setTint(0xffffff);
-        this.scene.time.delayedCall(70, () => {
-            if (!this.sprite || !this.sprite.setTint) return;
-            this.sprite.setTint(this.phase === 2
-                ? (this.config.phase2Tint || 0xff5577)
-                : (this.config.tint || Palette.boss));
-        });
+        this.scene.time.delayedCall(70, () => this._restoreBossTint());
         if (this.hp <= 0) this.die();
     }
 

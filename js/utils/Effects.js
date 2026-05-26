@@ -127,6 +127,169 @@ class Effects {
         }
     }
 
+    static createSwordChargeFx(player) {
+        const scene = player.scene;
+        Effects.spawnSwordChargeRingPulse(player);
+        player._swordChargeRingTimer = scene.time.addEvent({
+            delay: PlayerConfig.swordChargeRingInterval,
+            loop: true,
+            callback: () => {
+                if (player.fsm?.is('swordCharge')) {
+                    Effects.spawnSwordChargeRingPulse(player);
+                }
+            }
+        });
+
+        const emitter = scene.add.particles(0, 0, 'particle_energy', {
+            speed: { min: 18, max: 72 },
+            angle: { min: 235, max: 305 },
+            scale: { start: 0.55, end: 0 },
+            alpha: { start: 0.85, end: 0 },
+            lifespan: { min: 180, max: 420 },
+            frequency: 38,
+            quantity: 2,
+            blendMode: 'ADD',
+            tint: [Palette.hero, Palette.heroAccent, Palette.white]
+        });
+        player.swordChargeEmitter = emitter;
+
+        const glow = scene.add.graphics()
+            .setDepth(27)
+            .setBlendMode(Phaser.BlendModes.ADD);
+        player.swordChargeBlueRing = glow;
+        Effects._drawSwordChargeBlueRing(player, 0);
+
+        Effects.syncSwordChargeFx(player);
+        return emitter;
+    }
+
+    static _drawSwordChargeBlueRing(player, ratio) {
+        const glow = player.swordChargeBlueRing;
+        if (!glow || !glow.active) return;
+        const cfg = PlayerConfig;
+        const r = Phaser.Math.Linear(cfg.swordChargeBlueRingRadius, cfg.swordChargeBlueRingRadius + 16, ratio);
+        glow.clear();
+        glow.lineStyle(7, Palette.energy, 0.16);
+        glow.strokeCircle(0, 0, r + 10);
+        glow.lineStyle(3, Palette.energy, 0.45);
+        glow.strokeCircle(0, 0, r);
+    }
+
+    static spawnSwordChargeRingPulse(player) {
+        const scene = player.scene;
+        if (!player.fsm?.is('swordCharge')) return;
+        const cfg = PlayerConfig;
+        const ratio = player.getSwordChargeProgress ? player.getSwordChargeProgress() : 0;
+        const cx = player.x;
+        const cy = player.y - cfg.swordChargeRingOffsetY;
+        const startR = Phaser.Math.Linear(cfg.swordChargeRingStartRadius, cfg.swordChargeRingEndRadius + 18, ratio);
+        const endScale = cfg.swordChargeRingEndRadius / startR;
+        const duration = Phaser.Math.Linear(cfg.swordChargeRingDuration, cfg.swordChargeRingDuration * 0.72, ratio);
+        const ringColor = ratio >= cfg.swordQiPierceChargeMs / cfg.swordChargeMaxMs
+            ? Palette.warning
+            : Palette.heroAccent;
+
+        const ring = scene.add.graphics();
+        ring.lineStyle(2.5, ringColor, 0.82);
+        ring.strokeCircle(0, 0, startR);
+        ring.setPosition(cx, cy);
+        ring.setDepth(28);
+        ring.setBlendMode(Phaser.BlendModes.ADD);
+
+        const blueRing = scene.add.graphics();
+        blueRing.lineStyle(4, Palette.energy, 0.5);
+        blueRing.strokeCircle(0, 0, startR * 1.08);
+        blueRing.setPosition(cx, cy);
+        blueRing.setDepth(27);
+        blueRing.setBlendMode(Phaser.BlendModes.ADD);
+
+        scene.tweens.add({
+            targets: [ring, blueRing],
+            scaleX: endScale,
+            scaleY: endScale,
+            alpha: 0,
+            duration,
+            ease: 'Sine.easeIn',
+            onComplete: () => {
+                ring.destroy();
+                blueRing.destroy();
+            }
+        });
+    }
+
+    static syncSwordChargeFx(player) {
+        const em = player.swordChargeEmitter;
+        const offsetY = PlayerConfig.swordChargeRingOffsetY;
+        const ratio = player.getSwordChargeProgress ? player.getSwordChargeProgress() : 0;
+        if (em && em.active) {
+            em.setPosition(player.x, player.y - offsetY);
+            em.setFrequency(Phaser.Math.Linear(38, 18, ratio));
+        }
+        if (player.swordChargeBlueRing && player.swordChargeBlueRing.active) {
+            player.swordChargeBlueRing.setPosition(player.x, player.y - offsetY);
+            Effects._drawSwordChargeBlueRing(player, ratio);
+        }
+    }
+
+    static destroySwordChargeFx(player) {
+        if (player._swordChargeRingTimer) {
+            player._swordChargeRingTimer.remove(false);
+            player._swordChargeRingTimer = null;
+        }
+        if (player.swordChargeBlueRing) {
+            player.swordChargeBlueRing.destroy();
+            player.swordChargeBlueRing = null;
+        }
+        if (player.swordChargeEmitter) {
+            player.swordChargeEmitter.stop();
+            player.swordChargeEmitter.destroy();
+            player.swordChargeEmitter = null;
+        }
+    }
+
+    static createSwordChargeBar(player) {
+        const scene = player.scene;
+        const w = PlayerConfig.swordChargeBarWidth;
+        const h = PlayerConfig.swordChargeBarHeight;
+        const bg = scene.add.rectangle(0, 0, w, h, 0x000000, 0.6)
+            .setOrigin(0.5, 0.5)
+            .setDepth(32)
+            .setStrokeStyle(1, Palette.heroDark, 0.8);
+        const fill = scene.add.rectangle(0, 0, 2, h - 2, Palette.heroAccent, 0.95)
+            .setOrigin(0, 0.5)
+            .setDepth(33);
+        player.swordChargeBarBg = bg;
+        player.swordChargeBarFill = fill;
+        Effects.updateSwordChargeBar(player);
+    }
+
+    static updateSwordChargeBar(player) {
+        const bg = player.swordChargeBarBg;
+        const fill = player.swordChargeBarFill;
+        if (!bg || !fill || !bg.active) return;
+        const w = PlayerConfig.swordChargeBarWidth;
+        const h = PlayerConfig.swordChargeBarHeight;
+        const ratio = player.getSwordChargeProgress ? player.getSwordChargeProgress() : 0;
+        const pierceRatio = PlayerConfig.swordQiPierceChargeMs / PlayerConfig.swordChargeMaxMs;
+        const barY = player.y - PlayerConfig.swordChargeRingOffsetY - 46;
+
+        bg.setPosition(player.x, barY);
+        fill.setPosition(player.x - w / 2 + 1, barY);
+        fill.setSize(Math.max(2, (w - 2) * ratio), h - 2);
+        fill.setFillStyle(ratio >= pierceRatio ? Palette.warning : Palette.heroAccent, 0.95);
+    }
+
+    static destroySwordChargeBar(player) {
+        if (player.swordChargeBarBg) {
+            player.swordChargeBarBg.destroy();
+            player.swordChargeBarBg = null;
+        }
+        if (player.swordChargeBarFill) {
+            player.swordChargeBarFill.destroy();
+            player.swordChargeBarFill = null;
+        }
+    }
+
     static explosion(scene, x, y, scale = 1) {
         const emitter = scene.add.particles(x, y, 'particle_fire', {
             speed: { min: 120 * scale, max: 360 * scale },

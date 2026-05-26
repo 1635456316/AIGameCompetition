@@ -41,6 +41,9 @@ class BootScene extends Phaser.Scene {
             if (file && file.key === 'sfx_dash') {
                 console.warn('[BootScene] 冲刺音效加载失败，请确认 assets/audio/dash.wav 存在');
             }
+            if (file && file.key === 'sfx_charge') {
+                console.warn('[BootScene] 蓄力音效加载失败，请确认 assets/audio/charge.mp3 存在');
+            }
         });
 
         // 音频资源
@@ -48,6 +51,7 @@ class BootScene extends Phaser.Scene {
         // 使用英文文件名，避免部分本地服务器对中文路径加载失败
         this.load.audio('sfx_punch', 'assets/audio/punch.mp3', { instances: 4 });
         this.load.audio('sfx_dash', 'assets/audio/dash.wav', { instances: 3 });
+        this.load.audio('sfx_charge', 'assets/audio/charge.mp3');
         // 每关 BGM：遍历关卡配置，自动用 `bgm_level_${id}_normal/boss` 作 key 预加载。
         if (typeof LevelConfigs !== 'undefined') {
             LevelConfigs.forEach((level) => {
@@ -97,6 +101,15 @@ class BootScene extends Phaser.Scene {
         this.load.json('hero_dash_meta', 'assets/character/Hero/主角-冲刺.json');
         this.load.json('hero_sword_charge_meta', 'assets/character/Hero/主角-持剑蓄力.json');
         this.load.json('hero_sword_slash_meta', 'assets/character/Hero/主角-持剑劈砍.json');
+
+        // 第 1 关 Boss 待机贴图
+        this.load.image('tex_boss1_idle', 'assets/character/Level1Boss/第一关Boss.png');
+        this.load.json('boss1_idle_meta', 'assets/character/Level1Boss/第一关Boss.json');
+
+        // 最终关 Boss 待机贴图
+        this.load.image('tex_boss_final_idle', 'assets/character/LevelFinalBoss/最终关Boss.png');
+        this.load.json('boss_final_idle_meta', 'assets/character/LevelFinalBoss/最终关Boss.json');
+
         this.load.image('fx_punch_wind', 'assets/effects/拳风.png');
         this.load.image('fx_sword_qi', 'assets/effects/sword_qi.png');
         // 使用英文文件名，避免部分本地服务器对中文路径加载失败
@@ -115,6 +128,7 @@ class BootScene extends Phaser.Scene {
         this.sound.pauseOnBlur = false;
 
         HeroAnimLoader.registerAll(this);
+        BossAnimLoader.registerAll(this);
         TextureFactory.bakeAll(this);
         this.scene.start('MenuScene');
     }

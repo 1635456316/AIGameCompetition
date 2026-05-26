@@ -1,3 +1,20 @@
+function _animDurationMs(scene, animKey, fallback) {
+    const anim = scene.anims.get(animKey);
+    if (!anim || !anim.frames || !anim.frames.length) return fallback;
+    const total = anim.frames.reduce((sum, f) => sum + (f.duration || 0), 0);
+    return total > 0 ? total : fallback;
+}
+
+function _animFrameStartMs(scene, animKey, frameIndex) {
+    const anim = scene.anims.get(animKey);
+    if (!anim || !anim.frames) return 0;
+    let t = 0;
+    for (let i = 0; i < frameIndex && i < anim.frames.length; i++) {
+        t += anim.frames[i].duration || 0;
+    }
+    return t;
+}
+
 const IdleState = {
     enter(player) {
         player.setVelocityX(0);
@@ -8,7 +25,7 @@ const IdleState = {
             player.fsm.change('run');
             return;
         }
-        if (!player.onGround()) {
+        if (player.isAirborne()) {
             player.fsm.change('fall');
         }
     },
@@ -38,7 +55,7 @@ const RunState = {
         }
         player.facing = dir;
         player.setVelocityX(dir * PlayerConfig.moveSpeed);
-        if (!player.onGround()) {
+        if (player.isAirborne()) {
             player.fsm.change('fall');
         }
     },
@@ -84,7 +101,7 @@ const FallState = {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
         if (dir !== 0) player.facing = dir;
         player.setVelocityX(dir * PlayerConfig.moveSpeed);
-        if (player.onGround()) {
+        if (player.isLanded()) {
             player.fsm.change(dir === 0 ? 'idle' : 'run');
         }
     },
@@ -107,6 +124,7 @@ const FallState = {
 
 const DashState = {
     enter(player) {
+        player._heroDisplayScaleMult = 1;
         player.playHeroAnim('hero_dash', true);
         player.dashEndAt = player.scene.time.now + PlayerConfig.dashDuration;
         player.lastDashAt = player.scene.time.now;
@@ -222,6 +240,7 @@ const SwordChargeState = {
     enter(player) {
         player.swordChargeStartAt = player.scene.time.now;
         player.swordChargeRatio = 0;
+        player._heroDisplayScaleMult = PlayerConfig.swordChargeDisplayScaleMult;
         if (player.scene.anims.exists('hero_sword_charge')) {
             player.playHeroAnim('hero_sword_charge', true);
         } else if (player.scene.textures.exists('tex_hero_sword_charge')) {
@@ -229,57 +248,74 @@ const SwordChargeState = {
         } else {
             player.playHeroAnim('hero_idle');
         }
+        Effects.createSwordChargeFx(player);
+        Effects.createSwordChargeBar(player);
+        player.startChargeSfx();
     },
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
         if (dir !== 0) player.facing = dir;
         player.setVelocityX(dir * PlayerConfig.moveSpeed * PlayerConfig.swordChargeMoveSpeedMult);
+        Effects.syncSwordChargeFx(player);
+        Effects.updateSwordChargeBar(player);
 
         if (!player.input.swordChargeHeld) {
-            const chargeMs = time - player.swordChargeStartAt;
-            if (chargeMs >= PlayerConfig.swordChargeMinMs && player.canReleaseSwordCharge()) {
+            if (player.canReleaseSwordCharge()) {
                 player.releaseSwordCharge();
             } else {
                 player.swordChargeStartAt = 0;
+                player.setHeroDisplayScaleMult(1);
                 player.fsm.change(player.onGround() ? 'idle' : 'fall');
             }
         }
     },
     exit(player) {
         player.swordChargeStartAt = 0;
+        player.stopChargeSfx();
+        Effects.destroySwordChargeFx(player);
+        Effects.destroySwordChargeBar(player);
+    },
+    handleInput(player, input) {
+        if (input.dashPressed && player.canDash()) {
+            player.setHeroDisplayScaleMult(1);
+            player.fsm.change('dash');
+        }
     }
 };
 
 const SwordReleaseState = {
     enter(player) {
+        const scene = player.scene;
+        const slashKey = 'hero_sword_slash';
         player._swordQiSpawned = false;
-        player.playHeroAnim('hero_sword_slash', true);
+        player._heroDisplayScaleMult = PlayerConfig.swordReleaseDisplayScaleMult;
+        player.playHeroAnim(slashKey, true);
         player.setVelocityX(player.facing * PlayerConfig.moveSpeed * 0.15);
 
-        const scene = player.scene;
-        const anim = scene.anims.get('hero_sword_slash');
-        const animMs = anim ? anim.duration : PlayerConfig.swordReleaseDuration;
-        player.swordReleaseEndAt = scene.time.now + animMs + 60;
+        const animMs = _animDurationMs(scene, slashKey, PlayerConfig.swordReleaseDuration);
+        const slashAnim = scene.anims.get(slashKey);
+        const lastFrameIdx = slashAnim && slashAnim.frames.length
+            ? slashAnim.frames.length - 1
+            : 0;
+        const lastFrameStartMs = _animFrameStartMs(scene, slashKey, lastFrameIdx);
 
-        player._onSwordSlashAnim = (animation, frame) => {
-            if (animation.key !== 'hero_sword_slash' || player._swordQiSpawned) return;
-            const slashAnim = scene.anims.get('hero_sword_slash');
-            if (!slashAnim || !frame) return;
-            const lastIdx = slashAnim.frames.length - 1;
-            if (frame.index !== lastIdx) return;
+        player._swordQiSpawnTimer = scene.time.delayedCall(lastFrameStartMs, () => {
+            if (!player.fsm.is('swordRelease') || player._swordQiSpawned) return;
             player._swordQiSpawned = true;
             player.spawnSwordQi(player.swordChargeRatio);
-        };
-        player.sprite.on(Phaser.Animations.Events.ANIMATION_UPDATE, player._onSwordSlashAnim);
+        });
 
-        if (!anim) {
-            scene.time.delayedCall(Math.floor(PlayerConfig.swordReleaseDuration * 0.65), () => {
-                if (!player._swordQiSpawned && player.fsm.is('swordRelease')) {
-                    player._swordQiSpawned = true;
-                    player.spawnSwordQi(player.swordChargeRatio);
-                }
-            });
-        }
+        const finishRelease = () => {
+            if (!player.fsm.is('swordRelease')) return;
+            player.fsm.change(player.onGround() ? 'idle' : 'fall');
+        };
+
+        player._onSwordSlashComplete = (animation) => {
+            if (animation.key !== slashKey) return;
+            finishRelease();
+        };
+        player.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
+        player._swordReleaseFallbackTimer = scene.time.delayedCall(animMs + 80, finishRelease);
     },
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
@@ -288,16 +324,23 @@ const SwordReleaseState = {
         } else {
             player.setVelocityX(dir * PlayerConfig.moveSpeed * 0.45);
         }
-        if (time >= player.swordReleaseEndAt) {
-            player.fsm.change(player.onGround() ? 'idle' : 'fall');
-        }
     },
     exit(player) {
-        if (player._onSwordSlashAnim) {
-            player.sprite.off(Phaser.Animations.Events.ANIMATION_UPDATE, player._onSwordSlashAnim);
-            player._onSwordSlashAnim = null;
+        if (player._swordQiSpawnTimer) {
+            player._swordQiSpawnTimer.remove(false);
+            player._swordQiSpawnTimer = null;
+        }
+        if (player._swordReleaseFallbackTimer) {
+            player._swordReleaseFallbackTimer.remove(false);
+            player._swordReleaseFallbackTimer = null;
+        }
+        if (player._onSwordSlashComplete) {
+            player.sprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
+            player._onSwordSlashComplete = null;
         }
         player._swordQiSpawned = false;
+        player.swordChargeMs = 0;
+        player.setHeroDisplayScaleMult(1);
     },
     handleInput() {}
 };

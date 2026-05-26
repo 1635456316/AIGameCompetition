@@ -5,7 +5,7 @@
   "width": 3200,
   "playerStart": { "x": 160, "yOffset": 120 },
   "bossTriggerOffset": 600,
-  "boss": { "type": "mechanicalDino", "xOffset": 220, "yOffset": 80 },
+  "boss": { "type": "mechanicalDino", "xOffset": 220, "yOffset": 64 },
   "startVideoUrl": "assets/video/最终Boss出场.mp4",
   "endVideoUrl": "assets/video/PV-结束.mp4",
   "normalBgmUrl": "assets/audio/第一关普通曲.mp3",

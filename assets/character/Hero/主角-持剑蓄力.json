@@ -1,9 +1,9 @@
 {
   "source": "主角-持剑蓄力.png",
-  "frameWidth": 1024,
-  "frameHeight": 1024,
+  "frameWidth": 640,
+  "frameHeight": 640,
   "count": 1,
   "frames": [
-    { "index": 0, "time": 0, "x": 0, "y": 0, "w": 1024, "h": 1024 }
+    { "index": 0, "time": 0, "x": 0, "y": 0, "w": 640, "h": 640 }
   ]
 }

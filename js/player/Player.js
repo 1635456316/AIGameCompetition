@@ -43,12 +43,16 @@ class Player {
         this.lastSwordQiAt = -99999;
         this.swordChargeStartAt = 0;
         this.swordChargeRatio = 0;
+        this.swordChargeMs = 0;
         this.swordReleaseEndAt = 0;
+        this._heroDisplayScaleMult = 1;
         this.hurtEndAt = 0;
         this.ultEndAt = 0;
         this.invulnerableUntil = 0;
         this.platformDropUntil = 0;
         this._lastDownTapAt = 0;
+        this._leaveGroundFrames = 0;
+        this._landFrames = 0;
 
         this.input = {
             left: false, right: false, down: false, downPressed: false,
@@ -76,12 +80,23 @@ class Player {
 
     _preserveFeetWhile(fn) {
         const body = this.sprite.body;
-        const prevBottom = body ? body.bottom : null;
-        fn();
-        if (body && prevBottom != null) {
-            body.updateFromGameObject();
-            this.sprite.y -= body.bottom - prevBottom;
+        if (!body) {
+            fn();
+            return;
         }
+        const grounded = body.blocked.down || (body.touching.down && body.velocity.y >= -8);
+        const prevBottom = body.bottom;
+        const feetY = this.sprite.y;
+
+        fn();
+        body.updateFromGameObject();
+
+        if (grounded) {
+            this.sprite.y += prevBottom - body.bottom;
+        } else {
+            this.sprite.y = feetY;
+        }
+        body.updateFromGameObject();
     }
 
     playHeroAnim(animKey, forceRestart = false) {
@@ -96,7 +111,7 @@ class Player {
         this._preserveFeetWhile(() => {
             this.sprite.anims.play(animKey, forceRestart);
             this._applySheetHeroScale();
-            this._applySheetHeroBody(animKey);
+            this._applySheetHeroBody();
         });
     }
 
@@ -107,7 +122,7 @@ class Player {
             this.sprite.anims.stop();
             this.sprite.setTexture(textureKey, frameKey);
             this._applySheetHeroScale();
-            this._applySheetHeroBody(null, textureKey);
+            this._applySheetHeroBody();
         });
     }
 
@@ -123,12 +138,27 @@ class Player {
 
     _applySheetHeroScale() {
         const h = (this.sprite.frame && this.sprite.frame.height) || PlayerConfig.heroFrameHeight;
-        this.sprite.setScale(PlayerConfig.heroDisplayHeight / h);
+        const mult = this._heroDisplayScaleMult || 1;
+        this.sprite.setScale(PlayerConfig.heroDisplayHeight / h * mult);
     }
 
-    _applySheetHeroBody(animKey, textureKey) {
-        const useChargeBody = animKey === 'hero_sword_charge' || textureKey === 'tex_hero_sword_charge';
-        const b = useChargeBody ? PlayerConfig.heroSwordChargeBody : PlayerConfig.heroSheetBody;
+    setHeroDisplayScaleMult(mult) {
+        this._heroDisplayScaleMult = mult || 1;
+        this._preserveFeetWhile(() => {
+            this._applySheetHeroScale();
+        });
+    }
+
+    isSuperArmored() {
+        return this.fsm.is('swordRelease');
+    }
+
+    isSwordCharging() {
+        return this.fsm.is('swordCharge');
+    }
+
+    _applySheetHeroBody() {
+        const b = PlayerConfig.heroSheetBody;
         this.sprite.body.setSize(b.width, b.height);
         this.sprite.body.setOffset(b.offsetX, b.offsetY);
     }
@@ -148,9 +178,30 @@ class Player {
     setVelocity(x, y) { this.sprite.setVelocity(x, y); }
 
     onGround() {
-        const grounded = this.body.blocked.down || this.body.touching.down;
-        if (grounded) this.jumpsRemaining = PlayerConfig.maxJumps;
+        const body = this.body;
+        if (!body) return false;
+        const grounded = body.blocked.down
+            || (body.touching.down && body.velocity.y >= -20 && body.velocity.y <= 80);
+        if (grounded) {
+            this.jumpsRemaining = PlayerConfig.maxJumps;
+            this._leaveGroundFrames = 0;
+        }
         return grounded;
+    }
+
+    isAirborne() {
+        if (this.onGround()) return false;
+        this._leaveGroundFrames = (this._leaveGroundFrames || 0) + 1;
+        return this._leaveGroundFrames >= 3;
+    }
+
+    isLanded() {
+        if (!this.onGround()) {
+            this._landFrames = 0;
+            return false;
+        }
+        this._landFrames = (this._landFrames || 0) + 1;
+        return this._landFrames >= 2;
     }
 
     canDash() {
@@ -188,6 +239,18 @@ class Player {
             1
         );
     }
+    getSwordChargeProgress() {
+        if (!this.swordChargeStartAt) return 0;
+        const rawMs = this.scene.time.now - this.swordChargeStartAt;
+        return Phaser.Math.Clamp(rawMs / PlayerConfig.swordChargeMaxMs, 0, 1);
+    }
+    getSwordChargeMs() {
+        if (!this.swordChargeStartAt) return 0;
+        return Math.min(
+            this.scene.time.now - this.swordChargeStartAt,
+            PlayerConfig.swordChargeMaxMs
+        );
+    }
     getSwordQiEnergyCost(ratio) {
         return Phaser.Math.Linear(
             PlayerConfig.swordQiEnergyCostMin,
@@ -201,6 +264,7 @@ class Player {
         return true;
     }
     releaseSwordCharge() {
+        this.swordChargeMs = this.getSwordChargeMs();
         this.swordChargeRatio = this.getSwordChargeRatio();
         this.energy = Math.max(0, this.energy - this.getSwordQiEnergyCost(this.swordChargeRatio));
         this.lastSwordQiAt = this.scene.time.now;
@@ -303,17 +367,37 @@ class Player {
     }
 
     takeDamage(amount, fromX) {
-        const now = this.scene.time.now;
-        if (now < this.invulnerableUntil) return;
         if (this.fsm.is('dead')) return;
+        if (this.isSuperArmored()) return;
+
+        const now = this.scene.time.now;
+        const charging = this.isSwordCharging();
+        if (!charging && now < this.invulnerableUntil) return;
+
+        if (charging) {
+            amount *= PlayerConfig.swordChargeDamageMult;
+        }
+
         this.hp = Math.max(0, this.hp - amount);
         this.damageTakenCount++;
-        this.invulnerableUntil = now + PlayerConfig.invulnAfterHurt;
+
         if (this.hp <= 0) {
             this.fsm.change('dead');
-        } else {
-            this.fsm.change('hurt', { fromRight: fromX > this.x });
+            return;
         }
+
+        if (charging) {
+            this.sprite.setTint(0xff8888);
+            this.scene.time.delayedCall(90, () => {
+                if (this.sprite.active && this.isSwordCharging()) {
+                    this.sprite.clearTint();
+                }
+            });
+            return;
+        }
+
+        this.invulnerableUntil = now + PlayerConfig.invulnAfterHurt;
+        this.fsm.change('hurt', { fromRight: fromX > this.x });
     }
 
     spawnDashTrail() {
@@ -324,7 +408,7 @@ class Player {
         let scale = PlayerConfig.heroDisplayHeight / 64;
         if (useSheet) {
             const frame = scene.textures.get('tex_hero_dash').get('dash_0');
-            const h = frame ? frame.height : 1024;
+            const h = frame ? frame.height : PlayerConfig.heroFrameHeight;
             scale = PlayerConfig.heroDisplayHeight / h;
         }
 
@@ -393,9 +477,43 @@ class Player {
         this._playSfx('sfx_dash');
     }
 
+    startChargeSfx() {
+        this.stopChargeSfx();
+        const scene = this.scene;
+        const sound = scene?.game?.sound || scene?.sound;
+        const cache = scene?.game?.cache?.audio || scene?.cache?.audio;
+        if (!sound || !cache?.exists('sfx_charge')) return;
+
+        const volume = SaveSystem.getVolume();
+        if (volume <= 0) return;
+
+        try {
+            const ctx = sound.context;
+            if (ctx?.state === 'suspended' && typeof ctx.resume === 'function') {
+                ctx.resume();
+            }
+        } catch (e) {}
+
+        try {
+            this._chargeSfx = sound.add('sfx_charge', { volume, loop: true });
+            this._chargeSfx.play();
+        } catch (e) {
+            console.warn('[Player] 播放 sfx_charge 失败', e);
+        }
+    }
+
+    stopChargeSfx() {
+        const sfx = this._chargeSfx;
+        this._chargeSfx = null;
+        if (!sfx) return;
+        try { sfx.stop(); } catch (e) {}
+        try { sfx.destroy(); } catch (e) {}
+    }
+
     spawnSwordQi(ratio) {
         const scene = this.scene;
         if (!scene.spawnPlayerSwordQi) return;
+        this.playPunchSfx();
         const cfg = PlayerConfig;
         scene.spawnPlayerSwordQi(
             this.x + this.facing * Phaser.Math.Linear(cfg.swordQiSpawnOffsetXMin, cfg.swordQiSpawnOffsetXMax, ratio),
@@ -405,7 +523,8 @@ class Player {
                 damage: Phaser.Math.Linear(cfg.swordQiMinDamage, cfg.swordQiMaxDamage, ratio),
                 scale: Phaser.Math.Linear(cfg.swordQiMinScale, cfg.swordQiMaxScale, ratio),
                 speed: Phaser.Math.Linear(cfg.swordQiMinSpeed, cfg.swordQiMaxSpeed, ratio),
-                maxRange: Phaser.Math.Linear(cfg.swordQiMinRange, cfg.swordQiMaxRange, ratio)
+                maxRange: Phaser.Math.Linear(cfg.swordQiMinRange, cfg.swordQiMaxRange, ratio),
+                pierce: (this.swordChargeMs || 0) >= cfg.swordQiPierceChargeMs
             }
         );
     }

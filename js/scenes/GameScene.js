@@ -66,12 +66,17 @@ class GameScene extends Phaser.Scene {
             const enemy = this._pickEnemyFromOverlap(a, b);
             if (!bullet || !bullet.active) return;
             if (enemy && enemy.alive) {
+                if (bullet._swordQiPierce) {
+                    bullet._hitSet = bullet._hitSet || new Set();
+                    if (bullet._hitSet.has(enemy)) return;
+                    bullet._hitSet.add(enemy);
+                }
                 enemy.takeDamage(bullet._swordQiDamage ?? 15, bullet.x);
                 Effects.hitFlash(this, bullet.x, bullet.y);
                 this.player.gainEnergy(4 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
             }
-            bullet.destroy();
+            if (!bullet._swordQiPierce) bullet.destroy();
         });
         this.physics.add.overlap(this.enemyBullets, this.player.sprite, (a, b) => {
             const bullet = this._pickEnemyBullet(a, b);
@@ -485,24 +490,33 @@ class GameScene extends Phaser.Scene {
     }
 
     _spawnBoss() {
-        const bossInfo = this.levelConfig.boss || { type: 'mechanicalDino', xOffset: 220, yOffset: 80 };
+        const bossInfo = this.levelConfig.boss || { type: 'mechanicalDino', xOffset: 220, yOffset: 64 };
         const x = this.levelWidth - (bossInfo.xOffset || 220);
-        const y = this.levelHeight - (bossInfo.yOffset || 80);
+        const groundY = this.levelHeight - 64;
+        const y = typeof bossInfo.y === 'number'
+            ? bossInfo.y
+            : (this.levelHeight - (bossInfo.yOffset ?? 64));
         const bossConfig = BossConfigs[bossInfo.type] || BossConfigs.mechanicalDino;
         this._playLevelBGM('boss');
         this.boss = new Boss(this, x, y, bossConfig);
+        this.boss.snapFeetToGroundY(groundY);
         this.physics.add.collider(this.boss.sprite, this.groundSolids);
         this.physics.add.collider(this.boss.sprite, this.platforms);
         this.physics.add.overlap(this.playerBullets, this.boss.sprite, (a, b) => {
             const bullet = this._pickPlayerBullet(a, b);
             if (!bullet || !bullet.active) return;
             if (this.boss && this.boss.alive) {
+                if (bullet._swordQiPierce) {
+                    bullet._hitSet = bullet._hitSet || new Set();
+                    if (bullet._hitSet.has(this.boss)) return;
+                    bullet._hitSet.add(this.boss);
+                }
                 this.boss.takeDamage(bullet._swordQiDamage ?? 10, bullet.x);
                 Effects.hitFlash(this, bullet.x, bullet.y);
                 this.player.gainEnergy(3 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
             }
-            bullet.destroy();
+            if (!bullet._swordQiPierce) bullet.destroy();
         });
         this.physics.add.overlap(this.playerMelees, this.boss.sprite, (a, b) => {
             const melee = this._pickPlayerMelee(a, b);
@@ -534,6 +548,7 @@ class GameScene extends Phaser.Scene {
         const speed = opts.speed ?? cfg.swordQiMinSpeed;
         const damage = opts.damage ?? cfg.swordQiMinDamage;
         const maxRange = opts.maxRange ?? cfg.swordQiMinRange;
+        const pierce = !!opts.pierce;
         const displayW = cfg.swordQiDisplayWidth * scale;
 
         const b = this.playerBullets.create(x, y, 'fx_sword_qi');
@@ -548,6 +563,12 @@ class GameScene extends Phaser.Scene {
         b._swordQiDamage = damage;
         b._spawnX = x;
         b._swordQiMaxRange = maxRange;
+        b._swordQiPierce = pierce;
+        b._hitSet = pierce ? new Set() : null;
+        if (pierce) {
+            b.setTint(Palette.warning);
+            b.setAlpha(0.98);
+        }
     }
 
     spawnEnemyBullet(x, y, vx, vy = 0) {
@@ -752,6 +773,7 @@ class GameScene extends Phaser.Scene {
         // attackDash：第三段前冲可命中 Boss，但不应吃接触伤害
         return this.player.fsm.is('dash')
             || this.player.fsm.is('attackDash')
+            || this.player.isSuperArmored?.()
             || this.player.fsm.is('dead');
     }
 
@@ -816,8 +838,12 @@ class GameScene extends Phaser.Scene {
             if (pb.bottom < platTop - 6) return;
             if (pb.bottom > platTop + 36) return;
 
-            player.sprite.y += platTop - pb.bottom;
+            const snap = platTop - pb.bottom;
+            if (Math.abs(snap) < 1) return;
+
+            player.sprite.y += snap;
             player.setVelocityY(0);
+            pb.updateFromGameObject();
         });
     }
 
