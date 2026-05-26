@@ -97,7 +97,7 @@ class Effects {
             .setDisplaySize(cfg.shockwaveWidth || 200, (cfg.shockwaveWidth || 200) * (fh / fw))
             .setFlipX(facing < 0)
             .setBlendMode(Phaser.BlendModes.ADD)
-            .setDepth(player.sprite.depth + 1)
+            .setDepth((player.viewSprite?.depth ?? player.sprite.depth) + 1)
             .setAlpha(0.95);
 
         player.attackDashShockwave = wave;

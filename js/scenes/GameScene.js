@@ -93,8 +93,10 @@ class GameScene extends Phaser.Scene {
             if (!melee || !melee.active || !enemy || !enemy.alive) return;
             if (melee._hitSet && melee._hitSet.has(enemy)) return;
             (melee._hitSet = melee._hitSet || new Set()).add(enemy);
+            const hitX = enemy.x;
+            const hitY = enemy.y;
             enemy.takeDamage(PlayerConfig.meleeDamage, melee.x);
-            Effects.hitFlash(this, enemy.x, enemy.y - 24);
+            Effects.hitFlash(this, hitX, hitY - 24);
             Effects.shake(this, 90, 0.008);
             Effects.hitStop(this, 50);
             this.player.gainEnergy(6 * this.hud.getEnergyMultiplier());
@@ -118,12 +120,17 @@ class GameScene extends Phaser.Scene {
         // HUD
         this.hud = new HUD(this, this.player);
 
+        // Debug 碰撞盒渲染
+        this.entityDebug = new EntityDebugRenderer(this);
+        this.entityDebug.setEnabled(GameDebug.showHitboxes);
+
         if (this._onPlatformPostUpdate) {
             this.events.off('postupdate', this._onPlatformPostUpdate);
         }
         this._onPlatformPostUpdate = () => {
             this._resolvePlayerPlatformLanding();
             this._storePlayerBodySnapshot();
+            this._syncEntityViews();
         };
         this.events.on('postupdate', this._onPlatformPostUpdate);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -132,8 +139,8 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        // 镜头
-        this.cameras.main.startFollow(this.player.sprite, true, 0.12, 0.12);
+        // 镜头跟随表现层，与玩家所见一致（坐标每帧 postUpdate 与逻辑体同步）
+        this.cameras.main.startFollow(this.player.viewSprite, true, 0.12, 0.12);
         this.cameras.main.setDeadzone(120, 80);
 
         // 玩家击杀回调
@@ -186,6 +193,7 @@ class GameScene extends Phaser.Scene {
         // 系统快捷键（restart 前先解绑，避免重复注册）
         if (this._onEscKey) this.input.keyboard.off('keydown-ESC', this._onEscKey);
         if (this._onRKey) this.input.keyboard.off('keydown-R', this._onRKey);
+        if (this._onF3Key) this.input.keyboard.off('keydown-F3', this._onF3Key);
         this._onEscKey = () => {
             if (this.gameOver) {
                 this.scene.start('MenuScene');
@@ -206,9 +214,16 @@ class GameScene extends Phaser.Scene {
         };
         this.input.keyboard.on('keydown-ESC', this._onEscKey);
         this.input.keyboard.on('keydown-R', this._onRKey);
+        this._onF3Key = () => {
+            if (!this.entityDebug) return;
+            const on = this.entityDebug.toggle();
+            Effects.bigText(this, on ? 'Debug: 碰撞盒 ON' : 'Debug: 碰撞盒 OFF', on ? PaletteHex.warning : '#888888');
+        };
+        this.input.keyboard.on('keydown-F3', this._onF3Key);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             if (this._onEscKey) this.input.keyboard.off('keydown-ESC', this._onEscKey);
             if (this._onRKey) this.input.keyboard.off('keydown-R', this._onRKey);
+            if (this._onF3Key) this.input.keyboard.off('keydown-F3', this._onF3Key);
         });
 
         // 关卡机关
@@ -490,18 +505,21 @@ class GameScene extends Phaser.Scene {
     }
 
     _spawnBoss() {
-        const bossInfo = this.levelConfig.boss || { type: 'mechanicalDino', xOffset: 220, yOffset: 64 };
+        const bossInfo = this.levelConfig.boss || { type: 'mechanicalDino', xOffset: 220 };
         const x = this.levelWidth - (bossInfo.xOffset || 220);
         const groundY = this.levelHeight - 64;
-        const y = typeof bossInfo.y === 'number'
-            ? bossInfo.y
-            : (this.levelHeight - (bossInfo.yOffset ?? 64));
+        // 默认生成在地面上（与 player / 小怪一致）；关卡 JSON 可显式指定 boss.y
+        const y = typeof bossInfo.y === 'number' ? bossInfo.y : groundY;
         const bossConfig = BossConfigs[bossInfo.type] || BossConfigs.mechanicalDino;
         this._playLevelBGM('boss');
         this.boss = new Boss(this, x, y, bossConfig);
         this.boss.snapFeetToGroundY(groundY);
         this.physics.add.collider(this.boss.sprite, this.groundSolids);
         this.physics.add.collider(this.boss.sprite, this.platforms);
+        // 首帧物理刷新后再贴地一次，避免构造时 body 未就绪导致下沉
+        this.time.delayedCall(0, () => {
+            if (this.boss?.alive) this.boss.snapFeetToGroundY(groundY);
+        });
         this.physics.add.overlap(this.playerBullets, this.boss.sprite, (a, b) => {
             const bullet = this._pickPlayerBullet(a, b);
             if (!bullet || !bullet.active) return;
@@ -728,8 +746,10 @@ class GameScene extends Phaser.Scene {
             if (!this._canAttackDashTick(player, enemy, now)) return;
 
             this._markAttackDashTick(player, enemy, now);
+            const hitX = enemy.x;
+            const hitY = enemy.y;
             enemy.takeDamage(cfg.attackDashDamagePerTick, player.x);
-            Effects.hitFlash(this, enemy.x, enemy.y - 24);
+            Effects.hitFlash(this, hitX, hitY - 24);
             Effects.shake(this, 70, 0.006);
             Effects.hitStop(this, 35);
             this.player.gainEnergy(3 * this.hud.getEnergyMultiplier());
@@ -816,6 +836,23 @@ class GameScene extends Phaser.Scene {
         const pb = this.player?.body;
         if (!pb) return;
         this.player._prevBodyBottom = pb.bottom;
+    }
+
+    /** 物理步结束后，将表现层与逻辑体坐标对齐 */
+    _syncEntityViews() {
+        if (this.player) this.player.syncView();
+        if (this.enemies) {
+            this.enemies.forEach(e => e.alive && e.syncView());
+        }
+        if (this.boss?.alive) this.boss.syncView();
+
+        if (this.entityDebug?.enabled) {
+            this.entityDebug.beginFrame();
+            this.entityDebug.drawEntity(this.player, 0x00ff88, { label: 'Player' });
+            this.entityDebug.drawEntities(this.enemies, 0xff6666, { label: 'Enemy' });
+            if (this.boss?.alive) this.entityDebug.drawEntity(this.boss, 0xffaa00, { label: 'Boss' });
+            this.entityDebug.endFrame();
+        }
     }
 
     /** 物理步后兜底：本帧从上穿过平台顶面时，吸附到台面 */

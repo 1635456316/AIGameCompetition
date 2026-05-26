@@ -1,26 +1,21 @@
 /**
- * 玩家类。本身是一个 Phaser.GameObjects.Container 的轻量替代——
- * 这里直接持有一个 sprite，外部通过 player.sprite 访问显示对象，
- * 但物理体绑定在 sprite 上，player 自身负责逻辑与状态机。
+ * 玩家类：逻辑体（碰撞/坐标）与表现层（动画/贴图）分离，数值与状态机仍在此类。
  */
 class Player {
     constructor(scene, x, y) {
         this.scene = scene;
-        const idleTex = scene.textures.exists('tex_hero_idle') ? 'tex_hero_idle' : 'hero_jump';
-        const idleFrame = scene.textures.exists('tex_hero_idle') ? 'idle_0' : undefined;
-        this.sprite = scene.physics.add.sprite(x, y, idleTex, idleFrame);
-        this.sprite.setOrigin(0.5, 1);
-        if (scene.textures.exists('tex_hero_idle')) {
-            this._applySheetHeroBody();
-            this._applySheetHeroScale();
-        } else {
-            this._applyStaticHeroBody();
-            this.sprite.setScale(PlayerConfig.heroDisplayHeight / 64);
+        const entityCfg = PlayerConfig.buildEntityConfig(scene);
+        this._useSheetVisual = entityCfg.useSheet;
+
+        this.logic = new EntityLogic(scene, x, y, entityCfg.logic);
+        this.view = new EntityView(scene, x, y, entityCfg.visual);
+        this.logic.sprite.owner = this;
+        this.sprite = this.logic.sprite;
+        this.viewSprite = this.view.sprite;
+
+        if (this._useSheetVisual) {
+            this.view.playAnim('hero_idle', true);
         }
-        this.sprite.setCollideWorldBounds(true);
-        this.sprite.setMaxVelocity(800, 1400);
-        this.sprite.setDepth(20);
-        this.sprite.owner = this;
 
         this.facing = 1;
         this.hp = PlayerConfig.maxHp;
@@ -76,27 +71,33 @@ class Player {
             .add('dead', DeadState)
             .add('ultimate', UltimateState);
         this.fsm.change('idle');
+        this.syncView();
     }
 
     _preserveFeetWhile(fn) {
-        const body = this.sprite.body;
+        const body = this.logic.body;
         if (!body) {
             fn();
             return;
         }
         const grounded = body.blocked.down || (body.touching.down && body.velocity.y >= -8);
         const prevBottom = body.bottom;
-        const feetY = this.sprite.y;
+        const feetY = this.logic.y;
 
         fn();
         body.updateFromGameObject();
 
         if (grounded) {
-            this.sprite.y += prevBottom - body.bottom;
+            this.logic.sprite.y += prevBottom - body.bottom;
         } else {
-            this.sprite.y = feetY;
+            this.logic.sprite.y = feetY;
         }
         body.updateFromGameObject();
+        this.syncView();
+    }
+
+    syncView() {
+        this.view.syncFromLogic(this.logic);
     }
 
     playHeroAnim(animKey, forceRestart = false) {
@@ -106,47 +107,26 @@ class Player {
             }
             return;
         }
-        if (!forceRestart && this._currentHeroAnim === animKey && this.sprite.anims.isPlaying) return;
-        this._currentHeroAnim = animKey;
         this._preserveFeetWhile(() => {
-            this.sprite.anims.play(animKey, forceRestart);
-            this._applySheetHeroScale();
-            this._applySheetHeroBody();
+            this.view.playAnim(animKey, forceRestart);
         });
     }
 
     /** 停在序列帧某一帧（不播放动画） */
     showHeroSheetFrame(textureKey, frameKey) {
-        this._currentHeroAnim = null;
         this._preserveFeetWhile(() => {
-            this.sprite.anims.stop();
-            this.sprite.setTexture(textureKey, frameKey);
-            this._applySheetHeroScale();
-            this._applySheetHeroBody();
+            this.view.showFrame(textureKey, frameKey);
         });
     }
 
     showHeroTexture(textureKey) {
-        this._currentHeroAnim = null;
-        this.sprite.anims.stop();
-        this.sprite.setTexture(textureKey);
-        const frame = this.sprite.frame;
-        const frameH = frame ? frame.height : 64;
-        this.sprite.setScale(PlayerConfig.heroDisplayHeight / frameH);
-        this._applyStaticHeroBody();
-    }
-
-    _applySheetHeroScale() {
-        const h = (this.sprite.frame && this.sprite.frame.height) || PlayerConfig.heroFrameHeight;
-        const mult = this._heroDisplayScaleMult || 1;
-        this.sprite.setScale(PlayerConfig.heroDisplayHeight / h * mult);
+        this.view.showTexture(textureKey);
+        this.applyStaticHeroBody();
     }
 
     setHeroDisplayScaleMult(mult) {
         this._heroDisplayScaleMult = mult || 1;
-        this._preserveFeetWhile(() => {
-            this._applySheetHeroScale();
-        });
+        this.view.setDisplayScaleMult(this._heroDisplayScaleMult);
     }
 
     isSuperArmored() {
@@ -157,25 +137,21 @@ class Player {
         return this.fsm.is('swordCharge');
     }
 
-    _applySheetHeroBody() {
-        const b = PlayerConfig.heroSheetBody;
-        this.sprite.body.setSize(b.width, b.height);
-        this.sprite.body.setOffset(b.offsetX, b.offsetY);
+    applySheetHeroBody() {
+        this.logic.applyBody(PlayerConfig.heroSheetBody);
     }
 
-    _applyStaticHeroBody() {
-        const b = PlayerConfig.heroStaticBody;
-        this.sprite.body.setSize(b.width, b.height);
-        this.sprite.body.setOffset(b.offsetX, b.offsetY);
+    applyStaticHeroBody() {
+        this.logic.applyBody(PlayerConfig.heroStaticBody);
     }
 
-    get body() { return this.sprite.body; }
-    get x() { return this.sprite.x; }
-    get y() { return this.sprite.y; }
+    get body() { return this.logic.body; }
+    get x() { return this.logic.x; }
+    get y() { return this.logic.y; }
 
-    setVelocityX(v) { this.sprite.setVelocityX(v); }
-    setVelocityY(v) { this.sprite.setVelocityY(v); }
-    setVelocity(x, y) { this.sprite.setVelocity(x, y); }
+    setVelocityX(v) { this.logic.setVelocityX(v); }
+    setVelocityY(v) { this.logic.setVelocityY(v); }
+    setVelocity(x, y) { this.logic.setVelocity(x, y); }
 
     onGround() {
         const body = this.body;
@@ -276,7 +252,7 @@ class Player {
     }
 
     update(time, delta) {
-        this.sprite.setFlipX(this.facing < 0);
+        this.view.setFlipX(this.facing < 0);
         if (this.hp > 0) {
             this.energy = Math.min(PlayerConfig.maxEnergy, this.energy + PlayerConfig.energyRegenRate * delta / 1000);
         }
@@ -290,7 +266,6 @@ class Player {
     }
 
     _handlePlatformDropInput(input) {
-        // 离地后必须清空连按计时，否则 A 台点过「下」再跳到 B 台会误触发穿落
         if (!this.scene.isStandingOnPlatform?.(this)) {
             this._lastDownTapAt = 0;
             if (!input.downPressed) return;
@@ -328,7 +303,6 @@ class Player {
         const now = this.scene.time.now;
         let step;
         if (fromDash) {
-            // 冲刺中接 J：直接第三段前冲，不占用 1/2 段连击
             step = 3;
             this.meleeComboStep = 3;
             this.lastMeleeComboAt = now;
@@ -387,10 +361,10 @@ class Player {
         }
 
         if (charging) {
-            this.sprite.setTint(0xff8888);
+            this.view.setTint(0xff8888);
             this.scene.time.delayedCall(90, () => {
-                if (this.sprite.active && this.isSwordCharging()) {
-                    this.sprite.clearTint();
+                if (this.viewSprite.active && this.isSwordCharging()) {
+                    this.view.clearTint();
                 }
             });
             return;
@@ -414,13 +388,13 @@ class Player {
 
         for (let i = 0; i < 4; i++) {
             scene.time.delayedCall(i * 40, () => {
-                if (!this.sprite || !this.sprite.active) return;
+                if (!this.logic.sprite || !this.logic.sprite.active) return;
                 const ghost = scene.add.image(this.x, this.y, texKey, frameKey);
                 ghost.setOrigin(0.5, 1);
                 ghost.setScale(scale);
                 ghost.setFlipX(this.facing < 0);
                 ghost.setAlpha(0.45);
-                ghost.setDepth(this.sprite.depth - 1);
+                ghost.setDepth(this.viewSprite.depth - 1);
                 if (!useSheet) ghost.setTint(Palette.hero);
                 scene.tweens.add({
                     targets: ghost,

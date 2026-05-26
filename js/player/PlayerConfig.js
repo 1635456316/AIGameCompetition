@@ -1,8 +1,35 @@
 const PlayerConfig = {
     heroFrameHeight: 640,
     heroDisplayHeight: 96,
-    heroSheetBody: { width: 200, height: 380, offsetX: 220, offsetY: 260 },
+    heroSheetBody: { width: 50, height: 80, offsetX: 295, offsetY: 560},
     heroStaticBody: { width: 28, height: 60, offsetX: 10, offsetY: 4 },
+
+    /** 构建玩家实体配置（逻辑体 + 表现层） */
+    buildEntityConfig(scene) {
+        const useSheet = scene.textures.exists('tex_hero_idle');
+        const logic = {
+            origin: { x: 0.5, y: 1 },
+            referenceFrameWidth: useSheet ? this.heroFrameHeight : 48,
+            referenceFrameHeight: useSheet ? this.heroFrameHeight : 64,
+            body: useSheet ? this.heroSheetBody : this.heroStaticBody,
+            depth: 19,
+            collideWorldBounds: true,
+            maxVelocity: { x: 800, y: 1400 }
+        };
+        const visual = useSheet ? {
+            idleTexture: 'tex_hero_idle',
+            idleFrame: 'idle_0',
+            displayHeight: this.heroDisplayHeight,
+            referenceFrameHeight: this.heroFrameHeight,
+            depth: 20
+        } : {
+            texture: 'hero_jump',
+            displayHeight: this.heroDisplayHeight,
+            referenceFrameHeight: 64,
+            depth: 20
+        };
+        return { logic, visual, useSheet };
+    },
     moveSpeed: 320,
     jumpVelocity: -720,
     secondJumpVelocity: -560,

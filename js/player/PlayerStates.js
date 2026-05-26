@@ -314,7 +314,7 @@ const SwordReleaseState = {
             if (animation.key !== slashKey) return;
             finishRelease();
         };
-        player.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
+        player.viewSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
         player._swordReleaseFallbackTimer = scene.time.delayedCall(animMs + 80, finishRelease);
     },
     update(player, time, delta) {
@@ -335,7 +335,7 @@ const SwordReleaseState = {
             player._swordReleaseFallbackTimer = null;
         }
         if (player._onSwordSlashComplete) {
-            player.sprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
+            player.viewSprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
             player._onSwordSlashComplete = null;
         }
         player._swordQiSpawned = false;
@@ -353,11 +353,11 @@ const HurtState = {
         const knockDir = params.fromRight ? -1 : 1;
         player.setVelocityX(knockDir * 220);
         player.setVelocityY(-260);
-        player.sprite.setTint(0xff6666);
+        player.view.setTint(0xff6666);
     },
     update(player, time, delta) {
         if (time >= player.hurtEndAt) {
-            player.sprite.clearTint();
+            player.view.clearTint();
             player.fsm.change(player.onGround() ? 'idle' : 'fall');
         }
     }
@@ -368,7 +368,7 @@ const DeadState = {
         player.resetMeleeCombo();
         player.setVelocityX(0);
         player.playHeroAnim('hero_idle');
-        player.sprite.setTint(0x444444);
+        player.view.setTint(0x444444);
         player.scene.onPlayerDead && player.scene.onPlayerDead();
     },
     update() {}

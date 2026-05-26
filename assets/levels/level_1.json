@@ -11,7 +11,7 @@
   },
   "bossTriggerOffset": 620,
   "boss": {
-    "type": "mechanicalDino",
+    "type": "steelTriceratops",
     "xOffset": 176,
     "yOffset": 272
   },
@@ -101,31 +101,6 @@
     }
   ],
   "spawns": [
-    {
-      "type": "melee",
-      "x": 976,
-      "y": 576
-    },
-    {
-      "type": "ranged",
-      "x": 1696,
-      "y": 652
-    },
-    {
-      "type": "melee",
-      "x": 1888,
-      "y": 652
-    },
-    {
-      "type": "melee",
-      "x": 2336,
-      "y": 652
-    },
-    {
-      "type": "ranged",
-      "x": 2620,
-      "y": 652
-    },
     {
       "type": "melee",
       "x": 752,

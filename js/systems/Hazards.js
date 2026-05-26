@@ -49,11 +49,13 @@ class ElectricZone {
         }
 
         if (this.active && time - this.lastDamageAt > 500) {
-            const pBounds = player.sprite.getBounds();
+            const body = player.body;
+            if (!body) return;
+            const pRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
             const zBounds = new Phaser.Geom.Rectangle(
                 this.x - this.w / 2, this.y - this.h / 2, this.w, this.h
             );
-            if (Phaser.Geom.Rectangle.Overlaps(pBounds, zBounds)) {
+            if (Phaser.Geom.Rectangle.Overlaps(pRect, zBounds)) {
                 this.lastDamageAt = time;
                 player.takeDamage(this.damage, this.x);
                 Effects.shake(this.scene, 60, 0.005);
@@ -143,6 +145,7 @@ class WindZone {
         if (Phaser.Geom.Rectangle.Overlaps(pRect, zBounds)) {
             const pushAmount = this.force * (delta / 1000);
             player.sprite.x += this.dir * pushAmount;
+            player.syncView?.();
         }
     }
 }
@@ -167,9 +170,10 @@ class CrumblePlatform {
         if (this.destroyed) return;
         if (this.triggered) return;
 
-        const pBounds = player.sprite.getBounds();
-        const pFeet = pBounds.bottom;
-        const pCenterX = pBounds.centerX;
+        const body = player.body;
+        if (!body) return;
+        const pFeet = body.bottom;
+        const pCenterX = body.centerX;
         const onTop = Math.abs(pFeet - (this.y - 10)) < 12
             && Math.abs(pCenterX - this.x) < 48
             && player.onGround();

@@ -15,13 +15,23 @@ const BossConfigs = {
         phase2Cooldown: 1100,
         phase1Skills: ['tri', 'spread'],
         phase2Skills: ['tri', 'slam', 'spread'],
+        logic: {
+            origin: { x: 0.5, y: 1 },
+            referenceFrameWidth: 1024,
+            referenceFrameHeight: 1024,
+            body: { width: 230, height: 175, offsetX: 397, feetAlign: true },
+            fallbackBody: { width: 120, height: 158, offsetX: 20, offsetY: 2 },
+            depth: 19,
+            collideWorldBounds: true
+        },
         visual: {
             idleTexture: 'tex_boss1_idle',
             framePrefix: 'idle',
             idleAnim: 'boss1_idle',
             displayHeight: 210,
             referenceFrameHeight: 1024,
-            sheetBody: { width: 260, height: 300, offsetX: 638 }
+            feetVisualOffsetY: 16,
+            depth: 15
         }
     },
     // 第 2 关（最终关）Boss：废弃城区的钢铁咆哮压轴。
@@ -38,13 +48,23 @@ const BossConfigs = {
         phase2Cooldown: 1050,
         phase1Skills: ['tri', 'spread'],
         phase2Skills: ['tri', 'spread', 'slam'],
+        logic: {
+            origin: { x: 0.5, y: 1 },
+            referenceFrameWidth: 1024,
+            referenceFrameHeight: 1024,
+            body: { width: 150, height: 210, offsetX: 437, feetAlign: true },
+            fallbackBody: { width: 120, height: 158, offsetX: 20, offsetY: 2 },
+            depth: 19,
+            collideWorldBounds: true
+        },
         visual: {
             idleTexture: 'tex_boss_final_idle',
             framePrefix: 'final_idle',
             idleAnim: 'boss_final_idle',
             displayHeight: 220,
             referenceFrameHeight: 1024,
-            sheetBody: { width: 240, height: 320, offsetX: 392 }
+            feetVisualOffsetY: 16,
+            depth: 15
         }
     },
     octopusDoctor: {
@@ -102,5 +122,52 @@ const BossConfigs = {
         phase2Cooldown: 750,
         phase1Skills: ['spread', 'tri', 'slam'],
         phase2Skills: ['spread', 'tri', 'slam', 'rain']
+    },
+
+    /** 构建 Boss 实体配置（逻辑体 + 表现层） */
+    buildEntityConfig(scene, config) {
+        const cfg = config || BossConfigs.mechanicalDino;
+        const vis = cfg.visual;
+        const logicCfg = cfg.logic || {};
+        const useSheet = !!(vis && scene.textures.exists(vis.idleTexture));
+
+        const refW = logicCfg.referenceFrameWidth || vis?.referenceFrameWidth || (useSheet ? 1024 : 160);
+        const refH = logicCfg.referenceFrameHeight || vis?.referenceFrameHeight || (useSheet ? 1024 : 180);
+        let body = logicCfg.fallbackBody || { width: 120, height: 158, offsetX: 20, offsetY: 2 };
+        if (useSheet && logicCfg.body) {
+            const b = logicCfg.body;
+            const height = b.height;
+            const offsetY = b.feetAlign === false && b.offsetY != null
+                ? b.offsetY
+                : (refH - height);
+            body = { width: b.width, height, offsetX: b.offsetX, offsetY };
+        }
+
+        const logic = {
+            origin: logicCfg.origin || { x: 0.5, y: 1 },
+            referenceFrameWidth: refW,
+            referenceFrameHeight: refH,
+            body,
+            depth: logicCfg.depth || 19,
+            collideWorldBounds: logicCfg.collideWorldBounds !== false
+        };
+
+        const visual = useSheet ? {
+            idleTexture: vis.idleTexture,
+            idleFrame: vis.idleFrame || `${vis.framePrefix || 'idle'}_0`,
+            idleAnim: vis.idleAnim,
+            displayHeight: vis.displayHeight || 140,
+            referenceFrameHeight: refH,
+            feetVisualOffsetY: vis.feetVisualOffsetY || 0,
+            depth: vis.depth || 15
+        } : {
+            texture: 'boss_default',
+            displayHeight: 140,
+            referenceFrameHeight: 180,
+            depth: vis?.depth || 15,
+            tint: cfg.tint || Palette.boss
+        };
+
+        return { logic, visual, useSheet };
     }
 };

@@ -37,6 +37,19 @@ class TextureFactory {
         g.destroy();
     }
 
+    /** 逻辑体占位纹理：尺寸须与 body.offset 所参照的序列帧一致 */
+    static logicProxy(scene, width, height) {
+        const w = Math.max(1, Math.round(width));
+        const h = Math.max(1, Math.round(height));
+        const key = `logic_proxy_${w}x${h}`;
+        if (scene.textures.exists(key)) return key;
+        TextureFactory._bake(scene, key, w, h, g => {
+            g.fillStyle(0xffffff, 0.001);
+            g.fillRect(0, 0, w, h);
+        });
+        return key;
+    }
+
     // 角色：48x64，简化为头+躯干+腿；不同状态颜色/姿态略变
     static _drawHumanoid(g, opts) {
         const {
