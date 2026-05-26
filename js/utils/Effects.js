@@ -59,10 +59,12 @@ class Effects {
     /** 出拳拳风：贴图默认向右，facing 左时会翻转；停留 2 帧后直接消失 */
     static spawnPunchWind(scene, x, y, facing = 1) {
         if (!scene.textures.exists('fx_punch_wind')) return;
+        const cfg = PlayerConfig;
         const wind = scene.add.image(x, y, 'fx_punch_wind');
-        const baseScale = 65 / wind.width;
-        const originX = facing > 0 ? 0.14 : 0.86;
-        wind.setOrigin(originX, 0.52)
+        const targetW = cfg.punchWindDisplayWidth || 65;
+        const baseScale = targetW / wind.width;
+        const originX = facing > 0 ? cfg.punchWindOriginX : cfg.punchWindOriginXLeft;
+        wind.setOrigin(originX, cfg.punchWindOriginY)
             .setScale(baseScale)
             .setFlipX(facing < 0)
             .setBlendMode(Phaser.BlendModes.ADD)

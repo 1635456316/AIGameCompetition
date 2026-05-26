@@ -292,8 +292,8 @@ class Player {
         if (!scene.spawnPlayerMelee) return;
         const cfg = PlayerConfig;
         scene.spawnPlayerMelee(
-            this.x + this.facing * cfg.meleeOffsetX,
-            this.y - cfg.meleeOffsetY,
+            this.x + this.facing * cfg.meleeHitOffsetX,
+            this.y - cfg.meleeHitOffsetY,
             cfg.meleeHitWidth,
             cfg.meleeHitHeight,
             this.facing

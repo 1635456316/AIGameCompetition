@@ -15,26 +15,35 @@ const PlayerConfig = {
     attackComboWindow: 900,   // ms，连击有效间隔
     attackDashSpeed: 360,
     attackDashDuration: 200,  // ms，约 72px 冲刺距离
-    attackDashDamagePerTick: 10,   // 第三段多段：每跳伤害
-    attackDashHitInterval: 55,     // 同一目标两次伤害最小间隔（ms）
+    attackDashDamagePerTick: 10,
+    attackDashHitInterval: 55,
     attackDashBossDamagePerTick: 12,
-    attackDashHitWidth: 80,
-    attackDashHitHeight: 60,
-    attackDashHitOffsetX: 28,
-    attackDashHitOffsetY: 32,
-    // 普攻 1/2 段近战判定
-    meleeHitWidth: 88,
+
+    // ---------- 战斗判定（仅碰撞/伤害，与特效无关）----------
+    meleeHitWidth: 72,
     meleeHitHeight: 64,
-    meleeOffsetX: 52,
-    meleeOffsetY: 36,
+    meleeHitOffsetX: 40,
+    meleeHitOffsetY: 38,
     meleeDamage: 25,
-    // 第三段冲刺 · 冲击波特效（改这里即可调大小与位置）
-    shockwaveWidth: 100,       // 贴图显示宽度（像素），越大特效越大
-    shockwaveOffsetX: -10,      // 相对角色的水平偏移（朝右为 +，朝左自动取反）
-    shockwaveOffsetY: 42,      // 相对脚底向上的偏移（y - 此值）
-    shockwaveOriginX: 0.12,    // 朝右时贴图水平锚点（0~1，越小越靠左/贴手）
-    shockwaveOriginXLeft: 0.88,// 朝左时贴图水平锚点
-    shockwaveOriginY: 0.5,     // 垂直锚点（0 顶 / 0.5 中 / 1 底）
+    attackDashHitWidth: 120,
+    attackDashHitHeight: 76,
+    attackDashHitOffsetX: 44,
+    attackDashHitOffsetY: 36,
+
+    // ---------- 特效（仅显示，改这里不影响出拳范围）----------
+    punchWindDisplayWidth: 65,
+    punchWindOffsetX: 20,
+    punchWindOffsetY: 42,
+    punchWindOriginX: 0.14,
+    punchWindOriginXLeft: 0.86,
+    punchWindOriginY: 0.52,
+    shockwaveWidth: 100,
+    shockwaveOffsetX: -5,
+    shockwaveOffsetY: 42,
+    shockwaveOriginX: 0.12,
+    shockwaveOriginXLeft: 0.88,
+    shockwaveOriginY: 0.5,
+
     rangedCooldown: 320,      // ms
     rangedEnergyCost: 8,
     ultimateEnergyCost: 100,

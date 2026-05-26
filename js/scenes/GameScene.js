@@ -544,7 +544,16 @@ class GameScene extends Phaser.Scene {
         this.time.delayedCall(45, () => this._damageBossFromMelee(m, true));
         this.time.delayedCall(90, () => this._damageBossFromMelee(m, true));
 
-        Effects.spawnPunchWind(this, x, y, facing);
+        const p = this.player;
+        const fx = PlayerConfig;
+        if (p) {
+            Effects.spawnPunchWind(
+                this,
+                p.x + facing * fx.punchWindOffsetX,
+                p.y - fx.punchWindOffsetY,
+                facing
+            );
+        }
 
         this.time.delayedCall(140, () => m && m.destroy());
     }
