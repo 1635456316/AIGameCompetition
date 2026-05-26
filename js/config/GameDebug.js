@@ -1,8 +1,9 @@
 /**
- * 全局 Debug 开关。可通过 URL ?debug=1 或游戏中按 F3 切换碰撞盒显示。
+ * 全局 Debug 开关。URL ?debug=1 或游戏中按 F9 切换碰撞盒显示。
  */
 const GameDebug = {
     showHitboxes: false,
+    toggleKey: 'F9',
 
     initFromUrl() {
         try {

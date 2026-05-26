@@ -201,8 +201,7 @@ class Player {
             && !this.fsm.is('swordCharge') && !this.fsm.is('swordRelease');
     }
     canReleaseSwordCharge() {
-        const cost = this.getSwordQiEnergyCost(this.getSwordChargeRatio());
-        return this.energy >= cost;
+        return this.getSwordChargeRatio() > 0;
     }
     getSwordChargeRatio() {
         if (!this.swordChargeStartAt) return 0;
@@ -242,7 +241,12 @@ class Player {
     releaseSwordCharge() {
         this.swordChargeMs = this.getSwordChargeMs();
         this.swordChargeRatio = this.getSwordChargeRatio();
-        this.energy = Math.max(0, this.energy - this.getSwordQiEnergyCost(this.swordChargeRatio));
+        const cost = this.getSwordQiEnergyCost(this.swordChargeRatio);
+        if (this.energy >= cost) {
+            this.energy -= cost;
+        } else {
+            this.energy = 0;
+        }
         this.lastSwordQiAt = this.scene.time.now;
         this.fsm.change('swordRelease');
     }

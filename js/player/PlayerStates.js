@@ -263,6 +263,7 @@ const SwordChargeState = {
             if (player.canReleaseSwordCharge()) {
                 player.releaseSwordCharge();
             } else {
+                // 未满最小蓄力时间，松键取消
                 player.swordChargeStartAt = 0;
                 player.setHeroDisplayScaleMult(1);
                 player.fsm.change(player.onGround() ? 'idle' : 'fall');

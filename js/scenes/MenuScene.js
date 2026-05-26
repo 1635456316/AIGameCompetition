@@ -239,50 +239,53 @@ class MenuScene extends Phaser.Scene {
         const h = this.cameras.main.height;
         const depthBase = 4000;
 
-        // 拦截下层点击（注意：rectangle 必须先 setInteractive 再放到 container 里）
         const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0)
             .setInteractive();
+
         const panelW = 720;
-        const panelH = 480;
-        const panel = this.add.rectangle(w / 2, h / 2, panelW, panelH, 0x0a1020, 0.96)
-            .setStrokeStyle(3, Palette.warning, 0.9);
-        const title = this.add.text(w / 2, h / 2 - panelH / 2 + 44, '操 作 说 明', {
+        const panelTop = 72;
+        const titleY = panelTop + 36;
+        const bodyX = w / 2 - panelW / 2 + 48;
+        const bodyY = panelTop + 78;
+
+        const title = this.add.text(w / 2, titleY, '操 作 说 明', {
             font: 'bold 36px Microsoft YaHei, Arial',
             color: PaletteHex.warning,
             stroke: '#000', strokeThickness: 6
         }).setOrigin(0.5);
 
-        const rows = [
-            ['移  动', 'A / D    或    ← / →'],
-            ['跳  跃', 'W / 空格 / ↑（支持二段跳）'],
-            ['冲  刺', 'L（消耗少量能量；冲刺期间无敌，可穿过子弹）'],
-            ['近  战', 'J    (主要攻击手段)'],
-            ['蓄力剑气', '按住 K 蓄力，松开释放（1.5 秒以上可穿透）'],
-            ['终 极 技', 'O    (能量满时释放)'],
-            ['暂  停', 'ESC    或    点击右上角"暂停"按钮']
-        ];
-        const colLabelX = w / 2 - panelW / 2 + 70;
-        const colValueX = w / 2 - 40;
-        const startY = h / 2 - panelH / 2 + 110;
-        const rowGap = 42;
+        const helpText = [
+            '【基础移动】',
+            '· 移动：A / D  或  ← / →',
+            '· 跳跃：W / 空格 / ↑（二段跳）',
+            '· 穿平台：站在单向平台上，快速连按两次 S / ↓',
+            '',
+            '【基础操作】',
+            '· J：近战攻击',
+            '· K：按住蓄力，松开释放剑气',
+            '· L：冲刺',
+            '· O：终极技（能量满时）',
+            '',
+            '【进阶】',
+            '· 冲刺期间按 J，可触发冲刺攻击',
+            '',
+            '【Debug】',
+            '· 关卡内按 F9 切换碰撞盒显示'
+        ].join('\n');
 
-        const rowTexts = [];
-        rows.forEach((row, i) => {
-            const y = startY + i * rowGap;
-            rowTexts.push(this.add.text(colLabelX, y, row[0], {
-                font: 'bold 20px Microsoft YaHei, Arial',
-                color: PaletteHex.hero,
-                stroke: '#000', strokeThickness: 4
-            }).setOrigin(0, 0.5));
-            rowTexts.push(this.add.text(colValueX, y, row[1], {
-                font: 'bold 18px Microsoft YaHei, Arial',
-                color: '#e8faff',
-                stroke: '#000', strokeThickness: 3
-            }).setOrigin(0, 0.5));
-        });
+        const bodyText = this.add.text(bodyX, bodyY, helpText, {
+            font: 'bold 17px Microsoft YaHei, Arial',
+            color: '#e8faff',
+            lineSpacing: 4,
+            wordWrap: { width: panelW - 96 }
+        }).setOrigin(0, 0);
 
-        const closeBtnY = h / 2 + panelH / 2 - 50;
-        const closeBg = this.add.rectangle(w / 2, closeBtnY, 200, 50, 0x070b12, 0.95)
+        const closeBtnY = bodyY + bodyText.height + 32;
+        const panelH = closeBtnY - panelTop + 44;
+        const panel = this.add.rectangle(w / 2, panelTop + panelH / 2, panelW, panelH, 0x0a1020, 0.96)
+            .setStrokeStyle(3, Palette.warning, 0.9);
+
+        const closeBg = this.add.rectangle(w / 2, closeBtnY, 200, 46, 0x070b12, 0.95)
             .setStrokeStyle(2, Palette.warning, 0.85)
             .setInteractive({ useHandCursor: true });
         const closeText = this.add.text(w / 2, closeBtnY, '关  闭', {
@@ -300,24 +303,18 @@ class MenuScene extends Phaser.Scene {
             closeText.setColor('#ffffff');
         });
 
-        // 用 container 持有所有节点，关闭时一键销毁。
-        // 注意：interactive 已挂在 overlay/closeBg 本体上，加入 container 不会失效。
         const helpContainer = this.add.container(0, 0,
-            [overlay, panel, title, ...rowTexts, closeBg, closeText]
+            [overlay, panel, title, bodyText, closeBg, closeText]
         ).setDepth(depthBase);
 
-        // 淡入
         overlay.setAlpha(0);
         panel.setAlpha(0);
         title.setAlpha(0);
-        rowTexts.forEach(t => t.setAlpha(0));
+        bodyText.setAlpha(0);
         closeBg.setAlpha(0);
         closeText.setAlpha(0);
         this.tweens.add({ targets: overlay, alpha: 0.7, duration: 220 });
-        this.tweens.add({ targets: [panel, title, closeBg, closeText], alpha: 1, duration: 240, delay: 80 });
-        rowTexts.forEach((t, i) => {
-            this.tweens.add({ targets: t, alpha: 1, duration: 220, delay: 160 + Math.floor(i / 2) * 40 });
-        });
+        this.tweens.add({ targets: [panel, title, bodyText, closeBg, closeText], alpha: 1, duration: 240, delay: 80 });
 
         const close = () => {
             if (!this._helpVisible) return;

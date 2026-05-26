@@ -1,5 +1,5 @@
 /**
- * Debug 模式下绘制实体逻辑碰撞盒与坐标。
+ * Debug 模式下绘制实体与战斗判定碰撞盒。
  */
 class EntityDebugRenderer {
     constructor(scene) {
@@ -28,14 +28,17 @@ class EntityDebugRenderer {
     }
 
     _updateHint() {
+        const key = GameDebug.toggleKey || 'F9';
+        const hint = `Debug [${key}] 绿=玩家 红=敌 黄=Boss | 青=近战 蓝=剑气 橙=敌弹 紫=冲斩 金=大招`;
         if (!this._hintText) {
-            this._hintText = this.scene.add.text(12, GAME_HEIGHT - 28,
-                'Debug: 碰撞盒 + 坐标 (F3 切换)', {
-                    font: '14px Arial',
-                    color: '#88ff88',
-                    backgroundColor: '#000000aa',
-                    padding: { x: 6, y: 4 }
-                }).setScrollFactor(0).setDepth(10001);
+            this._hintText = this.scene.add.text(12, GAME_HEIGHT - 28, hint, {
+                font: '13px Arial',
+                color: '#88ff88',
+                backgroundColor: '#000000aa',
+                padding: { x: 6, y: 4 }
+            }).setScrollFactor(0).setDepth(10001);
+        } else {
+            this._hintText.setText(hint);
         }
         this._hintText.setVisible(this.enabled);
     }
@@ -69,6 +72,14 @@ class EntityDebugRenderer {
         this.graphics.strokeRect(body.x, body.y, body.width, body.height);
         this.graphics.fillStyle(color, alpha);
         this.graphics.fillRect(body.x, body.y, body.width, body.height);
+    }
+
+    drawRect(x, y, width, height, color = 0xffffff, alpha = 0.3) {
+        if (!this.enabled) return;
+        this.graphics.lineStyle(2, color, 1);
+        this.graphics.strokeRect(x, y, width, height);
+        this.graphics.fillStyle(color, alpha);
+        this.graphics.fillRect(x, y, width, height);
     }
 
     _drawOrigin(x, y, color) {
@@ -112,8 +123,12 @@ class EntityDebugRenderer {
     drawEntity(entity, color, options = {}) {
         if (!entity?.body) return;
         this.drawBody(entity.body, color);
-        this._drawOrigin(entity.x, entity.y, color);
-        this._drawCoordLabel(entity, color, options.label || '');
+        if (options.showOrigin !== false) {
+            this._drawOrigin(entity.x, entity.y, color);
+        }
+        if (options.label) {
+            this._drawCoordLabel(entity, color, options.label);
+        }
     }
 
     drawEntities(entities, color = 0x00ff88, options = {}) {
@@ -125,5 +140,62 @@ class EntityDebugRenderer {
                 this.drawEntity(e, color, { label: label + suffix });
             }
         });
+    }
+
+    /** 绘制 Phaser 物理组内活跃对象的 body */
+    drawPhysicsGroup(group, color, alpha = 0.28) {
+        if (!this.enabled || !group?.children) return;
+        group.children.iterate((obj) => {
+            if (!obj?.active || !obj.body) return;
+            this.drawBody(obj.body, color, alpha);
+        });
+    }
+
+    /** 近战 hitbox：绘制居中后的 physics body */
+    _drawMeleeGroup(group) {
+        if (!this.enabled || !group?.children) return;
+        group.children.iterate((m) => {
+            if (!m?.active || !m.body) return;
+            this.drawBody(m.body, 0x00ccff, 0.35);
+        });
+    }
+
+    /** 绘制战斗投射物与技能判定区 */
+    drawCombat(scene) {
+        if (!this.enabled || !scene) return;
+
+        this.drawPhysicsGroup(scene.playerBullets, 0x4488ff);
+        this.drawPhysicsGroup(scene.enemyBullets, 0xff8800);
+        this._drawMeleeGroup(scene.playerMelees);
+
+        const player = scene.player;
+        if (!player) return;
+
+        const cfg = PlayerConfig;
+
+        if (player.fsm?.is('attackDash')) {
+            const facing = player.facing;
+            const cx = player.x + facing * cfg.attackDashHitOffsetX;
+            const cy = player.y - cfg.attackDashHitOffsetY;
+            this.drawRect(
+                cx - cfg.attackDashHitWidth / 2,
+                cy - cfg.attackDashHitHeight / 2,
+                cfg.attackDashHitWidth,
+                cfg.attackDashHitHeight,
+                0xff44ff,
+                0.32
+            );
+        }
+
+        if (player.fsm?.is('ultimate')) {
+            const cfg = PlayerConfig;
+            const beamY = player.y - cfg.ultimateBeamOffsetY;
+            const hitHalfH = cfg.ultimateHitHalfHeight;
+            const width = player.facing > 0
+                ? Math.max(0, (scene.levelWidth || GAME_WIDTH) - player.x)
+                : player.x;
+            const x = player.facing > 0 ? player.x : player.x - width;
+            this.drawRect(x, beamY - hitHalfH, width, hitHalfH * 2, 0xffdd00, 0.22);
+        }
     }
 }

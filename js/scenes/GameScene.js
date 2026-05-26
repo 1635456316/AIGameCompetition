@@ -193,7 +193,7 @@ class GameScene extends Phaser.Scene {
         // 系统快捷键（restart 前先解绑，避免重复注册）
         if (this._onEscKey) this.input.keyboard.off('keydown-ESC', this._onEscKey);
         if (this._onRKey) this.input.keyboard.off('keydown-R', this._onRKey);
-        if (this._onF3Key) this.input.keyboard.off('keydown-F3', this._onF3Key);
+        if (this._onDebugKey) this.input.keyboard.off(`keydown-${GameDebug.toggleKey}`, this._onDebugKey);
         this._onEscKey = () => {
             if (this.gameOver) {
                 this.scene.start('MenuScene');
@@ -214,16 +214,16 @@ class GameScene extends Phaser.Scene {
         };
         this.input.keyboard.on('keydown-ESC', this._onEscKey);
         this.input.keyboard.on('keydown-R', this._onRKey);
-        this._onF3Key = () => {
+        this._onDebugKey = () => {
             if (!this.entityDebug) return;
             const on = this.entityDebug.toggle();
             Effects.bigText(this, on ? 'Debug: 碰撞盒 ON' : 'Debug: 碰撞盒 OFF', on ? PaletteHex.warning : '#888888');
         };
-        this.input.keyboard.on('keydown-F3', this._onF3Key);
+        this.input.keyboard.on(`keydown-${GameDebug.toggleKey}`, this._onDebugKey);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             if (this._onEscKey) this.input.keyboard.off('keydown-ESC', this._onEscKey);
             if (this._onRKey) this.input.keyboard.off('keydown-R', this._onRKey);
-            if (this._onF3Key) this.input.keyboard.off('keydown-F3', this._onF3Key);
+            if (this._onDebugKey) this.input.keyboard.off(`keydown-${GameDebug.toggleKey}`, this._onDebugKey);
         });
 
         // 关卡机关
@@ -552,6 +552,14 @@ class GameScene extends Phaser.Scene {
 
     // === 由 Player 状态机回调的接口 ===
 
+    /** 将 Arcade 碰撞盒居中到 Sprite 锚点（对象池复用后必须 reset + 居中） */
+    _centerArcadeBody(sprite, width, height) {
+        if (!sprite?.body) return;
+        sprite.body.setSize(width, height);
+        sprite.body.setOffset((sprite.width - width) / 2, (sprite.height - height) / 2);
+        sprite.body.updateFromGameObject();
+    }
+
     spawnPlayerBullet(x, y, vx) {
         const b = this.playerBullets.create(x, y, 'bullet_hero');
         b.body.allowGravity = false;
@@ -568,13 +576,17 @@ class GameScene extends Phaser.Scene {
         const maxRange = opts.maxRange ?? cfg.swordQiMinRange;
         const pierce = !!opts.pierce;
         const displayW = cfg.swordQiDisplayWidth * scale;
+        const hitW = displayW * (cfg.swordQiHitWidthMult ?? 0.92);
+        const hitH = displayW * (cfg.swordQiHitHeightMult ?? 0.62);
 
         const b = this.playerBullets.create(x, y, 'fx_sword_qi');
-        b.body.allowGravity = false;
         b.setOrigin(0.5, 0.5);
+        b.setPosition(x, y);
         b.setFlipX(facing < 0);
         b.setDisplaySize(displayW, displayW);
-        b.body.setSize(displayW * 0.72, displayW * 0.42);
+        b.body.allowGravity = false;
+        b.body.reset(x, y);
+        this._centerArcadeBody(b, hitW, hitH);
         b.setVelocityX(facing * speed);
         b.setDepth(24);
         b.setBlendMode(Phaser.BlendModes.ADD);
@@ -595,17 +607,24 @@ class GameScene extends Phaser.Scene {
         b.setVelocity(vx, vy);
     }
 
-    spawnPlayerMelee(x, y, w, h, facing) {
-        const m = this.playerMelees.create(x, y, 'particle_white');
-        // 物理组可能复用旧 hitbox，对每次新攻击显式清掉命中记录。
+    spawnPlayerMelee(cx, cy, w, h, facing) {
+        // 静态 Zone：不受重力、不会被挤动，避免碰撞框逐帧下沉
+        const m = this.add.zone(cx, cy, w, h);
+        this.physics.add.existing(m);
         m._hitSet = new Set();
         m._hitBoss = false;
         m._meleeWidth = w;
         m._meleeHeight = h;
-        m.setVisible(false);
-        m.body.allowGravity = false;
-        m.body.setSize(w, h);
-        m.setVelocity(0, 0);
+        m.body.setAllowGravity(false);
+        m.body.moves = false;
+        m.body.setImmovable(true);
+        m.body.setVelocity(0, 0);
+        m.body.updateFromGameObject();
+        this.playerMelees.add(m);
+        m.body.setAllowGravity(false);
+        m.body.moves = false;
+        m.body.setImmovable(true);
+        m.body.setVelocity(0, 0);
 
         // 主动检测 Boss：不完全依赖 Arcade overlap 的时序。
         this._damageBossFromMelee(m, true);
@@ -633,15 +652,9 @@ class GameScene extends Phaser.Scene {
 
         if (checkBounds) {
             const bossBody = this.boss.sprite.body;
-            if (!bossBody) return false;
-            const meleeWidth = melee._meleeWidth || (melee.body && melee.body.width) || 64;
-            const meleeHeight = melee._meleeHeight || (melee.body && melee.body.height) || 48;
-            const meleeRect = new Phaser.Geom.Rectangle(
-                melee.x - meleeWidth / 2,
-                melee.y - meleeHeight / 2,
-                meleeWidth,
-                meleeHeight
-            );
+            if (!bossBody || !melee.body) return false;
+            const bb = melee.body;
+            const meleeRect = new Phaser.Geom.Rectangle(bb.x, bb.y, bb.width, bb.height);
             const bossRect = new Phaser.Geom.Rectangle(bossBody.x, bossBody.y, bossBody.width, bossBody.height);
             if (!Phaser.Geom.Intersects.RectangleToRectangle(meleeRect, bossRect)) return false;
         }
@@ -658,10 +671,12 @@ class GameScene extends Phaser.Scene {
 
     spawnPlayerUltimate(player) {
         const cam = this.cameras.main;
+        const cfg = PlayerConfig;
         Effects.bigText(this, '终 极 爆 裂 !!', PaletteHex.warning);
         Effects.shake(this, 600, 0.025);
 
-        const beamY = player.y - 36;
+        const beamY = player.y - cfg.ultimateBeamOffsetY;
+        const hitHalfH = cfg.ultimateHitHalfHeight;
         const beam = this.add.image(
             player.facing > 0 ? player.x + 40 : player.x - 40,
             beamY,
@@ -679,18 +694,21 @@ class GameScene extends Phaser.Scene {
             ease: 'Quad.easeOut'
         });
 
+        const inUltimateBeam = (targetX, targetY) => {
+            const inFront = player.facing > 0 ? targetX > player.x : targetX < player.x;
+            return inFront && Math.abs(targetY - beamY) < hitHalfH;
+        };
+
         // 伤害：扫描所有敌人，X 方向在玩家朝向半边的都吃伤害
         this.time.delayedCall(180, () => {
             this.enemies.forEach(e => {
                 if (!e.alive) return;
-                const inFront = (player.facing > 0 ? e.x > player.x : e.x < player.x);
-                if (inFront && Math.abs(e.y - beamY) < 200) {
+                if (inUltimateBeam(e.x, e.y)) {
                     e.takeDamage(80, player.x);
                 }
             });
-            if (this.boss && this.boss.alive) {
-                const inFront = (player.facing > 0 ? this.boss.x > player.x : this.boss.x < player.x);
-                if (inFront) this.boss.takeDamage(120, player.x);
+            if (this.boss && this.boss.alive && inUltimateBeam(this.boss.x, this.boss.y)) {
+                this.boss.takeDamage(120, player.x);
             }
         });
 
@@ -851,6 +869,7 @@ class GameScene extends Phaser.Scene {
             this.entityDebug.drawEntity(this.player, 0x00ff88, { label: 'Player' });
             this.entityDebug.drawEntities(this.enemies, 0xff6666, { label: 'Enemy' });
             if (this.boss?.alive) this.entityDebug.drawEntity(this.boss, 0xffaa00, { label: 'Boss' });
+            this.entityDebug.drawCombat(this);
             this.entityDebug.endFrame();
         }
     }
