@@ -33,6 +33,9 @@ class GameScene extends Phaser.Scene {
         this.platforms = this.physics.add.staticGroup();
         this._buildLevel();
 
+        // 机关（含坍塌平台）须在玩家碰撞器建立前生成，确保平台已加入 staticGroup
+        this.hazards = Hazards.spawn(this, this.levelConfig);
+
         // 玩家
         const start = this.levelConfig.playerStart || { x: 160, yOffset: 120 };
         this.player = new Player(this, start.x, H - start.yOffset);
@@ -40,9 +43,10 @@ class GameScene extends Phaser.Scene {
         this.physics.add.collider(
             this.player.sprite,
             this.platforms,
-            null,
+            (playerSpr, platform) => this._onPlayerPlatformCollide(playerSpr, platform),
             (playerSpr, platform) => this._canCollideWithPlatform(playerSpr, platform)
         );
+        this._bindCrumblePlatformOverlaps();
 
         // 输入
         this.inputCtl = new InputController(this);
@@ -129,6 +133,7 @@ class GameScene extends Phaser.Scene {
         }
         this._onPlatformPostUpdate = () => {
             this._resolvePlayerPlatformLanding();
+            this._notifyCrumblePlatformsUnderPlayer();
             this._storePlayerBodySnapshot();
             this._syncEntityViews();
         };
@@ -225,9 +230,6 @@ class GameScene extends Phaser.Scene {
             if (this._onRKey) this.input.keyboard.off('keydown-R', this._onRKey);
             if (this._onDebugKey) this.input.keyboard.off(`keydown-${GameDebug.toggleKey}`, this._onDebugKey);
         });
-
-        // 关卡机关
-        this.hazards = Hazards.spawn(this, this.levelConfig);
 
         Effects.bigText(this, this.levelConfig.title, PaletteHex.warning);
     }
@@ -815,6 +817,55 @@ class GameScene extends Phaser.Scene {
             || this.player.fsm.is('dead');
     }
 
+    _bindCrumblePlatformOverlaps() {
+        if (!this.hazards || !this.player) return;
+        this.hazards.forEach(h => {
+            if (!h.platform || typeof h.onPlayerStand !== 'function') return;
+            this.physics.add.overlap(
+                this.player.sprite,
+                h.platform,
+                () => h.onPlayerStand(this.player),
+                () => this._isPlayerSupportedByPlatform(this.player, h.platform)
+            );
+        });
+    }
+
+    /** 平台是否仍参与碰撞/贴地（坍塌后应排除） */
+    _platformColliderActive(platform) {
+        if (!platform?.body) return false;
+        if (platform.getData('crumbleDisabled')) return false;
+        if (!platform.body.enable) return false;
+        if (platform.active === false) return false;
+        return true;
+    }
+
+    _isPlayerSupportedByPlatform(player, platform) {
+        const pb = player?.body;
+        const platBody = platform?.body;
+        if (!pb || !platBody || !this._platformColliderActive(platform)) return false;
+        if (this.time.now < player.platformDropUntil) return false;
+        if (pb.velocity.y < -40) return false;
+        if (pb.right < platBody.left + 2 || pb.left > platBody.right - 2) return false;
+        return pb.bottom >= platBody.top - 8 && pb.bottom <= platBody.top + 24;
+    }
+
+    _onPlayerPlatformCollide(playerSpr, platform) {
+        if (!platform?.getData?.('isCrumble')) return;
+        const owner = platform.getData('crumbleOwner');
+        if (owner && this.player) owner.onPlayerStand(this.player);
+    }
+
+    _notifyCrumblePlatformsUnderPlayer() {
+        const player = this.player;
+        if (!player?.body || this.time.now < player.platformDropUntil) return;
+
+        this.platforms.children.iterate((plat) => {
+            if (!plat?.getData?.('isCrumble')) return;
+            if (!this._isPlayerSupportedByPlatform(player, plat)) return;
+            plat.getData('crumbleOwner')?.onPlayerStand(player);
+        });
+    }
+
     /** 是否站在浮空单向平台上（不含地面） */
     isStandingOnPlatform(player) {
         if (!player.onGround()) return false;
@@ -823,6 +874,7 @@ class GameScene extends Phaser.Scene {
         let onPlatform = false;
         this.platforms.children.iterate((plat) => {
             if (!plat || !plat.body || onPlatform) return;
+            if (!this._platformColliderActive(plat)) return;
             if (pb.right < plat.body.left + 2 || pb.left > plat.body.right - 2) return;
             if (Math.abs(pb.bottom - plat.body.top) <= 16) onPlatform = true;
         });
@@ -833,7 +885,7 @@ class GameScene extends Phaser.Scene {
     _canCollideWithPlatform(playerSpr, platform) {
         const pb = playerSpr.body;
         const plat = platform.body;
-        if (!pb || !plat) return false;
+        if (!pb || !plat || !this._platformColliderActive(platform)) return false;
         if (this.time.now < this.player.platformDropUntil) return false;
         if (pb.velocity.y < 0) return false;
         if (pb.right < plat.left + 2 || pb.left > plat.right - 2) return false;
@@ -885,7 +937,7 @@ class GameScene extends Phaser.Scene {
         if (prevBottom == null) return;
 
         this.platforms.children.iterate((plat) => {
-            if (!plat?.body) return;
+            if (!plat?.body || !this._platformColliderActive(plat)) return;
             const platBody = plat.body;
             if (pb.right < platBody.left + 2 || pb.left > platBody.right - 2) return;
 
@@ -895,11 +947,14 @@ class GameScene extends Phaser.Scene {
             if (pb.bottom > platTop + 36) return;
 
             const snap = platTop - pb.bottom;
-            if (Math.abs(snap) < 1) return;
-
-            player.sprite.y += snap;
-            player.setVelocityY(0);
-            pb.updateFromGameObject();
+            if (Math.abs(snap) >= 1) {
+                player.sprite.y += snap;
+                player.setVelocityY(0);
+                pb.updateFromGameObject();
+            }
+            if (plat.getData('isCrumble')) {
+                plat.getData('crumbleOwner')?.onPlayerStand(player);
+            }
         });
     }
 

@@ -164,42 +164,62 @@ class CrumblePlatform {
         this.platform.setOrigin(0.5, 0.5);
         this.platform.refreshBody();
         this.platform.setTint(0xff8800);
+        this.platform.setData('isCrumble', true);
+        this.platform.setData('crumbleOwner', this);
     }
 
-    update(time, delta, player) {
-        if (this.destroyed) return;
-        if (this.triggered) return;
+    /** 由 GameScene 在碰撞/贴地/overlap 后回调，避免仅靠 update 轮询漏判 */
+    onPlayerStand(player) {
+        if (this.destroyed || this.triggered || !player?.body) return;
+        if (this.platform.getData('crumbleDisabled')) return;
+        if (!this.platform?.body?.enable) return;
+        if (!this.scene._isPlayerSupportedByPlatform?.(player, this.platform)) return;
 
-        const body = player.body;
-        if (!body) return;
-        const pFeet = body.bottom;
-        const pCenterX = body.centerX;
-        const onTop = Math.abs(pFeet - (this.y - 10)) < 12
-            && Math.abs(pCenterX - this.x) < 48
-            && player.onGround();
+        this.triggered = true;
+        this.scene.tweens.add({
+            targets: this.platform,
+            alpha: { from: 1, to: 0.3 },
+            duration: 100,
+            yoyo: true,
+            repeat: 3
+        });
+        this.scene.time.delayedCall(this.delay, () => {
+            if (!this.platform) return;
+            this._collapse();
+        });
+    }
 
-        if (onTop) {
-            this.triggered = true;
-            this.scene.tweens.add({
-                targets: this.platform,
-                alpha: { from: 1, to: 0.3 },
-                duration: 100,
-                yoyo: true,
-                repeat: 3
-            });
-            this.scene.time.delayedCall(this.delay, () => {
-                this.destroyed = true;
-                Effects.explosion(this.scene, this.x, this.y, 0.5);
-                this.platform.disableBody(true, true);
+    _collapse() {
+        this.destroyed = true;
+        Effects.explosion(this.scene, this.x, this.y, 0.5);
 
-                this.scene.time.delayedCall(this.respawn, () => {
-                    this.platform.enableBody(true, this.x, this.y, true, true);
-                    this.platform.setAlpha(1);
-                    this.platform.setTint(0xff8800);
-                    this.triggered = false;
-                    this.destroyed = false;
-                });
-            });
+        const player = this.scene.player;
+        const wasStanding = player
+            && this.scene._isPlayerSupportedByPlatform?.(player, this.platform);
+
+        this.platform.setData('crumbleDisabled', true);
+        this.platform.disableBody(true, true);
+        if (this.platform.body) {
+            this.platform.body.checkCollision.none = true;
         }
+
+        if (wasStanding && player.body) {
+            player.body.allowGravity = true;
+            player.setVelocityY(Math.max(player.body.velocity.y, 80));
+        }
+
+        this.scene.time.delayedCall(this.respawn, () => {
+            if (!this.platform) return;
+            this.platform.setData('crumbleDisabled', false);
+            if (this.platform.body) {
+                this.platform.body.checkCollision.all = true;
+            }
+            this.platform.enableBody(true, this.x, this.y, true, true);
+            this.platform.refreshBody();
+            this.platform.setAlpha(1);
+            this.platform.setTint(0xff8800);
+            this.triggered = false;
+            this.destroyed = false;
+        });
     }
 }
