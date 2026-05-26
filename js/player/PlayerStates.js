@@ -263,10 +263,7 @@ const SwordChargeState = {
             if (player.canReleaseSwordCharge()) {
                 player.releaseSwordCharge();
             } else {
-                // 未满最小蓄力时间，松键取消
-                player.swordChargeStartAt = 0;
-                player.setHeroDisplayScaleMult(1);
-                player.fsm.change(player.onGround() ? 'idle' : 'fall');
+                player.cancelSwordCharge();
             }
         }
     },
@@ -277,9 +274,9 @@ const SwordChargeState = {
         Effects.destroySwordChargeBar(player);
     },
     handleInput(player, input) {
-        if (input.dashPressed && player.canDash()) {
-            player.setHeroDisplayScaleMult(1);
-            player.fsm.change('dash');
+        // 蓄力期间 L 为取消，不触发冲刺、不消耗能量
+        if (input.dashPressed) {
+            player.cancelSwordCharge();
         }
     }
 };

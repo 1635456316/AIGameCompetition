@@ -250,6 +250,16 @@ class Player {
         this.lastSwordQiAt = this.scene.time.now;
         this.fsm.change('swordRelease');
     }
+
+    /** L 键取消蓄力：不释放剑气、不扣能量 */
+    cancelSwordCharge() {
+        if (!this.fsm.is('swordCharge')) return;
+        this.swordChargeStartAt = 0;
+        this.swordChargeRatio = 0;
+        this.swordChargeMs = 0;
+        this.setHeroDisplayScaleMult(1);
+        this.fsm.change(this.onGround() ? 'idle' : 'fall');
+    }
     canUltimate() {
         return this.energy >= PlayerConfig.ultimateEnergyCost
             && !this.fsm.is('hurt') && !this.fsm.is('dead') && !this.fsm.is('ultimate');
