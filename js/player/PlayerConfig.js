@@ -5,6 +5,7 @@ const PlayerConfig = {
     heroStaticBody: { width: 28, height: 60, offsetX: 10, offsetY: 4 },
     moveSpeed: 320,
     jumpVelocity: -720,
+    secondJumpVelocity: -560,
     maxJumps: 2,
     dashSpeed: 760,
     dashDuration: 200,        // ms

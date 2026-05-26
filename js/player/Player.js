@@ -226,8 +226,9 @@ class Player {
 
     performJump() {
         this.jumpsRemaining--;
-        this.setVelocityY(PlayerConfig.jumpVelocity);
-        if (this.jumpsRemaining < PlayerConfig.maxJumps - 1) {
+        const isSecondJump = this.jumpsRemaining < PlayerConfig.maxJumps - 1;
+        this.setVelocityY(isSecondJump ? PlayerConfig.secondJumpVelocity : PlayerConfig.jumpVelocity);
+        if (isSecondJump) {
             const emitter = this.scene.add.particles(this.x, this.y - 4, 'particle_energy', {
                 speed: { min: 40, max: 100 },
                 angle: { min: 240, max: 300 },

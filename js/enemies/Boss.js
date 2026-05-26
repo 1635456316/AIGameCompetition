@@ -63,8 +63,13 @@ class Boss {
                 : (this.config.phase2Cooldown || 1100));
         }
 
-        // 血条
-        this.bossBarFill.width = 792 * Math.max(0, this.hp / this.maxHp);
+        this._syncBossBar();
+    }
+
+    _syncBossBar() {
+        if (!this.bossBarFill) return;
+        const ratio = Math.max(0, this.hp / this.maxHp);
+        this.bossBarFill.width = 792 * ratio;
     }
 
     enterPhase2() {
@@ -131,7 +136,8 @@ class Boss {
 
     takeDamage(amount, fromX) {
         if (!this.alive) return;
-        this.hp -= amount;
+        this.hp = Math.max(0, this.hp - amount);
+        this._syncBossBar();
         this.sprite.setTint(0xffffff);
         this.scene.time.delayedCall(70, () => {
             if (!this.sprite || !this.sprite.setTint) return;
@@ -144,6 +150,8 @@ class Boss {
 
     die() {
         this.alive = false;
+        this.hp = 0;
+        this._syncBossBar();
         const scene = this.scene;
         Effects.bigText(scene, '胜 利！！', PaletteHex.warning);
         Effects.shake(scene, 600, 0.025);
