@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>关卡编辑器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top-bar">
+        <h1>关卡编辑器</h1>
+        <div class="top-tools">
+            <button class="btn" id="btn-new" title="新建关卡">新建</button>
+            <button class="btn" id="btn-open" title="打开 JSON">打开</button>
+            <input type="file" id="file-input" accept=".json,application/json" hidden>
+            <button class="btn primary" id="btn-save" title="保存 (Ctrl+S)">保存</button>
+            <span id="save-status" class="save-status"></span>
+            <span class="divider"></span>
+            <button class="btn" id="btn-undo" title="撤销 (Ctrl+Z)">↶</button>
+            <button class="btn" id="btn-redo" title="重做 (Ctrl+Y)">↷</button>
+            <span class="divider"></span>
+            <label class="inline-field">
+                关卡
+                <select id="level-select"></select>
+            </label>
+            <span class="divider"></span>
+            <button class="btn tool-btn active" data-tool="select" title="选择 (V)">选择</button>
+            <button class="btn tool-btn" data-tool="pan" title="平移 (H / 空格)">平移</button>
+            <span class="divider"></span>
+            <label class="inline-field snap-field">
+                网格
+                <select id="grid-size">
+                    <option value="16" selected>16px</option>
+                    <option value="32">32px</option>
+                    <option value="8">8px</option>
+                </select>
+            </label>
+            <button class="btn" id="btn-zoom-out">−</button>
+            <span id="zoom-label" class="zoom-label">100%</span>
+            <button class="btn" id="btn-zoom-in">+</button>
+            <button class="btn" id="btn-zoom-fit">适应</button>
+        </div>
+    </header>
+
+    <div class="workspace">
+        <aside class="panel palette-panel">
+            <h2>素材库</h2>
+            <div id="palette-root"></div>
+            <p class="palette-hint">拖拽素材到地图空白处放置；再次点击已选素材可取消。点击已有元素可选中/移动。</p>
+        </aside>
+
+        <main class="viewport-wrap">
+            <div class="viewport-toolbar">
+                <span id="cursor-pos">X: 0  Y: 0</span>
+                <span id="level-info"></span>
+            </div>
+            <div class="viewport-scroll" id="viewport-scroll">
+                <canvas id="level-canvas"></canvas>
+            </div>
+        </main>
+
+        <aside class="panel inspector-panel">
+            <div class="tab-bar">
+                <button class="tab active" data-tab="props">属性</button>
+                <button class="tab" data-tab="hierarchy">层级</button>
+                <button class="tab" data-tab="level">关卡</button>
+            </div>
+            <div class="tab-content active" id="tab-props">
+                <div id="props-empty" class="empty-hint">选中地图上的元素以编辑属性</div>
+                <form id="props-form" hidden></form>
+            </div>
+            <div class="tab-content" id="tab-hierarchy">
+                <ul id="hierarchy-list" class="hierarchy-list"></ul>
+            </div>
+            <div class="tab-content" id="tab-level">
+                <form id="level-form" class="level-form"></form>
+            </div>
+        </aside>
+    </div>
+
+    <script src="levelSchema.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

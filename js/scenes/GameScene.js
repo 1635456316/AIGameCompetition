@@ -13,6 +13,9 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
+        if (typeof PVScene !== 'undefined' && PVScene.cleanupDomArtifacts) {
+            PVScene.cleanupDomArtifacts();
+        }
         const W = GAME_WIDTH;
         const H = GAME_HEIGHT;
         this.levelWidth = this.levelConfig.width || 3200;
@@ -25,14 +28,21 @@ class GameScene extends Phaser.Scene {
         // 视差背景
         this._createParallaxBackground(W, H);
 
-        // 平台组
-        this.solids = this.physics.add.staticGroup();
+        // 地面/墙壁 vs 浮空单向平台
+        this.groundSolids = this.physics.add.staticGroup();
+        this.platforms = this.physics.add.staticGroup();
         this._buildLevel();
 
         // 玩家
         const start = this.levelConfig.playerStart || { x: 160, yOffset: 120 };
         this.player = new Player(this, start.x, H - start.yOffset);
-        this.physics.add.collider(this.player.sprite, this.solids);
+        this.physics.add.collider(this.player.sprite, this.groundSolids);
+        this.physics.add.collider(
+            this.player.sprite,
+            this.platforms,
+            null,
+            (playerSpr, platform) => this._canCollideWithPlatform(playerSpr, platform)
+        );
 
         // 输入
         this.inputCtl = new InputController(this);
@@ -41,8 +51,9 @@ class GameScene extends Phaser.Scene {
         this.enemies = [];
         this.enemySprites = this.physics.add.group();
         this._spawnEnemies();
-        this.physics.add.collider(this.enemySprites, this.solids);
-        this.physics.add.collider(this.player.sprite, this.enemySprites);
+        this.physics.add.collider(this.enemySprites, this.groundSolids);
+        this.physics.add.collider(this.enemySprites, this.platforms);
+        this.physics.add.collider(this.player.sprite, this.enemySprites, null, () => !this._playerIsPhasing());
 
         // 子弹组
         this.playerBullets = this.physics.add.group();
@@ -77,7 +88,7 @@ class GameScene extends Phaser.Scene {
             if (!melee || !melee.active || !enemy || !enemy.alive) return;
             if (melee._hitSet && melee._hitSet.has(enemy)) return;
             (melee._hitSet = melee._hitSet || new Set()).add(enemy);
-            enemy.takeDamage(25, melee.x);
+            enemy.takeDamage(PlayerConfig.meleeDamage, melee.x);
             Effects.hitFlash(this, enemy.x, enemy.y - 24);
             Effects.shake(this, 90, 0.008);
             Effects.hitStop(this, 50);
@@ -101,6 +112,20 @@ class GameScene extends Phaser.Scene {
 
         // HUD
         this.hud = new HUD(this, this.player);
+
+        if (this._onPlatformPostUpdate) {
+            this.events.off('postupdate', this._onPlatformPostUpdate);
+        }
+        this._onPlatformPostUpdate = () => {
+            this._resolvePlayerPlatformLanding();
+            this._storePlayerBodySnapshot();
+        };
+        this.events.on('postupdate', this._onPlatformPostUpdate);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            if (this._onPlatformPostUpdate) {
+                this.events.off('postupdate', this._onPlatformPostUpdate);
+            }
+        });
 
         // 镜头
         this.cameras.main.startFollow(this.player.sprite, true, 0.12, 0.12);
@@ -262,7 +287,7 @@ class GameScene extends Phaser.Scene {
 
     /**
      * 关卡视差背景：
-     * - 第 1 关："磁暴军工厂"使用 assets/UI/第一关背景图.png 作为完整设计稿背景。
+     * - 第 1 关："钢甲要塞"使用 assets/UI/第一关背景图.png 作为完整设计稿背景。
      *   按高度等比缩放，水平方向用 tileSprite 平铺以覆盖整个关卡宽度；
      *   配合较慢的 scrollFactor 制造视差感。
      * - 其他关：保持原三层程序生成的视差背景。
@@ -281,9 +306,9 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        this.bgFar  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_far').setOrigin(0).setScrollFactor(0.1);
-        this.bgMid  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_mid').setOrigin(0).setScrollFactor(0.35);
-        this.bgNear = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_near').setOrigin(0).setScrollFactor(0.6);
+        this.bgFar  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_far').setOrigin(0).setScrollFactor(0.1).setDepth(-10);
+        this.bgMid  = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_mid').setOrigin(0).setScrollFactor(0.35).setDepth(-8);
+        this.bgNear = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_near').setOrigin(0).setScrollFactor(0.6).setDepth(-6);
     }
 
     _buildLevel() {
@@ -294,26 +319,37 @@ class GameScene extends Phaser.Scene {
         const groundCount = Math.ceil(this.levelWidth / tile);
         for (let i = 0; i < groundCount; i++) {
             const x = i * tile + tile / 2;
-            const block = this.solids.create(x, groundY + tile / 2, 'tile_ground');
+            const block = this.groundSolids.create(x, groundY + tile / 2, 'tile_ground');
             block.setOrigin(0.5, 0.5);
             block.refreshBody();
         }
 
-        // 浮空平台若干
+        // 浮空平台（单向：可自下穿越，按住下+跳跃可落下）
         (this.levelConfig.platforms || []).forEach(([x, y, n]) => {
             for (let i = 0; i < n; i++) {
                 const px = x + i * 96;
-                const p = this.solids.create(px, y, 'tile_platform');
+                const p = this.platforms.create(px, y, 'tile_platform');
                 p.setOrigin(0.5, 0.5);
                 p.refreshBody();
             }
         });
 
+        // 竖墙 / 挡板（全向碰撞，L 键冲刺不可穿过）
+        (this.levelConfig.walls || []).forEach(w => {
+            const wallW = w.w || 32;
+            const wallH = w.h || 200;
+            const wall = this.groundSolids.create(w.x, w.y, 'tile_ground');
+            wall.setOrigin(0.5, 0.5);
+            wall.setDisplaySize(wallW, wallH);
+            wall.refreshBody();
+            wall.setData('isWall', true);
+        });
+
         // 边界墙
-        const leftWall = this.solids.create(-16, this.levelHeight / 2, 'tile_ground');
+        const leftWall = this.groundSolids.create(-16, this.levelHeight / 2, 'tile_ground');
         leftWall.displayWidth = 32; leftWall.displayHeight = this.levelHeight;
         leftWall.refreshBody();
-        const rightWall = this.solids.create(this.levelWidth + 16, this.levelHeight / 2, 'tile_ground');
+        const rightWall = this.groundSolids.create(this.levelWidth + 16, this.levelHeight / 2, 'tile_ground');
         rightWall.displayWidth = 32; rightWall.displayHeight = this.levelHeight;
         rightWall.refreshBody();
     }
@@ -342,6 +378,7 @@ class GameScene extends Phaser.Scene {
         const input = this.inputCtl.sample();
         this.player.feedInput(input);
         this.player.update(time, delta);
+        this._resolvePlayerWallCollisions();
 
         // 敌人
         this.enemies.forEach(e => e.alive && e.update(time, delta, this.player));
@@ -373,6 +410,55 @@ class GameScene extends Phaser.Scene {
         this.hud.update(time);
     }
 
+    /** 竖墙碰撞：修正 StaticBody 尺寸误差，并防止高速冲刺穿隧 */
+    _resolvePlayerWallCollisions() {
+        const player = this.player;
+        if (!player || !player.body) return;
+
+        const walls = this.levelConfig.walls || [];
+        if (!walls.length) return;
+
+        const body = player.body;
+        const isDash = player.fsm.is('dash');
+        const isAttackDash = player.fsm.is('attackDash');
+        if (!isDash && !isAttackDash && Math.abs(body.velocity.x) < 50) return;
+
+        for (const w of walls) {
+            const wallW = w.w || 32;
+            const wallH = w.h || 200;
+            const left = w.x - wallW / 2;
+            const right = w.x + wallW / 2;
+            const top = w.y - wallH / 2;
+            const bottom = w.y + wallH / 2;
+
+            if (body.right <= left || body.left >= right || body.bottom <= top || body.top >= bottom) {
+                continue;
+            }
+
+            const overlapLeft = body.right - left;
+            const overlapRight = right - body.left;
+            const margin = 2;
+
+            if (overlapLeft <= overlapRight) {
+                player.sprite.x -= overlapLeft + margin;
+            } else {
+                player.sprite.x += overlapRight + margin;
+            }
+
+            if (isDash) {
+                player.setVelocityX(0);
+                player.body.allowGravity = true;
+                player.fsm.change(player.onGround() ? 'idle' : 'fall');
+            } else if (isAttackDash) {
+                player.setVelocityX(0);
+                player.attackDashBlockedByWall = true;
+            } else {
+                player.setVelocityX(0);
+            }
+            break;
+        }
+    }
+
     _playerReachedBossTrigger() {
         const triggerOffset = this.levelConfig.bossTriggerOffset || 600;
         return this.player && this.player.x > this.levelWidth - triggerOffset;
@@ -399,7 +485,8 @@ class GameScene extends Phaser.Scene {
         const bossConfig = BossConfigs[bossInfo.type] || BossConfigs.mechanicalDino;
         this._playLevelBGM('boss');
         this.boss = new Boss(this, x, y, bossConfig);
-        this.physics.add.collider(this.boss.sprite, this.solids);
+        this.physics.add.collider(this.boss.sprite, this.groundSolids);
+        this.physics.add.collider(this.boss.sprite, this.platforms);
         this.physics.add.overlap(this.playerBullets, this.boss.sprite, (a, b) => {
             const bullet = this._pickPlayerBullet(a, b);
             if (!bullet || !bullet.active) return;
@@ -457,14 +544,7 @@ class GameScene extends Phaser.Scene {
         this.time.delayedCall(45, () => this._damageBossFromMelee(m, true));
         this.time.delayedCall(90, () => this._damageBossFromMelee(m, true));
 
-        // 命中可视化（白色矩形闪一下）
-        const ghost = this.add.rectangle(x, y, w, h, 0xffffff, 0.3).setDepth(800);
-        this.tweens.add({
-            targets: ghost,
-            alpha: 0,
-            duration: 180,
-            onComplete: () => ghost.destroy()
-        });
+        Effects.spawnPunchWind(this, x, y, facing);
 
         this.time.delayedCall(140, () => m && m.destroy());
     }
@@ -553,9 +633,154 @@ class GameScene extends Phaser.Scene {
         Effects.shake(this, 140, 0.012);
     }
 
+    _canAttackDashTick(player, target, now) {
+        const times = player._attackDashHitTimes;
+        if (!times) return true;
+        const last = times.get(target) || 0;
+        return now - last >= PlayerConfig.attackDashHitInterval;
+    }
+
+    _markAttackDashTick(player, target, now) {
+        if (!player._attackDashHitTimes) player._attackDashHitTimes = new Map();
+        player._attackDashHitTimes.set(target, now);
+    }
+
+    /** 普攻第三段：冲刺途中多段判定；同一目标按间隔重复伤害 */
+    tickAttackDashHits(player) {
+        if (!player || !player.fsm.is('attackDash')) return;
+        const now = this.time.now;
+        const cfg = PlayerConfig;
+        const facing = player.facing;
+        const cx = player.x + facing * cfg.attackDashHitOffsetX;
+        const cy = player.y - cfg.attackDashHitOffsetY;
+        const hitRect = new Phaser.Geom.Rectangle(
+            cx - cfg.attackDashHitWidth / 2,
+            cy - cfg.attackDashHitHeight / 2,
+            cfg.attackDashHitWidth,
+            cfg.attackDashHitHeight
+        );
+
+        this.enemies.forEach((enemy) => {
+            if (!enemy.alive) return;
+            const eb = enemy.body;
+            if (!eb) return;
+            const enemyRect = new Phaser.Geom.Rectangle(eb.x, eb.y, eb.width, eb.height);
+            if (!Phaser.Geom.Intersects.RectangleToRectangle(hitRect, enemyRect)) return;
+            if (!this._canAttackDashTick(player, enemy, now)) return;
+
+            this._markAttackDashTick(player, enemy, now);
+            enemy.takeDamage(cfg.attackDashDamagePerTick, player.x);
+            Effects.hitFlash(this, enemy.x, enemy.y - 24);
+            Effects.shake(this, 70, 0.006);
+            Effects.hitStop(this, 35);
+            this.player.gainEnergy(3 * this.hud.getEnergyMultiplier());
+            this.hud.addCombo(this.time.now);
+        });
+
+        if (!this.boss || !this.boss.alive) return;
+
+        const bb = this.boss.sprite.body;
+        const pb = player.body;
+        if (!bb || !pb) return;
+
+        const playerRect = new Phaser.Geom.Rectangle(pb.x, pb.y, pb.width, pb.height);
+        const bossRect = new Phaser.Geom.Rectangle(bb.x, bb.y, bb.width, bb.height);
+        if (!Phaser.Geom.Intersects.RectangleToRectangle(playerRect, bossRect)) return;
+
+        if (!player.attackDashBlockedByBoss) {
+            player.attackDashBlockedByBoss = true;
+            player.setVelocityX(0);
+            const margin = 8;
+            if (player.facing > 0 && pb.right > bb.left) {
+                player.sprite.x -= (pb.right - bb.left + margin);
+            } else if (player.facing < 0 && pb.left < bb.right) {
+                player.sprite.x += (bb.right - pb.left + margin);
+            }
+        }
+
+        if (!this._canAttackDashTick(player, this.boss, now)) return;
+
+        this._markAttackDashTick(player, this.boss, now);
+        this.boss.takeDamage(cfg.attackDashBossDamagePerTick, player.x);
+        Effects.hitFlash(this, this.boss.x, this.boss.y - 80);
+        Effects.shake(this, 120, 0.01);
+        Effects.hitStop(this, 50);
+        this.player.gainEnergy(4 * this.hud.getEnergyMultiplier());
+        this.hud.addCombo(this.time.now);
+    }
+
     _playerIsPhasing() {
         if (!this.player || !this.player.fsm) return false;
-        return this.player.fsm.is('dash') || this.player.fsm.is('dead');
+        // attackDash：第三段前冲可命中 Boss，但不应吃接触伤害
+        return this.player.fsm.is('dash')
+            || this.player.fsm.is('attackDash')
+            || this.player.fsm.is('dead');
+    }
+
+    /** 是否站在浮空单向平台上（不含地面） */
+    isStandingOnPlatform(player) {
+        if (!player.onGround()) return false;
+        const pb = player.body;
+        if (!pb) return false;
+        let onPlatform = false;
+        this.platforms.children.iterate((plat) => {
+            if (!plat || !plat.body || onPlatform) return;
+            if (pb.right < plat.body.left + 2 || pb.left > plat.body.right - 2) return;
+            if (Math.abs(pb.bottom - plat.body.top) <= 16) onPlatform = true;
+        });
+        return onPlatform;
+    }
+
+    /** 单向平台：上升穿透；下+跳期间穿透；仅能从上方落下 */
+    _canCollideWithPlatform(playerSpr, platform) {
+        const pb = playerSpr.body;
+        const plat = platform.body;
+        if (!pb || !plat) return false;
+        if (this.time.now < this.player.platformDropUntil) return false;
+        if (pb.velocity.y < 0) return false;
+        if (pb.right < plat.left + 2 || pb.left > plat.right - 2) return false;
+
+        const platTop = plat.top;
+        const dt = this.game.loop.delta / 1000;
+        const slop = Math.max(18, Math.abs(pb.velocity.y) * dt * 1.25 + 14);
+        if (pb.bottom <= platTop + slop) return true;
+
+        const prevBottom = this.player._prevBodyBottom;
+        if (prevBottom != null && prevBottom <= platTop + 6 && pb.bottom >= platTop - 4) {
+            return true;
+        }
+        return false;
+    }
+
+    _storePlayerBodySnapshot() {
+        const pb = this.player?.body;
+        if (!pb) return;
+        this.player._prevBodyBottom = pb.bottom;
+    }
+
+    /** 物理步后兜底：本帧从上穿过平台顶面时，吸附到台面 */
+    _resolvePlayerPlatformLanding() {
+        const player = this.player;
+        if (!player?.body || this.time.now < player.platformDropUntil) return;
+        const pb = player.body;
+        if (pb.velocity.y < 0) return;
+
+        const prevBottom = player._prevBodyBottom;
+        if (prevBottom == null) return;
+
+        this.platforms.children.iterate((plat) => {
+            if (!plat?.body) return;
+            const platBody = plat.body;
+            if (pb.right < platBody.left + 2 || pb.left > platBody.right - 2) return;
+
+            const platTop = platBody.top;
+            if (prevBottom > platTop + 10) return;
+            if (pb.bottom < platTop - 6) return;
+            if (pb.bottom > platTop + 36) return;
+
+            player.sprite.y += platTop - pb.bottom;
+            player.setVelocityY(0);
+        });
     }
 
     _otherFromPair(a, b, target) {

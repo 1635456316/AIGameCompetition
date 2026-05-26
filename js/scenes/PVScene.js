@@ -18,6 +18,7 @@ class PVScene extends Phaser.Scene {
     }
 
     create() {
+        PVScene.cleanupDomArtifacts();
         const w = this.cameras.main.width;
         const h = this.cameras.main.height;
         const { videoUrl, title, pvId } = this.params;
@@ -271,6 +272,14 @@ class PVScene extends Phaser.Scene {
 
         this.input.keyboard.once('keydown-SPACE', () => this._finish());
         this.input.keyboard.once('keydown-ENTER', () => this._finish());
+    }
+
+    /** 防止 PV 的 DOM 按钮残留在 canvas 上方挡住游戏内鼠标点击 */
+    static cleanupDomArtifacts() {
+        document.querySelectorAll('body > button').forEach((btn) => {
+            const z = parseInt(btn.style.zIndex, 10);
+            if (z >= 10002) btn.remove();
+        });
     }
 
     _finish() {

@@ -13,8 +13,18 @@ class Enemy {
         this.sprite.body.setOffset(8, 4);
         this.sprite.owner = this;
 
-        this.hp = type === 'ranged' ? 30 : 50;
+        this.maxHp = type === 'ranged' ? 30 : 50;
+        this.hp = this.maxHp;
         this.alive = true;
+
+        this._hpBarW = 40;
+        this._hpBarFillW = 36;
+        this._hpBarOffsetY = 72;
+        const barDepth = (this.sprite.depth || 0) + 1;
+        this.hpBarBg = scene.add.rectangle(x, y - this._hpBarOffsetY, this._hpBarW, 4, 0x000000, 0.65)
+            .setOrigin(0.5, 0.5).setDepth(barDepth);
+        this.hpBarFill = scene.add.rectangle(x - this._hpBarW / 2 + 2, y - this._hpBarOffsetY, this._hpBarFillW, 3, Palette.enemy)
+            .setOrigin(0, 0.5).setDepth(barDepth);
         this.facing = -1;
         this.state = 'patrol';
         this.lastAttackAt = -99999;
@@ -71,6 +81,16 @@ class Enemy {
         }
 
         this.sprite.setFlipX(this.facing < 0);
+        this._syncHpBar();
+    }
+
+    _syncHpBar() {
+        if (!this.hpBarBg || !this.hpBarFill) return;
+        const barY = this.y - this._hpBarOffsetY;
+        this.hpBarBg.setPosition(this.x, barY);
+        const ratio = Math.max(0, this.hp / this.maxHp);
+        this.hpBarFill.width = this._hpBarFillW * ratio;
+        this.hpBarFill.setPosition(this.x - this._hpBarW / 2 + 2, barY);
     }
 
     takeDamage(amount, fromX) {
@@ -80,6 +100,7 @@ class Enemy {
         this.sprite.setVelocity(knock, -200);
         this.sprite.setTint(0xffffff);
         this.scene.time.delayedCall(70, () => this.sprite && this.sprite.clearTint());
+        this._syncHpBar();
         if (this.hp <= 0) {
             this.die();
         }
@@ -87,6 +108,8 @@ class Enemy {
 
     die() {
         this.alive = false;
+        if (this.hpBarBg) { this.hpBarBg.destroy(); this.hpBarBg = null; }
+        if (this.hpBarFill) { this.hpBarFill.destroy(); this.hpBarFill = null; }
         Effects.explosion(this.scene, this.x, this.y - 24, 0.8);
         this.sprite.destroy();
         this.scene.onEnemyKilled && this.scene.onEnemyKilled(this);

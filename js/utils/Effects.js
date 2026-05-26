@@ -56,6 +56,75 @@ class Effects {
         });
     }
 
+    /** 出拳拳风：贴图默认向右，facing 左时会翻转；停留 2 帧后直接消失 */
+    static spawnPunchWind(scene, x, y, facing = 1) {
+        if (!scene.textures.exists('fx_punch_wind')) return;
+        const wind = scene.add.image(x, y, 'fx_punch_wind');
+        const baseScale = 65 / wind.width;
+        const originX = facing > 0 ? 0.14 : 0.86;
+        wind.setOrigin(originX, 0.52)
+            .setScale(baseScale)
+            .setFlipX(facing < 0)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDepth(850)
+            .setAlpha(0.92);
+
+        const fps = scene.game.loop.targetFps || 60;
+        // scene.time.delayedCall((1000 / fps) * 5, () => wind.destroy());
+        scene.time.delayedCall(200, () => wind.destroy());
+    }
+
+    /** 第三段冲刺：创建挂在拳头上的冲击波（需在冲刺过程中每帧 sync） */
+    static createAttachedShockwave(player) {
+        const scene = player.scene;
+        const key = 'fx_shockwave';
+        if (!scene.textures.exists(key)) {
+            console.warn('[Effects] fx_shockwave 未加载，请刷新页面从主菜单重新进入');
+            return null;
+        }
+
+        const frame = scene.textures.getFrame(key);
+        const fw = frame.width || 1;
+        const fh = frame.height || 1;
+        const cfg = PlayerConfig;
+        const facing = player.facing;
+        const wave = scene.add.image(0, 0, key);
+        const originX = facing > 0 ? cfg.shockwaveOriginX : cfg.shockwaveOriginXLeft;
+
+        wave.setOrigin(originX, cfg.shockwaveOriginY)
+            .setDisplaySize(cfg.shockwaveWidth || 200, (cfg.shockwaveWidth || 200) * (fh / fw))
+            .setFlipX(facing < 0)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDepth(player.sprite.depth + 1)
+            .setAlpha(0.95);
+
+        player.attackDashShockwave = wave;
+        Effects.syncShockwaveToPlayer(player);
+        return wave;
+    }
+
+    /** 每帧把冲击波对齐到拳头挂点 */
+    static syncShockwaveToPlayer(player) {
+        const wave = player.attackDashShockwave;
+        if (!wave || !wave.active) return;
+        const cfg = PlayerConfig;
+        const facing = player.facing;
+        wave.setPosition(
+            player.x + facing * cfg.shockwaveOffsetX,
+            player.y - cfg.shockwaveOffsetY
+        );
+        wave.setFlipX(facing < 0);
+        const originX = facing > 0 ? cfg.shockwaveOriginX : cfg.shockwaveOriginXLeft;
+        wave.setOrigin(originX, cfg.shockwaveOriginY);
+    }
+
+    static destroyAttachedShockwave(player) {
+        if (player.attackDashShockwave) {
+            player.attackDashShockwave.destroy();
+            player.attackDashShockwave = null;
+        }
+    }
+
     static explosion(scene, x, y, scale = 1) {
         const emitter = scene.add.particles(x, y, 'particle_fire', {
             speed: { min: 120 * scale, max: 360 * scale },

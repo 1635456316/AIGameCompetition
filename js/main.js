@@ -23,4 +23,16 @@ const config = {
     scene: [BootScene, MenuScene, PVScene, LevelSelectScene, GameScene, ResultScene]
 };
 
-const game = new Phaser.Game(config);
+(async () => {
+    try {
+        window.LevelConfigs = await loadLevelConfigs();
+    } catch (err) {
+        console.error('[LevelLoader]', err);
+        document.body.innerHTML =
+            '<div style="color:#fff;font-family:sans-serif;padding:40px;text-align:center">' +
+            '<h2>关卡加载失败</h2><p>请通过本地 HTTP 服务运行游戏（如 npx serve），并确认 assets/levels/ 存在。</p>' +
+            '<pre style="color:#f88;margin-top:16px">' + String(err.message || err) + '</pre></div>';
+        return;
+    }
+    new Phaser.Game(config);
+})();

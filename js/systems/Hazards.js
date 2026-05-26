@@ -118,8 +118,8 @@ class WindZone {
         this.force = cfg.force || 180;
         this.dir = cfg.dir || 1;
 
-        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xffffff, 0.04)
-            .setStrokeStyle(1, 0xffffff, 0.2).setDepth(50);
+        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xffffff, 0.06)
+            .setStrokeStyle(1, 0xffffff, 0.25).setDepth(50);
 
         this._particles = scene.add.particles(this.x - this.w / 2, this.y, 'particle_white', {
             speedX: { min: this.force * 0.5 * this.dir, max: this.force * this.dir },
@@ -129,16 +129,18 @@ class WindZone {
             lifespan: 800,
             quantity: 1,
             frequency: 120,
-            emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, -this.h / 2, 20, this.h) }
+            emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, -this.h / 2, this.w, this.h) }
         }).setDepth(51);
     }
 
     update(time, delta, player) {
-        const pBounds = player.sprite.getBounds();
+        const body = player.sprite.body;
+        if (!body) return;
         const zBounds = new Phaser.Geom.Rectangle(
             this.x - this.w / 2, this.y - this.h / 2, this.w, this.h
         );
-        if (Phaser.Geom.Rectangle.Overlaps(pBounds, zBounds)) {
+        const pRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
+        if (Phaser.Geom.Rectangle.Overlaps(pRect, zBounds)) {
             const pushAmount = this.force * (delta / 1000);
             player.sprite.x += this.dir * pushAmount;
         }
@@ -155,7 +157,7 @@ class CrumblePlatform {
         this.triggered = false;
         this.destroyed = false;
 
-        this.platform = scene.solids.create(this.x, this.y, 'tile_platform');
+        this.platform = scene.platforms.create(this.x, this.y, 'tile_platform');
         this.platform.setOrigin(0.5, 0.5);
         this.platform.refreshBody();
         this.platform.setTint(0xff8800);

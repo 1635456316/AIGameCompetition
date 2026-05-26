@@ -1,0 +1,30 @@
+{
+  "id": 2,
+  "title": "第 2 关 · 废 弃 城 区",
+  "subtitle": "最终关：机械暴龙的钢铁咆哮",
+  "width": 3200,
+  "playerStart": { "x": 160, "yOffset": 120 },
+  "bossTriggerOffset": 600,
+  "boss": { "type": "mechanicalDino", "xOffset": 220, "yOffset": 80 },
+  "startVideoUrl": "assets/video/最终Boss出场.mp4",
+  "endVideoUrl": "assets/video/PV-结束.mp4",
+  "normalBgmUrl": "assets/audio/第一关普通曲.mp3",
+  "bossBgmUrl": "assets/audio/第一关Boss曲.mp3",
+  "resultBgUrl": null,
+  "platforms": [
+    [380, 540, 3], [720, 460, 2], [1040, 540, 2],
+    [1340, 420, 3], [1700, 500, 2], [2000, 380, 2],
+    [2280, 480, 3], [2620, 420, 2], [2880, 540, 2]
+  ],
+  "walls": [],
+  "spawns": [
+    { "type": "melee", "x": 600 },
+    { "type": "ranged", "x": 900 },
+    { "type": "melee", "x": 1200 },
+    { "type": "ranged", "x": 1500 },
+    { "type": "melee", "x": 1850 },
+    { "type": "melee", "x": 2100 },
+    { "type": "ranged", "x": 2350 }
+  ],
+  "hazards": []
+}

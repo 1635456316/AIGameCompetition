@@ -3,25 +3,26 @@ class PauseMenu {
         this.scene = scene;
         this.visible = false;
         this.selectedIndex = 0;
+        this.uiDepth = 2000;
+        this._ui = [];
 
-        this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(2000).setVisible(false);
-
-        this.overlay = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.65);
-        this.container.add(this.overlay);
-
-        const panelW = 380;
-        const panelH = 320;
         const panelX = GAME_WIDTH / 2;
         const panelY = GAME_HEIGHT / 2;
-        const panel = scene.add.rectangle(panelX, panelY, panelW, panelH, 0x0a1020, 0.95)
-            .setStrokeStyle(3, Palette.warning, 0.9);
-        this.container.add(panel);
+
+        this.overlay = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.65)
+            .setScrollFactor(0).setDepth(this.uiDepth).setVisible(false);
+        this._ui.push(this.overlay);
+
+        const panel = scene.add.rectangle(panelX, panelY, 380, 320, 0x0a1020, 0.95)
+            .setStrokeStyle(3, Palette.warning, 0.9)
+            .setScrollFactor(0).setDepth(this.uiDepth + 1).setVisible(false);
+        this._ui.push(panel);
 
         const title = scene.add.text(panelX, panelY - 120, '暂   停', {
             font: 'bold 40px Arial', color: PaletteHex.warning,
             stroke: '#000', strokeThickness: 6
-        }).setOrigin(0.5);
-        this.container.add(title);
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(this.uiDepth + 2).setVisible(false);
+        this._ui.push(title);
 
         this.items = [
             { label: '继续游戏', action: () => this.hide() },
@@ -34,27 +35,24 @@ class PauseMenu {
             const y = panelY - 40 + i * 60;
             const bg = scene.add.rectangle(panelX, y, 300, 46, 0x121d30, 0.9)
                 .setStrokeStyle(2, Palette.hero, 0.5)
-                .setInteractive({ useHandCursor: true });
+                .setScrollFactor(0)
+                .setDepth(this.uiDepth + 3)
+                .setInteractive({ useHandCursor: true })
+                .setVisible(false);
             const text = scene.add.text(panelX, y, item.label, {
                 font: 'bold 24px Arial', color: '#ffffff',
                 stroke: '#000', strokeThickness: 4
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(this.uiDepth + 4).setVisible(false);
 
             bg.on('pointerover', () => {
                 this.selectedIndex = i;
                 this._updateSelection();
             });
-            bg.on('pointerdown', item.action);
+            bg.on('pointerdown', () => item.action());
 
-            this.container.add([bg, text]);
             this.buttons.push({ bg, text });
+            this._ui.push(bg, text);
         });
-
-        this._navUp = scene.input.keyboard.addKey('UP');
-        this._navDown = scene.input.keyboard.addKey('DOWN');
-        this._navW = scene.input.keyboard.addKey('W');
-        this._navS = scene.input.keyboard.addKey('S');
-        this._enter = scene.input.keyboard.addKey('ENTER');
 
         scene.input.keyboard.on('keydown-UP', () => this._navigate(-1));
         scene.input.keyboard.on('keydown-DOWN', () => this._navigate(1));
@@ -69,7 +67,7 @@ class PauseMenu {
         this.scene.paused = true;
         this.scene.physics.world.pause();
         this.scene.tweens.pauseAll();
-        this.container.setVisible(true);
+        this._ui.forEach(o => o.setVisible(true));
         this.selectedIndex = 0;
         this._updateSelection();
     }
@@ -80,7 +78,7 @@ class PauseMenu {
         this.scene.paused = false;
         this.scene.physics.world.resume();
         this.scene.tweens.resumeAll();
-        this.container.setVisible(false);
+        this._ui.forEach(o => o.setVisible(false));
     }
 
     _navigate(dir) {

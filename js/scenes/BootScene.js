@@ -32,6 +32,9 @@ class BootScene extends Phaser.Scene {
 
         this.load.on('loaderror', (file) => {
             console.warn('[BootScene] 资源加载失败:', file && file.key, file && file.src);
+            if (file && file.key === 'fx_shockwave') {
+                console.warn('[BootScene] 冲击波加载失败，第三段普攻特效将不可用');
+            }
         });
 
         // 音频资源
@@ -75,8 +78,15 @@ class BootScene extends Phaser.Scene {
         // 主角序列帧（视频生成序列帧工具导出）
         this.load.image('tex_hero_idle', 'assets/character/Hero/主角-Idle.png');
         this.load.image('tex_hero_run', 'assets/character/Hero/主角-奔跑.png');
+        this.load.image('tex_hero_attack', 'assets/character/Hero/主角-普通攻击.png');
+        this.load.image('tex_hero_dash', 'assets/character/Hero/主角-冲刺.png');
         this.load.json('hero_idle_meta', 'assets/character/Hero/主角-Idle.json');
         this.load.json('hero_run_meta', 'assets/character/Hero/主角-奔跑.json');
+        this.load.json('hero_attack_meta', 'assets/character/Hero/主角-普通攻击.json');
+        this.load.json('hero_dash_meta', 'assets/character/Hero/主角-冲刺.json');
+        this.load.image('fx_punch_wind', 'assets/effects/拳风.png');
+        // 使用英文文件名，避免部分本地服务器对中文路径加载失败
+        this.load.image('fx_shockwave', 'assets/effects/shockwave.png');
 
         // 视频资源（主菜单待机）
         // 主菜单待机：丢弃音轨，便于自动循环播放。后续 BGM 单独接入。

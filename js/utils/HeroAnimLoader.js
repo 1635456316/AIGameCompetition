@@ -15,9 +15,22 @@ class HeroAnimLoader {
             animKey: 'hero_run',
             framePrefix: 'run'
         });
+        HeroAnimLoader.registerSheet(scene, {
+            textureKey: 'tex_hero_attack',
+            metaKey: 'hero_attack_meta',
+            animKey: 'hero_attack',
+            framePrefix: 'attack',
+            repeat: 0
+        });
+        HeroAnimLoader.registerSheet(scene, {
+            textureKey: 'tex_hero_dash',
+            metaKey: 'hero_dash_meta',
+            animKey: 'hero_dash',
+            framePrefix: 'dash'
+        });
     }
 
-    static registerSheet(scene, { textureKey, metaKey, animKey, framePrefix }) {
+    static registerSheet(scene, { textureKey, metaKey, animKey, framePrefix, repeat = -1 }) {
         if (!scene.textures.exists(textureKey)) return;
         const meta = scene.cache.json.get(metaKey);
         if (!meta || !Array.isArray(meta.frames) || meta.frames.length === 0) return;
@@ -53,7 +66,7 @@ class HeroAnimLoader {
         scene.anims.create({
             key: animKey,
             frames: animFrames,
-            repeat: -1
+            repeat: repeat
         });
     }
 }

@@ -19,6 +19,7 @@ class Player {
         }
         this.sprite.setCollideWorldBounds(true);
         this.sprite.setMaxVelocity(800, 1400);
+        this.sprite.setDepth(20);
         this.sprite.owner = this;
 
         this.facing = 1;
@@ -31,13 +32,22 @@ class Player {
         this.dashEndAt = 0;
         this.lastAttackAt = -99999;
         this.attackEndAt = 0;
+        this.meleeComboStep = 0;
+        this.lastMeleeComboAt = 0;
+        this.attackDashEndAt = 0;
+        this.attackDashBlockedByBoss = false;
+        this.attackDashBlockedByWall = false;
+        this.attackDashShockwave = null;
+        this._attackDashHitTimes = null;
         this.lastRangedAt = -99999;
         this.hurtEndAt = 0;
         this.ultEndAt = 0;
         this.invulnerableUntil = 0;
+        this.platformDropUntil = 0;
+        this._lastDownTapAt = 0;
 
         this.input = {
-            left: false, right: false,
+            left: false, right: false, down: false, downPressed: false,
             jumpPressed: false, dashPressed: false,
             attackPressed: false, rangedPressed: false, ultimatePressed: false
         };
@@ -50,22 +60,34 @@ class Player {
             .add('fall', FallState)
             .add('dash', DashState)
             .add('attack', AttackState)
+            .add('attackDash', AttackDashState)
             .add('hurt', HurtState)
             .add('dead', DeadState)
             .add('ultimate', UltimateState);
         this.fsm.change('idle');
     }
 
-    playHeroAnim(animKey) {
+    playHeroAnim(animKey, forceRestart = false) {
         if (!this.scene.anims.exists(animKey)) {
-            this.showHeroTexture('hero_jump');
+            if (animKey !== 'hero_idle') {
+                this.playHeroAnim('hero_idle', forceRestart);
+            }
             return;
         }
-        if (this._currentHeroAnim === animKey && this.sprite.anims.isPlaying) return;
+        if (!forceRestart && this._currentHeroAnim === animKey && this.sprite.anims.isPlaying) return;
         this._currentHeroAnim = animKey;
+        this.sprite.anims.play(animKey, forceRestart);
         this._applySheetHeroScale();
         this._applySheetHeroBody();
-        this.sprite.anims.play(animKey, true);
+    }
+
+    /** 停在序列帧某一帧（不播放动画） */
+    showHeroSheetFrame(textureKey, frameKey) {
+        this._currentHeroAnim = null;
+        this.sprite.anims.stop();
+        this.sprite.setTexture(textureKey, frameKey);
+        this._applySheetHeroScale();
+        this._applySheetHeroBody();
     }
 
     showHeroTexture(textureKey) {
@@ -79,7 +101,8 @@ class Player {
     }
 
     _applySheetHeroScale() {
-        this.sprite.setScale(PlayerConfig.heroDisplayHeight / PlayerConfig.heroFrameHeight);
+        const h = (this.sprite.frame && this.sprite.frame.height) || PlayerConfig.heroFrameHeight;
+        this.sprite.setScale(PlayerConfig.heroDisplayHeight / h);
     }
 
     _applySheetHeroBody() {
@@ -115,7 +138,8 @@ class Player {
     }
     canAttack() {
         return this.scene.time.now - this.lastAttackAt >= PlayerConfig.attackCooldown
-            && !this.fsm.is('hurt') && !this.fsm.is('dead') && !this.fsm.is('ultimate');
+            && !this.fsm.is('hurt') && !this.fsm.is('dead') && !this.fsm.is('ultimate')
+            && !this.fsm.is('attackDash');
     }
     canRanged() {
         return this.scene.time.now - this.lastRangedAt >= PlayerConfig.rangedCooldown
@@ -137,7 +161,63 @@ class Player {
 
     feedInput(input) {
         this.input = input;
+        this._handlePlatformDropInput(input);
         this.fsm.handleInput(input);
+    }
+
+    _handlePlatformDropInput(input) {
+        // 离地后必须清空连按计时，否则 A 台点过「下」再跳到 B 台会误触发穿落
+        if (!this.scene.isStandingOnPlatform?.(this)) {
+            this._lastDownTapAt = 0;
+            if (!input.downPressed) return;
+            return;
+        }
+        if (!input.downPressed) return;
+        const now = this.scene.time.now;
+        if (this._lastDownTapAt && now - this._lastDownTapAt <= PlayerConfig.platformDropTapWindow) {
+            this.platformDropUntil = now + PlayerConfig.platformDropDuration;
+            this._lastDownTapAt = 0;
+            this.setVelocityY(Math.max(this.body.velocity.y, 120));
+        } else {
+            this._lastDownTapAt = now;
+        }
+    }
+
+    handleJumpInput(input) {
+        if (!input.jumpPressed || this.jumpsRemaining <= 0) return false;
+        this.fsm.change('jump');
+        return true;
+    }
+
+    prepareMeleeCombo() {
+        const now = this.scene.time.now;
+        if (now - this.lastMeleeComboAt > PlayerConfig.attackComboWindow) {
+            this.meleeComboStep = 0;
+        }
+        this.meleeComboStep = (this.meleeComboStep % 3) + 1;
+        this.lastMeleeComboAt = now;
+        return this.meleeComboStep;
+    }
+
+    startMeleeAttack(fromDash = false) {
+        if (!this.canAttack()) return false;
+        const now = this.scene.time.now;
+        let step;
+        if (fromDash) {
+            // 冲刺中接 J：直接第三段前冲，不占用 1/2 段连击
+            step = 3;
+            this.meleeComboStep = 3;
+            this.lastMeleeComboAt = now;
+        } else {
+            step = this.prepareMeleeCombo();
+        }
+        this.fsm.change(step === 3 ? 'attackDash' : 'attack');
+        return true;
+    }
+
+    resetMeleeCombo() {
+        this.meleeComboStep = 0;
+        this.lastMeleeComboAt = 0;
     }
 
     gainEnergy(v) {
@@ -177,13 +257,26 @@ class Player {
 
     spawnDashTrail() {
         const scene = this.scene;
+        const useSheet = scene.textures.exists('tex_hero_dash');
+        const texKey = useSheet ? 'tex_hero_dash' : 'hero_dash';
+        const frameKey = useSheet ? 'dash_0' : undefined;
+        let scale = PlayerConfig.heroDisplayHeight / 64;
+        if (useSheet) {
+            const frame = scene.textures.get('tex_hero_dash').get('dash_0');
+            const h = frame ? frame.height : 1024;
+            scale = PlayerConfig.heroDisplayHeight / h;
+        }
+
         for (let i = 0; i < 4; i++) {
             scene.time.delayedCall(i * 40, () => {
-                const ghost = scene.add.image(this.x, this.y - 32, 'hero_dash');
-                ghost.setOrigin(0.5, 0.5);
+                if (!this.sprite || !this.sprite.active) return;
+                const ghost = scene.add.image(this.x, this.y, texKey, frameKey);
+                ghost.setOrigin(0.5, 1);
+                ghost.setScale(scale);
                 ghost.setFlipX(this.facing < 0);
-                ghost.setAlpha(0.5);
-                ghost.setTint(Palette.hero);
+                ghost.setAlpha(0.45);
+                ghost.setDepth(this.sprite.depth - 1);
+                if (!useSheet) ghost.setTint(Palette.hero);
                 scene.tweens.add({
                     targets: ghost,
                     alpha: 0,
@@ -197,8 +290,14 @@ class Player {
     spawnMeleeHitbox() {
         const scene = this.scene;
         if (!scene.spawnPlayerMelee) return;
-        const offsetX = this.facing * 44;
-        scene.spawnPlayerMelee(this.x + offsetX, this.y - 32, 64, 48, this.facing);
+        const cfg = PlayerConfig;
+        scene.spawnPlayerMelee(
+            this.x + this.facing * cfg.meleeOffsetX,
+            this.y - cfg.meleeOffsetY,
+            cfg.meleeHitWidth,
+            cfg.meleeHitHeight,
+            this.facing
+        );
     }
 
     fireRanged() {

@@ -13,12 +13,11 @@ const IdleState = {
         }
     },
     handleInput(player, input) {
-        if (input.jumpPressed && player.jumpsRemaining > 0) {
-            player.fsm.change('jump');
-        } else if (input.dashPressed && player.canDash()) {
+        if (player.handleJumpInput(input)) return;
+        if (input.dashPressed && player.canDash()) {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
-            player.fsm.change('attack');
+            player.startMeleeAttack();
         } else if (input.rangedPressed && player.canRanged()) {
             player.fireRanged();
         } else if (input.ultimatePressed && player.canUltimate()) {
@@ -50,7 +49,7 @@ const RunState = {
 
 const JumpState = {
     enter(player) {
-        player.showHeroTexture('hero_jump');
+        player.playHeroAnim('hero_idle');
         player.performJump();
     },
     update(player, time, delta) {
@@ -64,11 +63,11 @@ const JumpState = {
     handleInput(player, input) {
         if (input.jumpPressed && player.jumpsRemaining > 0) {
             player.performJump();
-            player.showHeroTexture('hero_jump');
+            player.playHeroAnim('hero_idle');
         } else if (input.dashPressed && player.canDash()) {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
-            player.fsm.change('attack');
+            player.startMeleeAttack();
         } else if (input.rangedPressed && player.canRanged()) {
             player.fireRanged();
         } else if (input.ultimatePressed && player.canUltimate()) {
@@ -79,7 +78,7 @@ const JumpState = {
 
 const FallState = {
     enter(player) {
-        player.showHeroTexture('hero_jump');
+        player.playHeroAnim('hero_idle');
     },
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
@@ -92,12 +91,12 @@ const FallState = {
     handleInput(player, input) {
         if (input.jumpPressed && player.jumpsRemaining > 0) {
             player.performJump();
-            player.showHeroTexture('hero_jump');
+            player.playHeroAnim('hero_idle');
             player.fsm.change('jump');
         } else if (input.dashPressed && player.canDash()) {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
-            player.fsm.change('attack');
+            player.startMeleeAttack();
         } else if (input.rangedPressed && player.canRanged()) {
             player.fireRanged();
         } else if (input.ultimatePressed && player.canUltimate()) {
@@ -108,7 +107,7 @@ const FallState = {
 
 const DashState = {
     enter(player) {
-        player.showHeroTexture('hero_dash');
+        player.playHeroAnim('hero_dash', true);
         player.dashEndAt = player.scene.time.now + PlayerConfig.dashDuration;
         player.lastDashAt = player.scene.time.now;
         player.energy = Math.max(0, player.energy - PlayerConfig.dashEnergyCost);
@@ -138,14 +137,14 @@ const DashState = {
     },
     handleInput(player, input) {
         if (input.attackPressed && player.canAttack()) {
-            player.fsm.change('attack');
+            player.startMeleeAttack(true);
         }
     }
 };
 
 const AttackState = {
     enter(player) {
-        player.showHeroTexture('hero_attack');
+        player.playHeroAnim('hero_attack', true);
         player.attackEndAt = player.scene.time.now + PlayerConfig.attackDuration;
         player.lastAttackAt = player.scene.time.now;
         player.spawnMeleeHitbox();
@@ -170,8 +169,55 @@ const AttackState = {
     }
 };
 
+const AttackDashState = {
+    enter(player) {
+        // 第三帧（index 2）出拳姿态定格并前冲
+        if (player.scene.textures.exists('tex_hero_attack')) {
+            player.showHeroSheetFrame('tex_hero_attack', 'attack_2');
+        } else {
+            player.playHeroAnim('hero_attack', true);
+        }
+        const now = player.scene.time.now;
+        player.attackDashEndAt = now + PlayerConfig.attackDashDuration;
+        player.lastAttackAt = now;
+        player.invulnerableUntil = Math.max(player.invulnerableUntil, player.attackDashEndAt);
+        player.attackDashBlockedByBoss = false;
+        player.attackDashBlockedByWall = false;
+        player._attackDashHitTimes = new Map();
+        player.setVelocityY(0);
+        player.body.allowGravity = false;
+        player.setVelocityX(player.facing * PlayerConfig.attackDashSpeed);
+        Effects.createAttachedShockwave(player);
+    },
+    update(player, time, delta) {
+        player.setVelocityY(0);
+        if (player.attackDashBlockedByBoss || player.attackDashBlockedByWall) {
+            player.setVelocityX(0);
+        } else {
+            player.setVelocityX(player.facing * PlayerConfig.attackDashSpeed);
+        }
+        Effects.syncShockwaveToPlayer(player);
+        player.scene.tickAttackDashHits && player.scene.tickAttackDashHits(player);
+        if (time >= player.attackDashEndAt) {
+            player.body.allowGravity = true;
+            player.fsm.change(player.onGround() ? 'idle' : 'fall');
+        }
+    },
+    exit(player) {
+        Effects.destroyAttachedShockwave(player);
+        player.setVelocityX(0);
+        player.body.allowGravity = true;
+        player.attackDashBlockedByBoss = false;
+        player.attackDashBlockedByWall = false;
+        player._attackDashHitTimes = null;
+        player.resetMeleeCombo();
+    },
+    handleInput() {}
+};
+
 const HurtState = {
     enter(player, params) {
+        player.resetMeleeCombo();
         player.playHeroAnim('hero_idle');
         player.hurtEndAt = player.scene.time.now + PlayerConfig.hurtDuration;
         const knockDir = params.fromRight ? -1 : 1;
@@ -189,7 +235,9 @@ const HurtState = {
 
 const DeadState = {
     enter(player) {
+        player.resetMeleeCombo();
         player.setVelocityX(0);
+        player.playHeroAnim('hero_idle');
         player.sprite.setTint(0x444444);
         player.scene.onPlayerDead && player.scene.onPlayerDead();
     },
@@ -198,7 +246,7 @@ const DeadState = {
 
 const UltimateState = {
     enter(player) {
-        player.showHeroTexture('hero_attack');
+        player.playHeroAnim('hero_idle');
         player.ultEndAt = player.scene.time.now + PlayerConfig.ultimateDuration;
         player.setVelocity(0, 0);
         player.body.allowGravity = false;

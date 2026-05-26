@@ -1,0 +1,185 @@
+{
+  "id": 1,
+  "title": "第 1 关 · 钢 甲 要 塞",
+  "subtitle": "教学关：电磁机关与钢甲三角龙",
+  "width": 3426,
+  "playerStart": {
+    "x": 48,
+    "yOffset": 544,
+    "h": 16,
+    "y": 584
+  },
+  "bossTriggerOffset": 620,
+  "boss": {
+    "type": "steelTriceratops",
+    "xOffset": 240,
+    "yOffset": 80
+  },
+  "startVideoUrl": "assets/video/第一关Boss出场.mp4",
+  "endVideoUrl": "assets/video/第一关Boss处决.mp4",
+  "normalBgmUrl": "assets/audio/第一关普通曲.mp3",
+  "bossBgmUrl": "assets/audio/第一关Boss曲.mp3",
+  "resultBgUrl": "assets/UI/第一关Boss倒地.jpg",
+  "platforms": [
+    [
+      192,
+      496,
+      2
+    ],
+    [
+      592,
+      384,
+      3
+    ],
+    [
+      1040,
+      500,
+      2
+    ],
+    [
+      1320,
+      380,
+      3
+    ],
+    [
+      1740,
+      480,
+      2
+    ],
+    [
+      2060,
+      400,
+      3
+    ],
+    [
+      2460,
+      520,
+      2
+    ],
+    [
+      2780,
+      430,
+      3
+    ],
+    [
+      3120,
+      520,
+      2
+    ],
+    [
+      272,
+      240,
+      1
+    ],
+    [
+      64,
+      208,
+      1
+    ],
+    [
+      2224,
+      640,
+      1
+    ],
+    [
+      3008,
+      640,
+      1
+    ],
+    [
+      1440,
+      640,
+      1
+    ]
+  ],
+  "walls": [
+    {
+      "x": 416,
+      "y": 224,
+      "w": 32,
+      "h": 200
+    }
+  ],
+  "spawns": [
+    {
+      "type": "melee",
+      "x": 976,
+      "y": 576,
+      "w": 32.000007637108865
+    },
+    {
+      "type": "ranged",
+      "x": 1696
+    },
+    {
+      "type": "melee",
+      "x": 1888
+    },
+    {
+      "type": "melee",
+      "x": 2336
+    },
+    {
+      "type": "ranged",
+      "x": 2620
+    },
+    {
+      "type": "melee",
+      "x": 752,
+      "y": 592
+    }
+  ],
+  "hazards": [
+    {
+      "type": "electric",
+      "x": 784,
+      "y": 448,
+      "w": 140,
+      "h": 60,
+      "period": 2400,
+      "activeDuration": 1000
+    },
+    {
+      "type": "electric",
+      "x": 1500,
+      "y": 600,
+      "w": 160,
+      "h": 60,
+      "period": 2000,
+      "activeDuration": 900
+    },
+    {
+      "type": "electric",
+      "x": 2200,
+      "y": 440,
+      "w": 120,
+      "h": 60,
+      "period": 2600,
+      "activeDuration": 1100
+    },
+    {
+      "type": "missile",
+      "xMin": 528,
+      "xMax": 688,
+      "y": 240,
+      "interval": 3000,
+      "damage": 12
+    },
+    {
+      "type": "crumble",
+      "x": 832,
+      "y": 256,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "wind",
+      "x": 320,
+      "y": 496,
+      "w": 200,
+      "h": 300,
+      "force": 180,
+      "dir": 1
+    }
+  ]
+}

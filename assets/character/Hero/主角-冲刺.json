@@ -1,0 +1,21 @@
+{
+  "source": "主角-冲刺.png",
+  "videoSize": {
+    "width": 1024,
+    "height": 1024
+  },
+  "frameWidth": 1024,
+  "frameHeight": 1024,
+  "columns": 1,
+  "rows": 1,
+  "padding": 0,
+  "sheetWidth": 1024,
+  "sheetHeight": 1024,
+  "transparent": true,
+  "background": null,
+  "fit": "origin",
+  "count": 1,
+  "frames": [
+    { "index": 0, "time": 0, "x": 0, "y": 0, "w": 1024, "h": 1024 }
+  ]
+}

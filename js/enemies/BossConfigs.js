@@ -1,10 +1,10 @@
 const BossConfigs = {
-    // 第 1 关 Boss：磁暴军工厂的开场教学 Boss。
+    // 第 1 关 Boss：钢甲要塞的开场教学 Boss。
     // 设计参考策划案：电磁三角主炮（tri）+ 重装冲撞（contact）；二阶段召唤磁暴电流地板（slam）。
     // HP / 伤害比第 2 关最终 Boss 略低，承担教学职责。
     steelTriceratops: {
         name: '钢甲三角龙',
-        title: '钢甲三角龙 · 磁暴军工厂主宰',
+        title: '钢甲三角龙 · 钢甲要塞主宰',
         hp: 260,
         tint: 0x4a6fb0,        // 工业钢蓝
         phase2Tint: 0x9a4cff,  // 二阶段磁暴紫电
