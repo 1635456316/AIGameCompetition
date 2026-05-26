@@ -18,8 +18,8 @@ const IdleState = {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
             player.startMeleeAttack();
-        } else if (input.rangedPressed && player.canRanged()) {
-            player.fireRanged();
+        } else if (input.swordChargePressed && player.canStartSwordCharge()) {
+            player.startSwordCharge();
         } else if (input.ultimatePressed && player.canUltimate()) {
             player.fsm.change('ultimate');
         }
@@ -68,8 +68,8 @@ const JumpState = {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
             player.startMeleeAttack();
-        } else if (input.rangedPressed && player.canRanged()) {
-            player.fireRanged();
+        } else if (input.swordChargePressed && player.canStartSwordCharge()) {
+            player.startSwordCharge();
         } else if (input.ultimatePressed && player.canUltimate()) {
             player.fsm.change('ultimate');
         }
@@ -97,8 +97,8 @@ const FallState = {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
             player.startMeleeAttack();
-        } else if (input.rangedPressed && player.canRanged()) {
-            player.fireRanged();
+        } else if (input.swordChargePressed && player.canStartSwordCharge()) {
+            player.startSwordCharge();
         } else if (input.ultimatePressed && player.canUltimate()) {
             player.fsm.change('ultimate');
         }
@@ -119,6 +119,7 @@ const DashState = {
         player.body.allowGravity = false;
         player.setVelocityX(player.facing * PlayerConfig.dashSpeed);
         player.spawnDashTrail();
+        player.playDashSfx();
     },
     update(player, time, delta) {
         if (time >= player.dashEndAt) {
@@ -148,6 +149,7 @@ const AttackState = {
         player.attackEndAt = player.scene.time.now + PlayerConfig.attackDuration;
         player.lastAttackAt = player.scene.time.now;
         player.spawnMeleeHitbox();
+        player.playPunchSfx();
     },
     update(player, time, delta) {
         // 攻击时仍可空中漂移
@@ -187,6 +189,7 @@ const AttackDashState = {
         player.setVelocityY(0);
         player.body.allowGravity = false;
         player.setVelocityX(player.facing * PlayerConfig.attackDashSpeed);
+        player.playPunchSfx();
         Effects.createAttachedShockwave(player);
     },
     update(player, time, delta) {
@@ -211,6 +214,90 @@ const AttackDashState = {
         player.attackDashBlockedByWall = false;
         player._attackDashHitTimes = null;
         player.resetMeleeCombo();
+    },
+    handleInput() {}
+};
+
+const SwordChargeState = {
+    enter(player) {
+        player.swordChargeStartAt = player.scene.time.now;
+        player.swordChargeRatio = 0;
+        if (player.scene.anims.exists('hero_sword_charge')) {
+            player.playHeroAnim('hero_sword_charge', true);
+        } else if (player.scene.textures.exists('tex_hero_sword_charge')) {
+            player.showHeroSheetFrame('tex_hero_sword_charge', 'charge_0');
+        } else {
+            player.playHeroAnim('hero_idle');
+        }
+    },
+    update(player, time, delta) {
+        const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
+        if (dir !== 0) player.facing = dir;
+        player.setVelocityX(dir * PlayerConfig.moveSpeed * PlayerConfig.swordChargeMoveSpeedMult);
+
+        if (!player.input.swordChargeHeld) {
+            const chargeMs = time - player.swordChargeStartAt;
+            if (chargeMs >= PlayerConfig.swordChargeMinMs && player.canReleaseSwordCharge()) {
+                player.releaseSwordCharge();
+            } else {
+                player.swordChargeStartAt = 0;
+                player.fsm.change(player.onGround() ? 'idle' : 'fall');
+            }
+        }
+    },
+    exit(player) {
+        player.swordChargeStartAt = 0;
+    }
+};
+
+const SwordReleaseState = {
+    enter(player) {
+        player._swordQiSpawned = false;
+        player.playHeroAnim('hero_sword_slash', true);
+        player.setVelocityX(player.facing * PlayerConfig.moveSpeed * 0.15);
+
+        const scene = player.scene;
+        const anim = scene.anims.get('hero_sword_slash');
+        const animMs = anim ? anim.duration : PlayerConfig.swordReleaseDuration;
+        player.swordReleaseEndAt = scene.time.now + animMs + 60;
+
+        player._onSwordSlashAnim = (animation, frame) => {
+            if (animation.key !== 'hero_sword_slash' || player._swordQiSpawned) return;
+            const slashAnim = scene.anims.get('hero_sword_slash');
+            if (!slashAnim || !frame) return;
+            const lastIdx = slashAnim.frames.length - 1;
+            if (frame.index !== lastIdx) return;
+            player._swordQiSpawned = true;
+            player.spawnSwordQi(player.swordChargeRatio);
+        };
+        player.sprite.on(Phaser.Animations.Events.ANIMATION_UPDATE, player._onSwordSlashAnim);
+
+        if (!anim) {
+            scene.time.delayedCall(Math.floor(PlayerConfig.swordReleaseDuration * 0.65), () => {
+                if (!player._swordQiSpawned && player.fsm.is('swordRelease')) {
+                    player._swordQiSpawned = true;
+                    player.spawnSwordQi(player.swordChargeRatio);
+                }
+            });
+        }
+    },
+    update(player, time, delta) {
+        const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
+        if (player.onGround()) {
+            player.setVelocityX(dir * PlayerConfig.moveSpeed * 0.25);
+        } else {
+            player.setVelocityX(dir * PlayerConfig.moveSpeed * 0.45);
+        }
+        if (time >= player.swordReleaseEndAt) {
+            player.fsm.change(player.onGround() ? 'idle' : 'fall');
+        }
+    },
+    exit(player) {
+        if (player._onSwordSlashAnim) {
+            player.sprite.off(Phaser.Animations.Events.ANIMATION_UPDATE, player._onSwordSlashAnim);
+            player._onSwordSlashAnim = null;
+        }
+        player._swordQiSpawned = false;
     },
     handleInput() {}
 };

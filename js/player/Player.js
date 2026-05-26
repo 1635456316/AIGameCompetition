@@ -40,6 +40,10 @@ class Player {
         this.attackDashShockwave = null;
         this._attackDashHitTimes = null;
         this.lastRangedAt = -99999;
+        this.lastSwordQiAt = -99999;
+        this.swordChargeStartAt = 0;
+        this.swordChargeRatio = 0;
+        this.swordReleaseEndAt = 0;
         this.hurtEndAt = 0;
         this.ultEndAt = 0;
         this.invulnerableUntil = 0;
@@ -49,7 +53,8 @@ class Player {
         this.input = {
             left: false, right: false, down: false, downPressed: false,
             jumpPressed: false, dashPressed: false,
-            attackPressed: false, rangedPressed: false, ultimatePressed: false
+            attackPressed: false, swordChargePressed: false, swordChargeHeld: false,
+            ultimatePressed: false
         };
 
         this.fsm = new StateMachine(this);
@@ -61,10 +66,22 @@ class Player {
             .add('dash', DashState)
             .add('attack', AttackState)
             .add('attackDash', AttackDashState)
+            .add('swordCharge', SwordChargeState)
+            .add('swordRelease', SwordReleaseState)
             .add('hurt', HurtState)
             .add('dead', DeadState)
             .add('ultimate', UltimateState);
         this.fsm.change('idle');
+    }
+
+    _preserveFeetWhile(fn) {
+        const body = this.sprite.body;
+        const prevBottom = body ? body.bottom : null;
+        fn();
+        if (body && prevBottom != null) {
+            body.updateFromGameObject();
+            this.sprite.y -= body.bottom - prevBottom;
+        }
     }
 
     playHeroAnim(animKey, forceRestart = false) {
@@ -76,18 +93,22 @@ class Player {
         }
         if (!forceRestart && this._currentHeroAnim === animKey && this.sprite.anims.isPlaying) return;
         this._currentHeroAnim = animKey;
-        this.sprite.anims.play(animKey, forceRestart);
-        this._applySheetHeroScale();
-        this._applySheetHeroBody();
+        this._preserveFeetWhile(() => {
+            this.sprite.anims.play(animKey, forceRestart);
+            this._applySheetHeroScale();
+            this._applySheetHeroBody(animKey);
+        });
     }
 
     /** 停在序列帧某一帧（不播放动画） */
     showHeroSheetFrame(textureKey, frameKey) {
         this._currentHeroAnim = null;
-        this.sprite.anims.stop();
-        this.sprite.setTexture(textureKey, frameKey);
-        this._applySheetHeroScale();
-        this._applySheetHeroBody();
+        this._preserveFeetWhile(() => {
+            this.sprite.anims.stop();
+            this.sprite.setTexture(textureKey, frameKey);
+            this._applySheetHeroScale();
+            this._applySheetHeroBody(null, textureKey);
+        });
     }
 
     showHeroTexture(textureKey) {
@@ -105,8 +126,9 @@ class Player {
         this.sprite.setScale(PlayerConfig.heroDisplayHeight / h);
     }
 
-    _applySheetHeroBody() {
-        const b = PlayerConfig.heroSheetBody;
+    _applySheetHeroBody(animKey, textureKey) {
+        const useChargeBody = animKey === 'hero_sword_charge' || textureKey === 'tex_hero_sword_charge';
+        const b = useChargeBody ? PlayerConfig.heroSwordChargeBody : PlayerConfig.heroSheetBody;
         this.sprite.body.setSize(b.width, b.height);
         this.sprite.body.setOffset(b.offsetX, b.offsetY);
     }
@@ -142,9 +164,47 @@ class Player {
             && !this.fsm.is('attackDash');
     }
     canRanged() {
-        return this.scene.time.now - this.lastRangedAt >= PlayerConfig.rangedCooldown
-            && this.energy >= PlayerConfig.rangedEnergyCost
-            && !this.fsm.is('hurt') && !this.fsm.is('dead') && !this.fsm.is('ultimate');
+        return this.canStartSwordCharge();
+    }
+    canStartSwordCharge() {
+        return this.scene.time.now - this.lastSwordQiAt >= PlayerConfig.swordQiCooldown
+            && this.energy >= PlayerConfig.swordQiEnergyCostMin
+            && !this.fsm.is('hurt') && !this.fsm.is('dead') && !this.fsm.is('ultimate')
+            && !this.fsm.is('attack') && !this.fsm.is('attackDash') && !this.fsm.is('dash')
+            && !this.fsm.is('swordCharge') && !this.fsm.is('swordRelease');
+    }
+    canReleaseSwordCharge() {
+        const cost = this.getSwordQiEnergyCost(this.getSwordChargeRatio());
+        return this.energy >= cost;
+    }
+    getSwordChargeRatio() {
+        if (!this.swordChargeStartAt) return 0;
+        const rawMs = this.scene.time.now - this.swordChargeStartAt;
+        if (rawMs <= PlayerConfig.swordChargeMinMs) return 0;
+        return Phaser.Math.Clamp(
+            (rawMs - PlayerConfig.swordChargeMinMs)
+                / (PlayerConfig.swordChargeMaxMs - PlayerConfig.swordChargeMinMs),
+            0,
+            1
+        );
+    }
+    getSwordQiEnergyCost(ratio) {
+        return Phaser.Math.Linear(
+            PlayerConfig.swordQiEnergyCostMin,
+            PlayerConfig.swordQiEnergyCostMax,
+            ratio
+        );
+    }
+    startSwordCharge() {
+        if (!this.canStartSwordCharge()) return false;
+        this.fsm.change('swordCharge');
+        return true;
+    }
+    releaseSwordCharge() {
+        this.swordChargeRatio = this.getSwordChargeRatio();
+        this.energy = Math.max(0, this.energy - this.getSwordQiEnergyCost(this.swordChargeRatio));
+        this.lastSwordQiAt = this.scene.time.now;
+        this.fsm.change('swordRelease');
     }
     canUltimate() {
         return this.energy >= PlayerConfig.ultimateEnergyCost
@@ -301,12 +361,57 @@ class Player {
         );
     }
 
-    fireRanged() {
+    _playSfx(key) {
         const scene = this.scene;
-        if (!scene.spawnPlayerBullet) return;
-        this.lastRangedAt = scene.time.now;
-        this.energy = Math.max(0, this.energy - PlayerConfig.rangedEnergyCost);
-        scene.spawnPlayerBullet(this.x + this.facing * 28, this.y - 36, this.facing * PlayerConfig.bulletSpeed);
+        const sound = scene?.game?.sound || scene?.sound;
+        const cache = scene?.game?.cache?.audio || scene?.cache?.audio;
+        if (!sound || !cache?.exists(key)) return;
+
+        const volume = SaveSystem.getVolume();
+        if (volume <= 0) return;
+
+        try {
+            const ctx = sound.context;
+            if (ctx?.state === 'suspended' && typeof ctx.resume === 'function') {
+                ctx.resume();
+            }
+        } catch (e) {}
+
+        try {
+            const sfx = sound.add(key, { volume, loop: false, destroy: true });
+            sfx.play();
+        } catch (e) {
+            console.warn('[Player] 播放音效失败:', key, e);
+        }
+    }
+
+    playPunchSfx() {
+        this._playSfx('sfx_punch');
+    }
+
+    playDashSfx() {
+        this._playSfx('sfx_dash');
+    }
+
+    spawnSwordQi(ratio) {
+        const scene = this.scene;
+        if (!scene.spawnPlayerSwordQi) return;
+        const cfg = PlayerConfig;
+        scene.spawnPlayerSwordQi(
+            this.x + this.facing * Phaser.Math.Linear(cfg.swordQiSpawnOffsetXMin, cfg.swordQiSpawnOffsetXMax, ratio),
+            this.y - cfg.swordQiOffsetY,
+            this.facing,
+            {
+                damage: Phaser.Math.Linear(cfg.swordQiMinDamage, cfg.swordQiMaxDamage, ratio),
+                scale: Phaser.Math.Linear(cfg.swordQiMinScale, cfg.swordQiMaxScale, ratio),
+                speed: Phaser.Math.Linear(cfg.swordQiMinSpeed, cfg.swordQiMaxSpeed, ratio),
+                maxRange: Phaser.Math.Linear(cfg.swordQiMinRange, cfg.swordQiMaxRange, ratio)
+            }
+        );
+    }
+
+    fireRanged() {
+        this.startSwordCharge();
     }
 
     fireUltimate() {

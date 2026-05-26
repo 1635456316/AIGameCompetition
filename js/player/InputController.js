@@ -29,7 +29,8 @@ class InputController {
             jumpPressed:     Phaser.Input.Keyboard.JustDown(k.SPACE) || Phaser.Input.Keyboard.JustDown(c.up) || Phaser.Input.Keyboard.JustDown(k.W),
             dashPressed:     Phaser.Input.Keyboard.JustDown(k.L),
             attackPressed:   Phaser.Input.Keyboard.JustDown(k.J),
-            rangedPressed:   Phaser.Input.Keyboard.JustDown(k.K),
+            swordChargePressed: Phaser.Input.Keyboard.JustDown(k.K),
+            swordChargeHeld: k.K.isDown,
             ultimatePressed: Phaser.Input.Keyboard.JustDown(k.O)
         };
     }

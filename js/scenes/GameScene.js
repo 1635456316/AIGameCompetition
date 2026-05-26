@@ -66,7 +66,7 @@ class GameScene extends Phaser.Scene {
             const enemy = this._pickEnemyFromOverlap(a, b);
             if (!bullet || !bullet.active) return;
             if (enemy && enemy.alive) {
-                enemy.takeDamage(15, bullet.x);
+                enemy.takeDamage(bullet._swordQiDamage ?? 15, bullet.x);
                 Effects.hitFlash(this, bullet.x, bullet.y);
                 this.player.gainEnergy(4 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
@@ -393,9 +393,15 @@ class GameScene extends Phaser.Scene {
             this.hazards.forEach(h => h.update && h.update(time, delta, this.player));
         }
 
-        // 清理越界子弹
+        // 清理越界 / 超距剑气
         this.playerBullets.children.iterate(b => {
             if (!b) return;
+            if (b._swordQiMaxRange != null && b._spawnX != null) {
+                if (Math.abs(b.x - b._spawnX) >= b._swordQiMaxRange) {
+                    b.destroy();
+                    return;
+                }
+            }
             if (b.x < this.cameras.main.scrollX - 200 || b.x > this.cameras.main.scrollX + GAME_WIDTH + 200) {
                 b.destroy();
             }
@@ -491,7 +497,7 @@ class GameScene extends Phaser.Scene {
             const bullet = this._pickPlayerBullet(a, b);
             if (!bullet || !bullet.active) return;
             if (this.boss && this.boss.alive) {
-                this.boss.takeDamage(10, bullet.x);
+                this.boss.takeDamage(bullet._swordQiDamage ?? 10, bullet.x);
                 Effects.hitFlash(this, bullet.x, bullet.y);
                 this.player.gainEnergy(3 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
@@ -519,6 +525,29 @@ class GameScene extends Phaser.Scene {
         b.body.allowGravity = false;
         b.setVelocityX(vx);
         b.setTint(Palette.heroAccent);
+    }
+
+    spawnPlayerSwordQi(x, y, facing, opts = {}) {
+        if (!this.textures.exists('fx_sword_qi')) return;
+        const cfg = PlayerConfig;
+        const scale = opts.scale ?? cfg.swordQiMinScale;
+        const speed = opts.speed ?? cfg.swordQiMinSpeed;
+        const damage = opts.damage ?? cfg.swordQiMinDamage;
+        const maxRange = opts.maxRange ?? cfg.swordQiMinRange;
+        const displayW = cfg.swordQiDisplayWidth * scale;
+
+        const b = this.playerBullets.create(x, y, 'fx_sword_qi');
+        b.body.allowGravity = false;
+        b.setOrigin(0.5, 0.5);
+        b.setFlipX(facing < 0);
+        b.setDisplaySize(displayW, displayW);
+        b.body.setSize(displayW * 0.72, displayW * 0.42);
+        b.setVelocityX(facing * speed);
+        b.setDepth(24);
+        b.setBlendMode(Phaser.BlendModes.ADD);
+        b._swordQiDamage = damage;
+        b._spawnX = x;
+        b._swordQiMaxRange = maxRange;
     }
 
     spawnEnemyBullet(x, y, vx, vy = 0) {
@@ -812,6 +841,7 @@ class GameScene extends Phaser.Scene {
     _pickPlayerBullet(a, b) {
         for (const obj of [a, b]) {
             if (!obj || !obj.active || obj === this.player.sprite || obj === this.boss?.sprite) continue;
+            if (obj._swordQiDamage != null) return obj;
             if (obj.texture && obj.texture.key === 'bullet_hero') return obj;
         }
         return null;

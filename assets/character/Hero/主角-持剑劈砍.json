@@ -1,0 +1,11 @@
+{
+  "source": "主角-持剑劈砍.png",
+  "frameWidth": 640,
+  "frameHeight": 640,
+  "count": 3,
+  "frames": [
+    { "index": 0, "time": 0,     "x": 0,    "y": 0, "w": 640, "h": 640 },
+    { "index": 1, "time": 0.08,  "x": 640,  "y": 0, "w": 640, "h": 640 },
+    { "index": 2, "time": 0.16,  "x": 1280, "y": 0, "w": 640, "h": 640 }
+  ]
+}

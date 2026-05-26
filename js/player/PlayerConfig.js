@@ -2,6 +2,7 @@ const PlayerConfig = {
     heroFrameHeight: 640,
     heroDisplayHeight: 96,
     heroSheetBody: { width: 200, height: 380, offsetX: 220, offsetY: 260 },
+    heroSwordChargeBody: { width: 320, height: 608, offsetX: 352, offsetY: 416 },
     heroStaticBody: { width: 28, height: 60, offsetX: 10, offsetY: 4 },
     moveSpeed: 320,
     jumpVelocity: -720,
@@ -45,8 +46,29 @@ const PlayerConfig = {
     shockwaveOriginXLeft: 0.88,
     shockwaveOriginY: 0.5,
 
-    rangedCooldown: 320,      // ms
+    rangedCooldown: 320,      // ms（保留兼容）
     rangedEnergyCost: 8,
+
+    // ---------- 蓄力剑气（K 按住蓄力，松开释放）----------
+    swordChargeMinMs: 150,
+    swordChargeMaxMs: 1400,
+    swordChargeMoveSpeedMult: 0.35,
+    swordReleaseDuration: 320,
+    swordQiCooldown: 350,
+    swordQiEnergyCostMin: 5,
+    swordQiEnergyCostMax: 14,
+    swordQiMinDamage: 14,
+    swordQiMaxDamage: 48,
+    swordQiMinScale: 0.45,
+    swordQiMaxScale: 1.35,
+    swordQiMinSpeed: 380,
+    swordQiMaxSpeed: 920,
+    swordQiMinRange: 260,
+    swordQiMaxRange: 780,
+    swordQiDisplayWidth: 110,
+    swordQiOffsetY: 42,
+    swordQiSpawnOffsetXMin: 36,
+    swordQiSpawnOffsetXMax: 72,
     ultimateEnergyCost: 100,
     ultimateDuration: 1400,   // ms
     maxHp: 100,

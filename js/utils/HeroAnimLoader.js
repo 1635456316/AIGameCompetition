@@ -28,6 +28,20 @@ class HeroAnimLoader {
             animKey: 'hero_dash',
             framePrefix: 'dash'
         });
+        HeroAnimLoader.registerSheet(scene, {
+            textureKey: 'tex_hero_sword_charge',
+            metaKey: 'hero_sword_charge_meta',
+            animKey: 'hero_sword_charge',
+            framePrefix: 'charge',
+            repeat: -1
+        });
+        HeroAnimLoader.registerSheet(scene, {
+            textureKey: 'tex_hero_sword_slash',
+            metaKey: 'hero_sword_slash_meta',
+            animKey: 'hero_sword_slash',
+            framePrefix: 'slash',
+            repeat: 0
+        });
     }
 
     static registerSheet(scene, { textureKey, metaKey, animKey, framePrefix, repeat = -1 }) {
