@@ -179,12 +179,15 @@ class Boss {
 
     takeDamage(amount, fromX) {
         if (!this.alive) return;
-        Effects.playMonsterHitSfx(this.scene);
         this.hp = Math.max(0, this.hp - amount);
         this._syncBossBar();
         this.view.setTint(0xffffff);
         this.scene.time.delayedCall(70, () => this._restoreBossTint());
-        if (this.hp <= 0) this.die();
+        if (this.hp <= 0) {
+            this.die();
+            return;
+        }
+        Effects.playMonsterHitSfx(this.scene);
     }
 
     die() {

@@ -50,17 +50,20 @@ class DestructibleWall {
 
     takeHit(damage = 1) {
         if (this.broken || !this.sprite?.active) return;
-        Effects.playMonsterHitSfx(this.scene);
         this.hp = Math.max(0, this.hp - damage);
         this._syncTint();
         Effects.hitFlash(this.scene, this.x, this.y);
-        if (this.hp <= 0) this.breakApart();
+        if (this.hp <= 0) {
+            this.breakApart();
+            return;
+        }
+        Effects.playMonsterHitSfx(this.scene);
     }
 
     breakApart() {
         if (this.broken) return;
         this.broken = true;
-        Effects.hitFlash(this.scene, this.x, this.y);
+        Effects.explosion(this.scene, this.x, this.y, 0.65);
         Effects.shake(this.scene, 60, 0.005);
         if (this.sprite) {
             this.sprite.destroy();

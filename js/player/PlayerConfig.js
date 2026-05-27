@@ -110,17 +110,24 @@ const PlayerConfig = {
     swordQiSpawnOffsetXMin: 18,
     swordQiSpawnOffsetXMax: 44,
     ultimateEnergyCost: 100,
-    ultimateChargeDuration: 500,   // ms，蓄力阶段（idle + 特效）
+    ultimateWindupDuration: 0,   // ms，蓄力前摇（待机准备，无蓄力特效）
+    ultimateChargeDuration: 1500,   // ms，蓄力阶段（特效 + 音效）
     ultimateReleaseDuration: 2000, // ms，大招动作 + 光柱
-    ultimateDuration: 2500,       // ms，总时长（蓄力 0.5s + 释放 2s）
+    ultimateDuration: 3200,        // ms，总时长（前摇 + 蓄力 + 释放）
     ultimateBeamOffsetY: 58,
-    ultimateHitHalfHeight: 120,
+    ultimateBeamStartScaleX: 0.05,   // 光柱初始长度缩放
+    ultimateBeamStartScaleY: 0.2,   // 光柱初始宽度缩放（原 0.1）
+    ultimateBeamEndScaleX: 2.5,      // 光柱最终长度缩放
+    ultimateBeamEndScaleY: 3,      // 光柱最终宽度缩放（原 1.6）
+    ultimateHitHalfHeight: 120,      // 伤害判定半高（与光柱宽度匹配，原 120）
     ultimateChargeRingStartRadius: 130,
     ultimateChargeRingEndRadius: 16,
     ultimateChargeRingInterval: 80,
     ultimateChargeRingDuration: 440,
     ultimateChargeGlowStartRadius: 100,
     ultimateChargeGlowEndRadius: 34,
+    ultimateChargeSfxVolume: 2,  // 激光炮蓄力音量倍率（相对全局音量）
+    ultimateFireSfxVolume: 2,    // 激光炮发射音量倍率
     maxHp: 100,
     maxEnergy: 100,
     energyRegenRate: 3,

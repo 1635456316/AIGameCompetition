@@ -706,15 +706,15 @@ class GameScene extends Phaser.Scene {
             beamY,
             'laser_beam_red'
         ).setOrigin(player.facing > 0 ? 0 : 1, 0.5)
-         .setScale(0.04, 0.1)
+         .setScale(cfg.ultimateBeamStartScaleX, cfg.ultimateBeamStartScaleY)
          .setBlendMode(Phaser.BlendModes.ADD)
          .setTint(0xff2222)
          .setDepth(1200);
 
         this.tweens.add({
             targets: beam,
-            scaleX: 2.5,
-            scaleY: 1.6,
+            scaleX: cfg.ultimateBeamEndScaleX,
+            scaleY: cfg.ultimateBeamEndScaleY,
             duration: releaseMs,
             ease: 'Quad.easeOut'
         });

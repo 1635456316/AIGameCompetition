@@ -370,25 +370,32 @@ const UltimateState = {
         const cfg = PlayerConfig;
         const scene = player.scene;
         const now = scene.time.now;
+        const windup = cfg.ultimateWindupDuration || 0;
+        const charge = cfg.ultimateChargeDuration;
 
-        player.ultPhase = 'charge';
+        player.ultPhase = windup > 0 ? 'windup' : 'charge';
         player.ultEndAt = now + cfg.ultimateDuration;
-        player.ultReleaseAt = now + cfg.ultimateChargeDuration;
+        player.ultReleaseAt = now + windup + charge;
         player.playHeroAnim('hero_idle', true);
         player.setVelocity(0, 0);
         player.body.allowGravity = false;
         player.invulnerableUntil = Math.max(player.invulnerableUntil, player.ultEndAt + 200);
         player.energy = 0;
 
-        Effects.createUltimateChargeFx(player);
-        player.startChargeSfx();
+        const beginCharge = () => {
+            if (!player.fsm?.is('ultimate')) return;
+            player.ultPhase = 'charge';
+            Effects.createUltimateChargeFx(player);
+            player.startUltimateChargeSfx();
+        };
 
-        player._ultReleaseTimer = scene.time.delayedCall(cfg.ultimateChargeDuration, () => {
+        const beginRelease = () => {
             if (!player.fsm?.is('ultimate')) return;
 
             player.ultPhase = 'release';
             Effects.destroyUltimateChargeFx(player);
-            player.stopChargeSfx();
+            player.stopUltimateChargeSfx();
+            player.startUltimateFireSfx();
             player.applySheetHeroBody();
 
             if (scene.anims.exists('hero_ultimate')) {
@@ -398,7 +405,14 @@ const UltimateState = {
             }
 
             scene.spawnPlayerUltimate(player);
-        });
+        };
+
+        if (windup > 0) {
+            player._ultChargeStartTimer = scene.time.delayedCall(windup, beginCharge);
+        } else {
+            beginCharge();
+        }
+        player._ultReleaseTimer = scene.time.delayedCall(windup + charge, beginRelease);
     },
     update(player, time) {
         if (player.ultPhase === 'charge') {
@@ -411,12 +425,17 @@ const UltimateState = {
     },
     exit(player) {
         player.body.allowGravity = true;
+        if (player._ultChargeStartTimer) {
+            player._ultChargeStartTimer.remove(false);
+            player._ultChargeStartTimer = null;
+        }
         if (player._ultReleaseTimer) {
             player._ultReleaseTimer.remove(false);
             player._ultReleaseTimer = null;
         }
         Effects.destroyUltimateChargeFx(player);
-        player.stopChargeSfx();
+        player.stopUltimateChargeSfx();
+        player.stopUltimateFireSfx();
         player.ultPhase = null;
     }
 };

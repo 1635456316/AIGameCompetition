@@ -511,6 +511,72 @@ class Player {
         try { sfx.destroy(); } catch (e) {}
     }
 
+    startUltimateChargeSfx() {
+        this.stopUltimateChargeSfx();
+        const scene = this.scene;
+        const sound = scene?.game?.sound || scene?.sound;
+        const cache = scene?.game?.cache?.audio || scene?.cache?.audio;
+        if (!sound || !cache?.exists('sfx_ultimate_charge')) return;
+
+        const volume = Math.min(1, SaveSystem.getVolume() * (PlayerConfig.ultimateChargeSfxVolume ?? 1));
+        if (volume <= 0) return;
+
+        try {
+            const ctx = sound.context;
+            if (ctx?.state === 'suspended' && typeof ctx.resume === 'function') {
+                ctx.resume();
+            }
+        } catch (e) {}
+
+        try {
+            this._ultimateChargeSfx = sound.add('sfx_ultimate_charge', { volume, loop: true });
+            this._ultimateChargeSfx.play();
+        } catch (e) {
+            console.warn('[Player] 播放 sfx_ultimate_charge 失败', e);
+        }
+    }
+
+    stopUltimateChargeSfx() {
+        const sfx = this._ultimateChargeSfx;
+        this._ultimateChargeSfx = null;
+        if (!sfx) return;
+        try { sfx.stop(); } catch (e) {}
+        try { sfx.destroy(); } catch (e) {}
+    }
+
+    startUltimateFireSfx() {
+        this.stopUltimateFireSfx();
+        const scene = this.scene;
+        const sound = scene?.game?.sound || scene?.sound;
+        const cache = scene?.game?.cache?.audio || scene?.cache?.audio;
+        if (!sound || !cache?.exists('sfx_ultimate_fire')) return;
+
+        const volume = Math.min(1, SaveSystem.getVolume() * (PlayerConfig.ultimateFireSfxVolume ?? 1));
+        if (volume <= 0) return;
+
+        try {
+            const ctx = sound.context;
+            if (ctx?.state === 'suspended' && typeof ctx.resume === 'function') {
+                ctx.resume();
+            }
+        } catch (e) {}
+
+        try {
+            this._ultimateFireSfx = sound.add('sfx_ultimate_fire', { volume, loop: false, destroy: true });
+            this._ultimateFireSfx.play();
+        } catch (e) {
+            console.warn('[Player] 播放 sfx_ultimate_fire 失败', e);
+        }
+    }
+
+    stopUltimateFireSfx() {
+        const sfx = this._ultimateFireSfx;
+        this._ultimateFireSfx = null;
+        if (!sfx) return;
+        try { sfx.stop(); } catch (e) {}
+        try { sfx.destroy(); } catch (e) {}
+    }
+
     spawnSwordQi(ratio) {
         const scene = this.scene;
         if (!scene.spawnPlayerSwordQi) return;

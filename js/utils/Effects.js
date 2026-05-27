@@ -2,6 +2,39 @@
  * 通用演出工具：屏幕震动、停顿帧、大字、击中粒子、爆炸。
  */
 class Effects {
+    /** 爆炸（assets/audio/explosion.wav）— 小怪/Boss 死亡、墙体摧毁等 */
+    static playExplosionSfx(scene, volumeScale = 1) {
+        if (!scene) return;
+        const sound = scene.game?.sound || scene?.sound;
+        const cache = scene.game?.cache?.audio || scene?.cache?.audio;
+        if (!sound || !cache?.exists('sfx_explosion')) {
+            console.warn('[Effects] sfx_explosion 未加载，爆炸音效不可用');
+            return;
+        }
+
+        const baseVolume = typeof SaveSystem !== 'undefined' ? SaveSystem.getVolume() : 1;
+        const volume = baseVolume * volumeScale;
+        if (volume <= 0) return;
+
+        try {
+            const ctx = sound.context;
+            if (ctx?.state === 'suspended' && typeof ctx.resume === 'function') {
+                ctx.resume();
+            }
+        } catch (e) {}
+
+        try {
+            if (typeof sound.play === 'function') {
+                sound.play('sfx_explosion', { volume, loop: false });
+                return;
+            }
+            const sfx = sound.add('sfx_explosion', { volume, loop: false, destroy: true });
+            sfx.play();
+        } catch (e) {
+            console.warn('[Effects] 播放 sfx_explosion 失败', e);
+        }
+    }
+
     /** 怪物/可破坏墙受击（assets/audio/怪物受击.mp3） */
     static playMonsterHitSfx(scene) {
         if (!scene) return;
@@ -526,7 +559,10 @@ class Effects {
         }
     }
 
-    static explosion(scene, x, y, scale = 1) {
+    static explosion(scene, x, y, scale = 1, playSfx = true) {
+        if (playSfx !== false) {
+            Effects.playExplosionSfx(scene, Math.min(1, 0.5 + scale * 0.35));
+        }
         const emitter = scene.add.particles(x, y, 'particle_fire', {
             speed: { min: 120 * scale, max: 360 * scale },
             angle: { min: 0, max: 360 },

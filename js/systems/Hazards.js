@@ -98,7 +98,7 @@ class MissileStrike {
         scene.time.delayedCall(1200, () => {
             warning.destroy();
             line.destroy();
-            Effects.explosion(scene, targetX, this.y - 20, 1.0);
+            Effects.explosion(scene, targetX, this.y - 20, 1.0, false);
             Effects.shake(scene, 100, 0.008);
 
             const dist = Math.abs(player.x - targetX);

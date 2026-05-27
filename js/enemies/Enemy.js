@@ -375,7 +375,6 @@ class Enemy {
 
     takeDamage(amount, fromX) {
         if (!this.alive) return;
-        Effects.playMonsterHitSfx(this.scene);
         this.hp -= amount;
         const knock = fromX > this.x ? -260 : 260;
         if (this.type === 'flying') {
@@ -388,7 +387,9 @@ class Enemy {
         this._syncHpBar();
         if (this.hp <= 0) {
             this.die();
+            return;
         }
+        Effects.playMonsterHitSfx(this.scene);
     }
 
     die() {
@@ -402,7 +403,8 @@ class Enemy {
         if (this.sprite) {
             this.sprite.owner = null;
         }
-        Effects.explosion(this.scene, deathX, deathY - 24, 0.8);
+        Effects.playExplosionSfx(this.scene, 1);
+        Effects.explosion(this.scene, deathX, deathY - 24, 0.8, false);
         this.view.destroy();
         this.logic.destroy();
         this.sprite = null;
