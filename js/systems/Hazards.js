@@ -40,6 +40,7 @@ class Hazards {
                 case 'electric': return new ElectricZone(scene, cfg);
                 case 'missile':  return new MissileStrike(scene, cfg);
                 case 'wind':     return new WindZone(scene, cfg);
+                case 'energy_drain': return new EnergyDrainZone(scene, cfg);
                 case 'crumble':  return new CrumblePlatform(scene, cfg);
                 case 'checkpoint': return new CheckpointZone(scene, cfg, index);
                 case 'death':    return new DeathZone(scene, cfg);
@@ -325,7 +326,6 @@ class MissileStrike {
             warning.destroy();
             line.destroy();
             Effects.explosion(scene, targetX, this.y - 20, 1.0, false);
-            Effects.shake(scene, 100, 0.008);
 
             const dist = Math.abs(player.x - targetX);
             const vertDist = Math.abs(player.y - this.y);
@@ -353,10 +353,10 @@ class WindZone {
             speedX: { min: this.force * 0.5 * this.dir, max: this.force * this.dir },
             speedY: { min: -20, max: 20 },
             scale: { start: 0.3, end: 0 },
-            alpha: { start: 0.4, end: 0 },
-            lifespan: 800,
-            quantity: 1,
-            frequency: 120,
+            alpha: { start: 0.45, end: 0 },
+            lifespan: 900,
+            quantity: 2,
+            frequency: 55,
             emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, -this.h / 2, this.w, this.h) }
         }).setDepth(51);
     }
@@ -373,6 +373,42 @@ class WindZone {
             player.sprite.x += this.dir * pushAmount;
             player.syncView?.();
         }
+    }
+}
+
+class EnergyDrainZone {
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 140;
+        this.h = cfg.h || 80;
+        this.drainRate = Math.max(0, hazardNumber(cfg.drainRate, 15));
+
+        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xaa44cc, 0.1)
+            .setStrokeStyle(2, 0xcc66ee, 0.45).setDepth(50);
+
+        if (scene.textures.exists('particle_energy')) {
+            this._particles = scene.add.particles(this.x - this.w / 2, this.y, 'particle_energy', {
+                speedY: { min: -70, max: -25 },
+                speedX: { min: -18, max: 18 },
+                scale: { start: 0.32, end: 0 },
+                alpha: { start: 0.55, end: 0 },
+                lifespan: 750,
+                quantity: 1,
+                frequency: 70,
+                tint: 0xcc88ff,
+                blendMode: Phaser.BlendModes.ADD,
+                emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, -this.h / 2, this.w, this.h) }
+            }).setDepth(51);
+        }
+    }
+
+    update(time, delta, player) {
+        if (player.fsm.is('dead')) return;
+        if (this.drainRate <= 0) return;
+        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
+        player.drainEnergy(this.drainRate * (delta / 1000));
     }
 }
 

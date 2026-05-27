@@ -40,6 +40,7 @@ const LevelEditorSchema = (() => {
             items: [
                 { kind: 'electric', label: '电磁区', icon: '⚡', color: '#00e5ff' },
                 { kind: 'wind', label: '风力区', icon: '💨', color: '#aaccff' },
+                { kind: 'energy_drain', label: '能量损失区', icon: '🪫', color: '#cc66ee' },
                 { kind: 'missile', label: '导弹打击', icon: '🚀', color: '#ff6644' },
                 { kind: 'crumble', label: '坍塌平台', icon: '▧', color: '#ff8800' },
                 { kind: 'death', label: '必死区', icon: '☠', color: '#ff2244' },
@@ -213,6 +214,8 @@ const LevelEditorSchema = (() => {
                 return { category: 'hazards', data: { type: 'electric', x: sx, y: sy, w: 140, h: 60, period: 2400, activeDuration: 1000, damage: 6 } };
             case 'wind':
                 return { category: 'hazards', data: { type: 'wind', x: sx, y: sy, w: 200, h: 300, force: 180, dir: 1 } };
+            case 'energy_drain':
+                return { category: 'hazards', data: { type: 'energy_drain', x: sx, y: sy, w: 140, h: 80, drainRate: 15 } };
             case 'missile':
                 return { category: 'hazards', data: { type: 'missile', xMin: sx - 80, xMax: sx + 80, y: GROUND_Y - 4, interval: 3000, damage: 12 } };
             case 'crumble':
@@ -274,7 +277,7 @@ const LevelEditorSchema = (() => {
                     const h = data.h ?? 60;
                     return checkpointBounds(data.x, data.y, w, h);
                 }
-                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind') {
+                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind' || data.type === 'energy_drain') {
                     return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
                 }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
@@ -333,10 +336,15 @@ const LevelEditorSchema = (() => {
             }
             case 'hazards': {
                 const labels = {
-                    electric: '电磁区', wind: '风力区', missile: '导弹', crumble: '坍塌',
+                    electric: '电磁区', wind: '风力区', energy_drain: '能量损失区',
+                    missile: '导弹', crumble: '坍塌',
                     checkpoint: '复活点', death: '必死区', hint: '提示区'
                 };
                 const name = labels[data.type] || data.type;
+                if (data.type === 'energy_drain') {
+                    const rate = data.drainRate ?? 15;
+                    return `${name} #${index + 1} (-${rate}/s)`;
+                }
                 if (data.type === 'checkpoint') {
                     const hp = data.respawnHpPercent ?? 100;
                     const en = data.respawnEnergyPercent ?? 100;
@@ -482,6 +490,11 @@ const LevelEditorSchema = (() => {
             if (!spawnIds.has(bind)) {
                 errors.push(`提示区 #${i + 1} 绑定了不存在的小怪 id: "${bind}"`);
             }
+        });
+        (normalized.hazards || []).forEach((h, i) => {
+            if (h.type !== 'energy_drain') return;
+            const rate = h.drainRate ?? 15;
+            if (rate < 0) errors.push(`能量损失区 #${i + 1} 的 drainRate 不能为负`);
         });
 
         return errors;

@@ -2,7 +2,7 @@
   "id": 1,
   "title": "第 1 关 · 钢 甲 要 塞",
   "subtitle": "教学关：电磁机关与钢甲三角龙",
-  "width": 10000,
+  "width": 10504,
   "playerStart": {
     "x": 128,
     "yOffset": 96,
@@ -92,7 +92,7 @@
       "h": 200
     },
     {
-      "x": 7048,
+      "x": 7552,
       "y": 576,
       "w": 112,
       "h": 172
@@ -157,26 +157,14 @@
     {
       "type": "health",
       "amount": 100,
-      "x": 8792,
+      "x": 9296,
       "y": 616
     },
     {
       "type": "energy",
-      "amount": 25,
-      "x": 8888,
+      "amount": 100,
+      "x": 9392,
       "y": 616
-    },
-    {
-      "type": "health",
-      "amount": 30,
-      "x": 6912,
-      "y": 632
-    },
-    {
-      "type": "energy",
-      "amount": 25,
-      "x": 6960,
-      "y": 632
     }
   ],
   "spawns": [
@@ -355,18 +343,18 @@
     },
     {
       "type": "checkpoint",
-      "x": 7056,
+      "x": 7560,
       "y": 484,
       "w": 80,
       "h": 60,
       "feetAnchor": true,
       "respawnHpPercent": 100,
-      "respawnEnergyPercent": 100,
+      "respawnEnergyPercent": 0,
       "text": "对它按O使用大招吧！"
     },
     {
       "type": "wind",
-      "x": 7912,
+      "x": 8416,
       "y": 418.5,
       "w": 1602,
       "h": 475,
@@ -375,8 +363,8 @@
     },
     {
       "type": "hint",
-      "x": 7216,
-      "y": 416,
+      "x": 7704,
+      "y": 328,
       "w": 354,
       "h": 130,
       "text": "Boss就在前方，冲过去击败它吧！",
@@ -384,7 +372,7 @@
     },
     {
       "type": "hint",
-      "x": 8840,
+      "x": 9352,
       "y": 600,
       "w": 234,
       "h": 100,
@@ -394,42 +382,42 @@
     },
     {
       "type": "death",
-      "x": 7912,
+      "x": 8416,
       "y": 640,
       "w": 1584,
       "h": 24
     },
     {
       "type": "crumble",
-      "x": 7336,
+      "x": 7840,
       "y": 368,
       "delay": 800,
       "respawn": 4000
     },
     {
       "type": "crumble",
-      "x": 7560,
+      "x": 8064,
       "y": 312,
       "delay": 800,
       "respawn": 4000
     },
     {
       "type": "crumble",
-      "x": 7832,
+      "x": 8336,
       "y": 360,
       "delay": 800,
       "respawn": 4000
     },
     {
       "type": "crumble",
-      "x": 8120,
+      "x": 8624,
       "y": 384,
       "delay": 800,
       "respawn": 4000
     },
     {
       "type": "crumble",
-      "x": 8416,
+      "x": 8920,
       "y": 384,
       "delay": 800,
       "respawn": 4000
@@ -480,6 +468,33 @@
       "period": 2400,
       "activeDuration": 1000,
       "damage": 6
+    },
+    {
+      "type": "energy_drain",
+      "x": 7192,
+      "y": 480,
+      "w": 403,
+      "h": 340,
+      "drainRate": 1000
+    },
+    {
+      "type": "hint",
+      "x": 6808,
+      "y": 600,
+      "w": 180,
+      "h": 100,
+      "text": "前方是能量损失区，看来是不得不闯了！",
+      "once": true
+    },
+    {
+      "type": "checkpoint",
+      "x": 9352,
+      "y": 649,
+      "w": 80,
+      "h": 60,
+      "feetAnchor": true,
+      "respawnHpPercent": 100,
+      "respawnEnergyPercent": 100
     }
   ]
 }

@@ -453,6 +453,18 @@
                 ctx.fillStyle = '#aaccff';
                 ctx.font = '11px sans-serif';
                 ctx.fillText(h.dir > 0 ? '→' : '←', h.x - 4, h.y + 4);
+            } else if (h.type === 'energy_drain') {
+                ctx.fillStyle = sel ? 'rgba(204,102,238,0.28)' : 'rgba(170,68,204,0.16)';
+                ctx.strokeStyle = sel ? '#ee88ff' : '#cc66ee';
+                ctx.lineWidth = sel ? 3 : 2;
+                ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.lineWidth = 1;
+                ctx.fillStyle = '#eeccff';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`-${h.drainRate ?? 15}/s`, h.x, h.y + 4);
+                ctx.textAlign = 'left';
             } else if (h.type === 'missile') {
                 const y = h.y ?? (S.GROUND_Y - 4);
                 ctx.fillStyle = 'rgba(255,100,60,0.15)';
@@ -803,6 +815,9 @@
                 else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id') {
                     item[key] = Number.isNaN(v) ? undefined : v;
                 }
+                else if (key === 'drainRate') {
+                    item[key] = Number.isNaN(v) ? 15 : Math.max(0, v);
+                }
                 else item[key] = v;
                 setSelectionData(item);
             }
@@ -915,6 +930,16 @@
                 addField('高 h', 'h', 'number', { value: data.h });
                 addField('力度 force', 'force', 'number', { value: data.force });
                 addField('方向 dir', 'dir', 'select', { value: data.dir, options: [{ v: '1', t: '向右 →' }, { v: '-1', t: '向左 ←' }] });
+            } else if (data.type === 'energy_drain') {
+                addField('X', 'x', 'number', { value: data.x });
+                addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 140 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 80 });
+                addField('损失速率 drainRate (/秒)', 'drainRate', 'number', { value: data.drainRate ?? 15 });
+                const drainHint = document.createElement('p');
+                drainHint.className = 'field-hint';
+                drainHint.textContent = '玩家处于区域内时持续扣能量，速率单位与关卡「回能量速度」相同（能量/秒）。';
+                form.appendChild(drainHint);
             } else if (data.type === 'missile') {
                 addField('X 最小 xMin', 'xMin', 'number', { value: data.xMin });
                 addField('X 最大 xMax', 'xMax', 'number', { value: data.xMax });

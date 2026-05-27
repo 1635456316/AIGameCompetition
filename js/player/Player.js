@@ -345,6 +345,11 @@ class Player {
         this.energy = Phaser.Math.Clamp(this.energy + v, 0, PlayerConfig.maxEnergy);
     }
 
+    drainEnergy(v) {
+        if (v <= 0) return;
+        this.energy = Math.max(0, this.energy - v);
+    }
+
     performJump() {
         this.jumpsRemaining--;
         const isSecondJump = this.jumpsRemaining < PlayerConfig.maxJumps - 1;
