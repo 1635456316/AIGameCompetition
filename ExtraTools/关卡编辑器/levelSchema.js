@@ -49,7 +49,8 @@ const LevelEditorSchema = (() => {
             items: [
                 { kind: 'player_start', label: '玩家出生', icon: '★', color: '#44ff88' },
                 { kind: 'checkpoint', label: '复活点', icon: '⛳', color: '#44cc88' },
-                { kind: 'boss', label: 'Boss 位置', icon: '👹', color: '#cc44ff' }
+                { kind: 'boss', label: 'Boss 位置', icon: '👹', color: '#cc44ff' },
+                { kind: 'finish', label: '终点', icon: '🏁', color: '#ffcc44' }
             ]
         }
     ];
@@ -63,6 +64,7 @@ const LevelEditorSchema = (() => {
             playerStart: { x: 160, yOffset: 120 },
             bossTriggerOffset: 600,
             boss: { type: 'steelTriceratops', xOffset: 240, yOffset: 80 },
+            finish: null,
             startVideoUrl: null,
             endVideoUrl: null,
             normalBgmUrl: null,
@@ -81,7 +83,13 @@ const LevelEditorSchema = (() => {
     function normalizeLevel(raw) {
         const level = { ...createEmptyLevel(raw.id || 1), ...raw };
         level.playerStart = { x: 160, yOffset: 120, ...(raw.playerStart || {}) };
-        level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80, ...(raw.boss || {}) };
+        if (isFinishLevel(raw)) {
+            level.finish = { w: 80, h: 80, ...(raw.finish || {}) };
+            level.boss = null;
+        } else {
+            level.finish = null;
+            level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80, ...(raw.boss || {}) };
+        }
         level.platforms = (raw.platforms || []).map(p => [...p]);
         level.walls = (raw.walls || []).map(w => ({ ...w }));
         level.destructibleWalls = (raw.destructibleWalls || []).map(w => ({
@@ -191,6 +199,10 @@ const LevelEditorSchema = (() => {
                 const by = GAME_HEIGHT - (level.boss.yOffset || 80);
                 return { x: bx - 24, y: by - 24, w: 48, h: 48 };
             }
+            case 'finish': {
+                const f = level.finish || data;
+                return { x: f.x - f.w / 2, y: f.y - f.h / 2, w: f.w, h: f.h };
+            }
             default:
                 return { x: 0, y: 0, w: 0, h: 0 };
         }
@@ -223,6 +235,8 @@ const LevelEditorSchema = (() => {
                 return '玩家出生点';
             case 'boss':
                 return 'Boss 位置';
+            case 'finish':
+                return '终点';
             default:
                 return `#${index + 1}`;
         }
@@ -237,20 +251,71 @@ const LevelEditorSchema = (() => {
         level.spawns.forEach((data, index) => items.push({ category: 'spawns', index, data }));
         level.hazards.forEach((data, index) => items.push({ category: 'hazards', index, data }));
         items.push({ category: 'playerStart', index: 0, data: level.playerStart });
-        items.push({ category: 'boss', index: 0, data: level.boss });
+        if (isBossLevel(level)) {
+            items.push({ category: 'boss', index: 0, data: level.boss });
+        }
+        if (isFinishLevel(level)) {
+            items.push({ category: 'finish', index: 0, data: level.finish });
+        }
         return items;
+    }
+
+    function isFinishLevel(level) {
+        const f = level?.finish;
+        return f != null && typeof f.x === 'number' && !Number.isNaN(f.x);
+    }
+
+    function isBossLevel(level) {
+        return !isFinishLevel(level) && level?.boss != null;
     }
 
     function exportLevel(level) {
         const out = normalizeLevel(level);
-        return JSON.stringify(out, null, 2);
+        const payload = { ...out };
+        if (isFinishLevel(payload)) {
+            delete payload.boss;
+        } else {
+            delete payload.finish;
+        }
+        return JSON.stringify(payload, null, 2);
     }
 
     function validateLevel(level) {
         const errors = [];
-        if (!level.id) errors.push('缺少 id');
-        if (!level.width || level.width < 800) errors.push('width 应 >= 800');
-        if (!level.playerStart) errors.push('缺少 playerStart');
+        const normalized = normalizeLevel(level);
+
+        if (!normalized.id) errors.push('缺少关卡 id');
+        if (!normalized.width || normalized.width < 800) errors.push('关卡宽度 width 应 >= 800');
+        if (!normalized.playerStart) {
+            errors.push('缺少玩家出生点');
+        } else {
+            if (typeof normalized.playerStart.x !== 'number' || Number.isNaN(normalized.playerStart.x)) {
+                errors.push('玩家出生点 X 无效');
+            }
+            if (typeof normalized.playerStart.yOffset !== 'number' || Number.isNaN(normalized.playerStart.yOffset)) {
+                errors.push('玩家出生点 yOffset 无效');
+            }
+        }
+
+        const boss = isBossLevel(normalized);
+        const finish = isFinishLevel(normalized);
+        if (boss && finish) errors.push('Boss 与终点不能同时存在');
+        if (!boss && !finish) errors.push('须设置 Boss 或终点之一作为通关条件');
+
+        if (finish) {
+            const f = normalized.finish;
+            if (typeof f.y !== 'number' || Number.isNaN(f.y)) errors.push('终点 Y 无效');
+            if (!f.w || f.w < 16) errors.push('终点宽度 w 应 >= 16');
+            if (!f.h || f.h < 16) errors.push('终点高度 h 应 >= 16');
+        }
+
+        if (boss) {
+            const b = normalized.boss;
+            if (!b.type) errors.push('Boss 缺少 type');
+            if (typeof b.xOffset !== 'number' || Number.isNaN(b.xOffset)) errors.push('Boss xOffset 无效');
+            if (typeof b.yOffset !== 'number' || Number.isNaN(b.yOffset)) errors.push('Boss yOffset 无效');
+        }
+
         return errors;
     }
 
@@ -293,6 +358,8 @@ const LevelEditorSchema = (() => {
         listAllItems,
         exportLevel,
         validateLevel,
+        isFinishLevel,
+        isBossLevel,
         bossTriggerX,
         playerY,
         hazardNumber,

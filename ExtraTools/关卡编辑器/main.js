@@ -154,6 +154,7 @@
         const { category, index } = selection;
         if (category === 'playerStart') return level.playerStart;
         if (category === 'boss') return level.boss;
+        if (category === 'finish') return level.finish;
         const arr = level[category];
         if (!arr || index < 0 || index >= arr.length) return null;
         return arr[index];
@@ -168,6 +169,10 @@
         }
         if (category === 'boss') {
             level.boss = { ...level.boss, ...data };
+            return;
+        }
+        if (category === 'finish') {
+            level.finish = { ...level.finish, ...data };
             return;
         }
         level[category][index] = data;
@@ -268,6 +273,7 @@
     }
 
     function drawBossTrigger() {
+        if (!S.isBossLevel(level)) return;
         const tx = S.bossTriggerX(level);
         ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
         ctx.setLineDash([8, 6]);
@@ -368,17 +374,10 @@
                 ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
             } else if (h.type === 'checkpoint') {
-                ctx.fillStyle = sel ? 'rgba(68,204,136,0.35)' : 'rgba(68,204,136,0.18)';
-                ctx.strokeStyle = sel ? '#88ffaa' : '#44cc88';
-                ctx.lineWidth = sel ? 3 : 2;
-                ctx.setLineDash([6, 4]);
-                ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
-                ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
-                ctx.setLineDash([]);
                 ctx.fillStyle = '#66ffaa';
-                ctx.font = 'bold 14px sans-serif';
+                ctx.font = 'bold 22px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('⛳', h.x, h.y + 5);
+                ctx.fillText('⛳', h.x, h.y + 8);
                 ctx.textAlign = 'left';
             } else if (h.type === 'death') {
                 ctx.fillStyle = sel ? 'rgba(255,34,68,0.45)' : 'rgba(255,34,68,0.28)';
@@ -485,16 +484,37 @@
         ctx.font = '11px sans-serif';
         ctx.fillText('出生', px + 14, py);
 
-        const bx = level.width - (level.boss.xOffset || 240);
-        const by = S.GAME_HEIGHT - (level.boss.yOffset || 80);
-        const bSel = selection?.category === 'boss';
-        ctx.fillStyle = bSel ? '#dd66ff' : '#cc44ff';
-        ctx.fillRect(bx - 20, by - 20, 40, 40);
-        ctx.fillStyle = '#fff';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Boss', bx, by + 4);
-        ctx.textAlign = 'left';
+        if (S.isBossLevel(level)) {
+            const bx = level.width - (level.boss.xOffset || 240);
+            const by = S.GAME_HEIGHT - (level.boss.yOffset || 80);
+            const bSel = selection?.category === 'boss';
+            ctx.fillStyle = bSel ? '#dd66ff' : '#cc44ff';
+            ctx.fillRect(bx - 20, by - 20, 40, 40);
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Boss', bx, by + 4);
+            ctx.textAlign = 'left';
+        }
+
+        if (S.isFinishLevel(level)) {
+            const f = level.finish;
+            const fSel = selection?.category === 'finish';
+            ctx.fillStyle = fSel ? 'rgba(255,204,68,0.35)' : 'rgba(255,204,68,0.18)';
+            ctx.strokeStyle = fSel ? '#ffee88' : '#ffcc44';
+            ctx.lineWidth = fSel ? 3 : 2;
+            ctx.setLineDash([6, 4]);
+            ctx.fillRect(f.x - f.w / 2, f.y - f.h / 2, f.w, f.h);
+            ctx.strokeRect(f.x - f.w / 2, f.y - f.h / 2, f.w, f.h);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#ffdd44';
+            ctx.font = 'bold 24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('🏁', f.x, f.y + 8);
+            ctx.font = '11px sans-serif';
+            ctx.fillText('终点', f.x, f.y + f.h / 2 + 14);
+            ctx.textAlign = 'left';
+        }
     }
 
     function drawSelectionHandles() {
@@ -587,9 +607,21 @@
         }
         if (kind === 'boss') {
             pushUndo();
+            level.finish = null;
+            if (!level.boss) {
+                level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80 };
+            }
             level.boss.xOffset = level.width - S.snap(wx);
             level.boss.yOffset = S.GAME_HEIGHT - S.snap(wy);
             selection = { category: 'boss', index: 0 };
+            refreshAll();
+            return;
+        }
+        if (kind === 'finish') {
+            pushUndo();
+            level.boss = null;
+            level.finish = { x: S.snap(wx), y: S.snap(wy), w: 80, h: 80 };
+            selection = { category: 'finish', index: 0 };
             refreshAll();
             return;
         }
@@ -655,6 +687,9 @@
                 else if (key === 'yOffset') level.playerStart.yOffset = v;
             } else if (selection.category === 'boss') {
                 level.boss[key] = v;
+            } else if (selection.category === 'finish') {
+                if (key === 'x' || key === 'y') level.finish[key] = S.snap(v);
+                else level.finish[key] = v;
             } else if (selection.category === 'hazards' && level.hazards[selection.index].type === 'missile') {
                 const h = { ...level.hazards[selection.index] };
                 h[key] = S.snap(v);
@@ -771,6 +806,11 @@
             });
             addField('xOffset（距右边缘）', 'xOffset', 'number', { value: data.xOffset });
             addField('yOffset（距底边）', 'yOffset', 'number', { value: data.yOffset });
+        } else if (selection.category === 'finish') {
+            addField('X', 'x', 'number', { value: data.x });
+            addField('Y', 'y', 'number', { value: data.y });
+            addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
+            addField('高 h', 'h', 'number', { value: data.h ?? 80 });
         }
 
         if (selection.category !== 'playerStart' && selection.category !== 'boss') {
@@ -780,11 +820,28 @@
             del.textContent = '删除此元素';
             del.addEventListener('click', () => {
                 pushUndo();
-                level[selection.category].splice(selection.index, 1);
+                if (selection.category === 'finish') {
+                    level.finish = null;
+                } else {
+                    level[selection.category].splice(selection.index, 1);
+                }
                 selection = null;
                 refreshAll();
             });
             form.appendChild(del);
+        }
+
+        if (selection.category === 'finish') {
+            const note = document.createElement('p');
+            note.className = 'field-hint';
+            note.textContent = '终点与 Boss 互斥；放置 Boss 将自动移除终点。';
+            form.appendChild(note);
+        }
+        if (selection.category === 'boss') {
+            const note = document.createElement('p');
+            note.className = 'field-hint';
+            note.textContent = 'Boss 与终点互斥；放置终点将自动移除 Boss。';
+            form.appendChild(note);
         }
     }
 
@@ -1022,6 +1079,9 @@
             const by = S.GAME_HEIGHT - (level.boss.yOffset || 80);
             return { x: worldX - bx, y: worldY - by };
         }
+        if (category === 'finish') {
+            return { x: worldX - level.finish.x, y: worldY - level.finish.y };
+        }
         if (category === 'hazards' && data.type === 'missile') {
             const cy = (data.y ?? (S.GROUND_Y - 4));
             return { x: worldX - (data.xMin + data.xMax) / 2, y: worldY - cy };
@@ -1055,6 +1115,9 @@
         } else if (selection.category === 'boss') {
             level.boss.xOffset = level.width - (worldX - ox);
             level.boss.yOffset = S.GAME_HEIGHT - (worldY - oy);
+        } else if (selection.category === 'finish') {
+            level.finish.x = worldX - ox;
+            level.finish.y = worldY - oy;
         } else if (selection.category === 'hazards' && data.type === 'missile') {
             const h = { ...data };
             const halfW = (h.xMax - h.xMin) / 2;
@@ -1088,6 +1151,9 @@
         } else if (selection.category === 'boss') {
             level.boss.xOffset = level.boss.xOffset - dx;
             level.boss.yOffset = level.boss.yOffset - dy;
+        } else if (selection.category === 'finish') {
+            level.finish.x = level.finish.x + dx;
+            level.finish.y = level.finish.y + dy;
         } else if (selection.category === 'hazards' && data.type === 'missile') {
             const h = { ...data };
             h.xMin = h.xMin + dx;
@@ -1227,6 +1293,8 @@
                 ? level.playerStart
                 : hit.category === 'boss'
                     ? level.boss
+                    : hit.category === 'finish'
+                        ? level.finish
                     : level[hit.category]?.[hit.index];
             const grab = getDragGrabOffset(hit.category, hitData, w.x, w.y);
             dragState = {
@@ -1385,6 +1453,13 @@
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
         if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveLevel(); return; }
         if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (selection && selection.category === 'finish') {
+                pushUndo();
+                level.finish = null;
+                selection = null;
+                refreshAll();
+                return;
+            }
             if (selection && selection.category !== 'playerStart' && selection.category !== 'boss') {
                 pushUndo();
                 level[selection.category].splice(selection.index, 1);

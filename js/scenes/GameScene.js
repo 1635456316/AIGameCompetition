@@ -10,6 +10,7 @@ class GameScene extends Phaser.Scene {
         this.gameOver = false;
         this._gameOverShown = false;
         this.paused = false;
+        this.levelCompleted = false;
         this.lastCheckpoint = null;
         this._shownHints = new Set();
     }
@@ -38,6 +39,7 @@ class GameScene extends Phaser.Scene {
 
         // 机关（含坍塌平台）须在玩家碰撞器建立前生成，确保平台已加入 staticGroup
         this.hazards = Hazards.spawn(this, this.levelConfig);
+        this.finishZone = this._isFinishLevel() ? new FinishZone(this, this.levelConfig.finish) : null;
 
         // 玩家
         const start = this.levelConfig.playerStart || { x: 160, yOffset: 120 };
@@ -171,36 +173,10 @@ class GameScene extends Phaser.Scene {
             this.hud.addScore(100);
         };
         this.onBossDefeated = () => {
-            SaveSystem.completeLevel(this.levelId);
-            const isFinal = this.levelId >= LevelConfigs.length;
-            const timeSec = Math.floor((this.time.now - this.startTime) / 1000);
-            const resultData = {
-                levelId: this.levelId,
-                score: this.hud.score,
-                maxCombo: this.hud.maxCombo,
-                timeSec: timeSec,
-                damageTaken: this.player.damageTakenCount,
-                isFinal: isFinal
-            };
-            // 击败 Boss 后 1 秒：若配置了终结 PV 且尚未观看，先播放 PV 再进结算；
-            // 否则保留原 2.2 秒缓冲后直接结算。
-            const endVideoUrl = this.levelConfig.endVideoUrl;
-            const endPVKey = `level${this.levelId}-end`;
-            const shouldPlayEndPV = endVideoUrl && !SaveSystem.hasPVWatched(endPVKey);
-            const delayMs = shouldPlayEndPV ? 1000 : 2200;
-            this.time.delayedCall(delayMs, () => {
-                if (shouldPlayEndPV) {
-                    this.scene.start('PVScene', {
-                        videoUrl: endVideoUrl,
-                        nextScene: 'ResultScene',
-                        nextSceneData: resultData,
-                        pvId: endPVKey,
-                        title: `第 ${this.levelId} 关 · 终结`
-                    });
-                } else {
-                    this.scene.start('ResultScene', resultData);
-                }
-            });
+            this._completeLevel();
+        };
+        this.onLevelComplete = () => {
+            this._completeLevel();
         };
         this.onPlayerDead = () => {
             if (this.gameOver) return;
@@ -407,12 +383,14 @@ class GameScene extends Phaser.Scene {
     update(time, delta) {
         if (this.paused || this.gameOver) return;
 
-        // 小怪清理完毕，并且走到配置位置后，才触发 Boss。
-        if (!this.bossTriggered && this._shouldSpawnBoss()) {
-            this.bossTriggered = true;
-            this._spawnBoss();
-        } else if (!this.bossTriggered && this._playerReachedBossTrigger() && !this._allMinionsCleared()) {
-            this._showBossGateHint();
+        // 小怪清理完毕，并且走到配置位置后，才触发 Boss（终点关卡无 Boss）
+        if (!this._isFinishLevel()) {
+            if (!this.bossTriggered && this._shouldSpawnBoss()) {
+                this.bossTriggered = true;
+                this._spawnBoss();
+            } else if (!this.bossTriggered && this._playerReachedBossTrigger() && !this._allMinionsCleared()) {
+                this._showBossGateHint();
+            }
         }
 
         // 玩家
@@ -432,6 +410,9 @@ class GameScene extends Phaser.Scene {
         // 关卡机关
         if (this.hazards) {
             this.hazards.forEach(h => h.update && h.update(time, delta, this.player));
+        }
+        if (this.finishZone) {
+            this.finishZone.update(time, delta, this.player);
         }
 
         // 清理越界 / 超距剑气
@@ -511,6 +492,49 @@ class GameScene extends Phaser.Scene {
             }
             break;
         }
+    }
+
+    _isFinishLevel() {
+        const f = this.levelConfig?.finish;
+        return f != null && typeof f.x === 'number' && !Number.isNaN(f.x);
+    }
+
+    _completeLevel() {
+        if (this.levelCompleted || this.gameOver) return;
+        this.levelCompleted = true;
+
+        SaveSystem.completeLevel(this.levelId);
+        const isFinal = this.levelId >= LevelConfigs.length;
+        const timeSec = Math.floor((this.time.now - this.startTime) / 1000);
+        const resultData = {
+            levelId: this.levelId,
+            score: this.hud.score,
+            maxCombo: this.hud.maxCombo,
+            timeSec: timeSec,
+            damageTaken: this.player.damageTakenCount,
+            isFinal: isFinal
+        };
+
+        Effects.bigText(this, '通 关 !!', PaletteHex.warning);
+        Effects.shake(this, 300, 0.015);
+
+        const endVideoUrl = this.levelConfig.endVideoUrl;
+        const endPVKey = `level${this.levelId}-end`;
+        const shouldPlayEndPV = endVideoUrl && !SaveSystem.hasPVWatched(endPVKey);
+        const delayMs = shouldPlayEndPV ? 1000 : 2200;
+        this.time.delayedCall(delayMs, () => {
+            if (shouldPlayEndPV) {
+                this.scene.start('PVScene', {
+                    videoUrl: endVideoUrl,
+                    nextScene: 'ResultScene',
+                    nextSceneData: resultData,
+                    pvId: endPVKey,
+                    title: `第 ${this.levelId} 关 · 终结`
+                });
+            } else {
+                this.scene.start('ResultScene', resultData);
+            }
+        });
     }
 
     _playerReachedBossTrigger() {

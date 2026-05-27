@@ -90,11 +90,9 @@ class CheckpointZone {
         this.id = cfg.id != null ? cfg.id : index;
         this.activated = false;
 
-        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0x44cc88, 0.14)
-            .setStrokeStyle(2, 0x66ffaa, 0.65).setDepth(45);
-        this.marker = scene.add.text(this.x, this.y + this.h / 2 - 4, '⛳', {
-            font: '22px Arial'
-        }).setOrigin(0.5, 1).setDepth(46);
+        this.marker = scene.add.text(this.x, this.y, '⛳', {
+            font: '24px Arial'
+        }).setOrigin(0.5).setDepth(46);
     }
 
     update(time, delta, player) {
@@ -108,10 +106,36 @@ class CheckpointZone {
         this.scene.lastCheckpoint = cp;
         if (!this.activated) {
             this.activated = true;
-            this.visual.setFillStyle(0x44cc88, 0.28);
-            this.visual.setStrokeStyle(3, 0x88ffcc, 0.95);
+            this.marker.setScale(1.25);
+            this.marker.setAlpha(1);
             Effects.checkpointFlash(this.scene);
         }
+    }
+}
+
+class FinishZone {
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 80;
+        this.h = cfg.h || 80;
+        this.triggered = false;
+
+        this.glow = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xffcc44, 0.1)
+            .setStrokeStyle(2, 0xffdd66, 0.65).setDepth(45);
+        this.marker = scene.add.text(this.x, this.y, '🏁', {
+            font: '28px Arial'
+        }).setOrigin(0.5).setDepth(46);
+    }
+
+    update(time, delta, player) {
+        if (this.triggered || player.fsm.is('dead')) return;
+        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
+
+        this.triggered = true;
+        this.glow.setFillStyle(0xffcc44, 0.35);
+        this.scene.onLevelComplete && this.scene.onLevelComplete();
     }
 }
 
