@@ -24,7 +24,6 @@
     const MAX_UNDO = 40;
 
     const MANIFEST_URL = '../../assets/levels/manifest.json';
-    const BG_BY_LEVEL = { 1: '../../assets/UI/第一关背景图.png' };
     const IDB_NAME = 'level-editor';
     const IDB_STORE = 'file-handles';
 
@@ -198,6 +197,8 @@
         ];
         if (selection.category === 'platforms') {
             handles.length = 1;
+        } else if (selection.category === 'pickups') {
+            handles.length = 0;
         }
         for (const h of handles) {
             if (Math.abs(worldX - h.x) <= hs && Math.abs(worldY - h.y) <= hs) return h.id;
@@ -303,6 +304,43 @@
         });
     }
 
+    function drawDestructibleWalls() {
+        level.destructibleWalls.forEach((w, i) => {
+            const sel = selection?.category === 'destructibleWalls' && selection.index === i;
+            ctx.fillStyle = sel ? '#e8a060' : '#a86838';
+            ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
+            ctx.strokeStyle = sel ? '#ffcc88' : '#704020';
+            ctx.lineWidth = sel ? 2 : 1;
+            ctx.strokeRect(w.x - w.w / 2 + 0.5, w.y - w.h / 2 + 0.5, w.w - 1, w.h - 1);
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#ffddaa';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`HP${w.hp ?? 3}`, w.x, w.y + 4);
+            ctx.textAlign = 'left';
+        });
+    }
+
+    function drawPickups() {
+        level.pickups.forEach((p, i) => {
+            const sel = selection?.category === 'pickups' && selection.index === i;
+            const y = p.y ?? (S.GROUND_Y - 4);
+            const half = S.PICKUP_SIZE / 2;
+            ctx.fillStyle = sel ? '#66ffaa' : '#44dd88';
+            ctx.beginPath();
+            ctx.arc(p.x, y, half - 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = sel ? '#aaffcc' : '#228855';
+            ctx.lineWidth = sel ? 2 : 1;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('+', p.x, y + 4);
+            ctx.textAlign = 'left';
+        });
+    }
+
     function drawHazards() {
         level.hazards.forEach((h, i) => {
             const sel = selection?.category === 'hazards' && selection.index === i;
@@ -402,7 +440,7 @@
         ctx.setLineDash([]);
 
         const handles = [{ x: b.x + b.w, y: b.y + b.h / 2 }];
-        if (selection.category !== 'platforms') {
+        if (selection.category !== 'platforms' && selection.category !== 'pickups') {
             handles.push({ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w / 2, y: b.y + b.h });
         }
         ctx.fillStyle = '#5a9fd4';
@@ -420,6 +458,8 @@
         drawGround();
         drawPlatforms();
         drawWalls();
+        drawDestructibleWalls();
+        drawPickups();
         drawHazards();
         drawSpawns();
         drawMarkers();
@@ -553,7 +593,9 @@
             } else {
                 const item = { ...getSelectionData() };
                 if (key === 'dir') item[key] = parseInt(v, 10);
-                else if (typeof v === 'number' && key !== 'type') item[key] = S.snap(v);
+                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'force'].includes(key)) {
+                    item[key] = S.snap(v);
+                }
                 else item[key] = v;
                 setSelectionData(item);
             }
@@ -564,11 +606,18 @@
             addField('X（首块中心）', 'x', 'number', { value: data[0] });
             addField('Y', 'y', 'number', { value: data[1] });
             addField('段数 count', 'count', 'number', { value: data[2] });
-        } else if (selection.category === 'walls') {
+        } else if (selection.category === 'walls' || selection.category === 'destructibleWalls') {
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y });
             addField('宽度 w', 'w', 'number', { value: data.w });
             addField('高度 h', 'h', 'number', { value: data.h });
+            if (selection.category === 'destructibleWalls') {
+                addField('耐久 hp', 'hp', 'number', { value: data.hp ?? 3 });
+            }
+        } else if (selection.category === 'pickups') {
+            addField('X', 'x', 'number', { value: data.x });
+            addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
+            addField('回血量 amount', 'amount', 'number', { value: data.amount ?? 30 });
         } else if (selection.category === 'spawns') {
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
@@ -648,6 +697,7 @@
                 ['endVideoUrl', '终结 PV URL', 'text'],
                 ['normalBgmUrl', '普通 BGM URL', 'text'],
                 ['bossBgmUrl', 'Boss BGM URL', 'text'],
+                ['bgUrl', '关卡背景图 URL', 'text'],
                 ['resultBgUrl', '结算背景 URL', 'text']
             ]}
         ];
@@ -672,6 +722,7 @@
                     if (type === 'number') v = parseFloat(v);
                     if (v === '' && k.includes('Url')) level[k] = null;
                     else level[k] = v;
+                    if (k === 'bgUrl') loadBgForLevel();
                     refreshAll(false);
                 });
             });
@@ -704,18 +755,30 @@
 
     function updateInfo() {
         document.getElementById('level-info').textContent =
-            `${level.title} · 宽 ${level.width}px · 平台 ${level.platforms.length} · 墙 ${level.walls.length} · 机关 ${level.hazards.length}`;
+            `${level.title} · 宽 ${level.width}px · 平台 ${level.platforms.length} · 墙 ${level.walls.length} · 可破坏 ${level.destructibleWalls.length} · 道具 ${level.pickups.length} · 机关 ${level.hazards.length}`;
     }
 
     function loadBgForLevel() {
-        const url = BG_BY_LEVEL[level.id];
-        if (url) {
-            bgImage = new Image();
-            bgImage.src = url;
-            bgImage.onload = () => render();
-        } else {
+        const url = level.bgUrl ? resolveProjectUrl(level.bgUrl) : null;
+        if (!url) {
             bgImage = null;
+            render();
+            return;
         }
+        const img = new Image();
+        img.onload = () => {
+            if (level.bgUrl && resolveProjectUrl(level.bgUrl) === url) {
+                bgImage = img;
+                render();
+            }
+        };
+        img.onerror = () => {
+            if (level.bgUrl && resolveProjectUrl(level.bgUrl) === url) {
+                bgImage = null;
+                render();
+            }
+        };
+        img.src = url;
     }
 
     function refreshAll(rebuildForms = true) {

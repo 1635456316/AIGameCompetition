@@ -67,13 +67,15 @@ class BootScene extends Phaser.Scene {
 
         // UI 图片资源
         this.load.image('ui_level_select_bg', 'assets/UI/关卡选择背景.png');
-        this.load.image('bg_level1', 'assets/UI/第一关背景图.png');
 
-        // 每关结算背景：遍历关卡配置，自动用 `result_bg_${id}` 作 key 预加载。
-        // 关卡配置的 resultBgUrl 为空时跳过，ResultScene 会回退到程序生成的 bg_far。
+        // 关卡背景 / 结算背景：遍历关卡配置预加载，key 为 level_bg_${id} / result_bg_${id}
         if (typeof LevelConfigs !== 'undefined') {
             LevelConfigs.forEach((level) => {
-                if (level && level.resultBgUrl) {
+                if (!level) return;
+                if (level.bgUrl) {
+                    this.load.image(`level_bg_${level.id}`, level.bgUrl);
+                }
+                if (level.resultBgUrl) {
                     this.load.image(`result_bg_${level.id}`, level.resultBgUrl);
                 }
             });

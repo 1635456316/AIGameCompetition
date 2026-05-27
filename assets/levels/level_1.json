@@ -19,6 +19,7 @@
   "endVideoUrl": "assets/video/第一关Boss处决.mp4",
   "normalBgmUrl": "assets/audio/第一关普通曲.mp3",
   "bossBgmUrl": "assets/audio/第一关Boss曲.mp3",
+  "bgUrl": "assets/UI/第一关背景图.png",
   "resultBgUrl": "assets/UI/第一关Boss倒地.jpg",
   "platforms": [
     [
@@ -100,6 +101,16 @@
       "h": 200
     }
   ],
+  "destructibleWalls": [
+    {
+      "hp": 3,
+      "x": 128,
+      "y": 112,
+      "w": 32,
+      "h": 200
+    }
+  ],
+  "pickups": [],
   "spawns": [
     {
       "type": "melee",

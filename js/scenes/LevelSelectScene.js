@@ -8,138 +8,416 @@ class LevelSelectScene extends Phaser.Scene {
         const h = GAME_HEIGHT;
         const save = SaveSystem.load();
         const unlocked = save.unlockedLevel || 1;
+        const completedCount = save.completedLevels.length;
+        const totalLevels = LevelConfigs.length;
 
-        // 关卡选择和主菜单共享同一首 BGM。从主菜单进来时通常已经在播；
-        // 从游戏 / PV 场景返回时则需要重新启动。play() 重复调用是安全的。
         MenuBGM.play(this);
 
         const bg = this.add.image(w / 2, h / 2, 'ui_level_select_bg');
-        // 等比缩放铺满（cover），避免变形；居中显示。
         const tex = this.textures.get('ui_level_select_bg').getSourceImage();
         if (tex && tex.width && tex.height) {
-            const scale = Math.max(w / tex.width, h / tex.height);
-            bg.setScale(scale);
+            bg.setScale(Math.max(w / tex.width, h / tex.height));
         } else {
             bg.setDisplaySize(w, h);
         }
-        this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.35);
+
+        this.add.rectangle(w / 2, h / 2, w, h, 0x05060e, 0.38);
 
         const scan = this.add.graphics().setDepth(1000);
-        scan.fillStyle(0x000000, 0.16);
+        scan.fillStyle(0x000000, 0.12);
         for (let y = 0; y < h; y += 4) scan.fillRect(0, y, w, 2);
 
-        this.add.text(w / 2, 70, '城市地图 · 关卡选择', {
-            font: 'bold 48px Arial',
-            color: PaletteHex.warning,
-            stroke: '#000',
-            strokeThickness: 8
-        }).setOrigin(0.5);
+        this._createHeader(w, completedCount, totalLevels);
 
-        this.add.text(w / 2, 118, `本版本共 ${LevelConfigs.length} 关：击败 Boss 即可解锁下一关。`, {
-            font: '16px Arial', color: '#dddddd'
-        }).setOrigin(0.5);
-
-        // 卡片水平居中：根据当前 LevelConfigs 的数量动态计算起始 x，避免关卡少的时候偏左。
-        const cardW = 190;
-        const gap = 225;
-        const totalCardsWidth = (LevelConfigs.length - 1) * gap + cardW;
+        const cardW = 210;
+        const cardH = 270;
+        const gap = 280;
+        const totalCardsWidth = (totalLevels - 1) * gap + cardW;
         const startX = (w - totalCardsWidth) / 2 + cardW / 2;
-        // 关卡 <= 3 时整齐排在同一水平线，避免上下错落显得空旷。
-        const useStagger = LevelConfigs.length > 3;
+        const cardY = 370;
+        const useStagger = totalLevels > 3;
+
+        this._drawRoutePath(startX, cardY, gap, totalLevels, unlocked);
+
+        this.levelCards = [];
+        let defaultFocus = LevelConfigs.findIndex(
+            level => level.id <= unlocked && !save.completedLevels.includes(level.id)
+        );
+        if (defaultFocus < 0) {
+            defaultFocus = Math.max(0, Math.min(unlocked - 1, totalLevels - 1));
+        }
+
         LevelConfigs.forEach((level, i) => {
             const x = startX + i * gap;
-            const y = useStagger ? 330 + (i % 2) * 70 : 360;
+            const y = useStagger ? cardY + (i % 2) * 56 : cardY;
             const isUnlocked = level.id <= unlocked;
             const completed = save.completedLevels.includes(level.id);
 
-            const color = isUnlocked ? 0x121827 : 0x101010;
-            const stroke = completed ? Palette.energy : (isUnlocked ? Palette.warning : 0x555555);
-            const card = this.add.rectangle(x, y, 190, 150, color, 0.92)
-                .setStrokeStyle(3, stroke)
-                .setInteractive({ useHandCursor: isUnlocked });
+            const card = this._createLevelCard(level, x, y, cardW, cardH, {
+                isUnlocked,
+                completed,
+                index: i,
+                isRecommended: isUnlocked && (!completed || i === totalLevels - 1)
+            });
+            this.levelCards.push(card);
 
-            this.add.text(x, y - 48, `第 ${level.id} 关`, {
-                font: 'bold 24px Arial',
-                color: isUnlocked ? PaletteHex.warning : '#777777'
-            }).setOrigin(0.5);
-
-            this.add.text(x, y - 12, level.title.replace(/^第 \d 关 · /, ''), {
-                font: 'bold 20px Arial',
-                color: isUnlocked ? '#ffffff' : '#666666',
-                align: 'center'
-            }).setOrigin(0.5);
-
-            const bossName = BossConfigs[level.boss.type]?.name || '未知 Boss';
-            this.add.text(x, y + 28, bossName, {
-                font: '14px Arial',
-                color: isUnlocked ? PaletteHex.hero : '#555555',
-                align: 'center'
-            }).setOrigin(0.5);
-
-            this.add.text(x, y + 56, completed ? 'CLEARED' : (isUnlocked ? 'READY' : 'LOCKED'), {
-                font: 'bold 14px Arial',
-                color: completed ? PaletteHex.hero : (isUnlocked ? PaletteHex.warning : '#666666')
-            }).setOrigin(0.5);
-
-            if (isUnlocked) {
-                card.on('pointerover', () => card.setScale(1.06));
-                card.on('pointerout', () => card.setScale(1));
-                card.on('pointerdown', () => this._enterLevel(level.id));
-            }
-
-            // 已通关：卡片下方显示"开始PV / 结束PV"两个回看按钮（仅在对应视频配置存在时显示）
             if (completed) {
-                const pvBtnY = y + 110;
-                const pvBtnW = 84;
-                const pvBtnH = 28;
-                const pvBtnGap = 10;
-                const pvBtns = [];
-                if (level.startVideoUrl) {
-                    pvBtns.push({
-                        label: '开始 PV',
-                        action: () => this._playLevelPV(level, 'start')
-                    });
-                }
-                if (level.endVideoUrl) {
-                    pvBtns.push({
-                        label: '结束 PV',
-                        action: () => this._playLevelPV(level, 'end')
-                    });
-                }
-                const totalPvW = pvBtns.length * pvBtnW + (pvBtns.length - 1) * pvBtnGap;
-                const firstPvX = x - totalPvW / 2 + pvBtnW / 2;
-                pvBtns.forEach((btn, idx) => {
-                    const bx = firstPvX + idx * (pvBtnW + pvBtnGap);
-                    this._createPVButton(bx, pvBtnY, pvBtnW, pvBtnH, btn.label, btn.action);
-                });
+                this._attachPVButtons(level, x, y + cardH / 2 + 28);
             }
         });
 
-        this._createTextButton(w / 2 - 130, h - 70, 200, 44, '返回主菜单', Palette.hero, () => {
+        this.focusIndex = defaultFocus;
+        this._updateCardFocus();
+
+        const btnW = 185;
+        const btnGap = 12;
+        const btnY = h - 78;
+        const btnStartX = w / 2 - (btnW * 2 + btnGap) / 2 + btnW / 2;
+        this._createImageButton(btnStartX, btnY, 'ui_btn_continue', '返回主菜单', () => {
             this.scene.start('MenuScene');
-        });
-        this._createTextButton(w / 2 + 130, h - 70, 200, 44, '重置存档', Palette.danger, () => {
+        }, btnW);
+        this._createImageButton(btnStartX + btnW + btnGap, btnY, 'ui_btn_exit', '重置存档', () => {
             SaveSystem.reset();
             this.scene.restart();
-        });
+        }, btnW);
 
-        this.add.text(w / 2, h - 30, '快捷键：ESC 返回主菜单    R 重置存档', {
-            font: '12px Arial', color: '#7f8998'
-        }).setOrigin(0.5);
+        this.add.text(w / 2, h - 18, 'ESC 返回主菜单    R 重置存档    ←→ 切换关卡    ENTER 进入', {
+            font: 'bold 11px Microsoft YaHei, Arial',
+            color: '#7f8998'
+        }).setOrigin(0.5).setDepth(25).setAlpha(0.85);
 
         this.input.keyboard.on('keydown-ESC', () => this.scene.start('MenuScene'));
         this.input.keyboard.on('keydown-R', () => {
             SaveSystem.reset();
             this.scene.restart();
         });
+        this.input.keyboard.on('keydown-LEFT', () => this._moveFocus(-1));
+        this.input.keyboard.on('keydown-RIGHT', () => this._moveFocus(1));
+        this.input.keyboard.on('keydown-ENTER', () => this._enterFocusedLevel());
+        const numKeys = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
+        LevelConfigs.forEach((level, i) => {
+            if (i >= numKeys.length) return;
+            this.input.keyboard.on(`keydown-${numKeys[i]}`, () => {
+                if (level.id <= unlocked) {
+                    this.focusIndex = i;
+                    this._updateCardFocus();
+                    this._enterLevel(level.id);
+                }
+            });
+        });
     }
 
-    /**
-     * 统一的"进入某关"入口（通用 PV 检查）：
-     * - 关卡配置了 startVideoUrl → 每次都先跳 PVScene 播放开始 PV，结束后由 PV 跳到 GameScene。
-     * - 否则 → 直接进入 GameScene。
-     * 任意一种情况下都先停掉菜单 BGM，让 PV / 游戏自己接管音频。
-     */
+    _createHeader(w, completedCount, totalLevels) {
+        const panelW = 620;
+        const panelH = 96;
+        const panelY = 88;
+
+        this.add.rectangle(w / 2, panelY, panelW, panelH, 0x070b14, 0.82)
+            .setStrokeStyle(2, Palette.warning, 0.55)
+            .setDepth(20);
+
+        const corners = this.add.graphics().setDepth(21);
+        corners.lineStyle(2, Palette.hero, 0.85);
+        const cx = w / 2;
+        const hw = panelW / 2;
+        const hh = panelH / 2;
+        const cl = 16;
+        [
+            [cx - hw, panelY - hh + cl, cx - hw, panelY - hh, cx - hw + cl, panelY - hh],
+            [cx + hw - cl, panelY - hh, cx + hw, panelY - hh, cx + hw, panelY - hh + cl],
+            [cx - hw, panelY + hh - cl, cx - hw, panelY + hh, cx - hw + cl, panelY + hh],
+            [cx + hw - cl, panelY + hh, cx + hw, panelY + hh, cx + hw, panelY + hh - cl]
+        ].forEach(([x1, y1, x2, y2, x3, y3]) => {
+            corners.beginPath();
+            corners.moveTo(x1, y1);
+            corners.lineTo(x2, y2);
+            corners.lineTo(x3, y3);
+            corners.strokePath();
+        });
+
+        this.add.text(w / 2, panelY - 22, '城 市 地 图', {
+            font: 'bold 42px Microsoft YaHei, Arial',
+            color: PaletteHex.warning,
+            stroke: '#000',
+            strokeThickness: 7
+        }).setOrigin(0.5).setDepth(22);
+
+        this.add.text(w / 2, panelY + 8, `击败 Boss 解锁下一区域  ·  进度 ${completedCount} / ${totalLevels}`, {
+            font: 'bold 15px Microsoft YaHei, Arial',
+            color: '#c8d4e8'
+        }).setOrigin(0.5).setDepth(22);
+
+        const barW = 360;
+        const barX = w / 2 - barW / 2;
+        const barY = panelY + 30;
+        this.add.rectangle(barX + barW / 2, barY, barW, 8, 0x101828, 0.95)
+            .setDepth(22);
+        const fillW = totalLevels > 0 ? (completedCount / totalLevels) * barW : 0;
+        if (fillW > 0) {
+            this.add.rectangle(barX + fillW / 2, barY, fillW, 8, Palette.hero, 0.95)
+                .setDepth(23);
+        }
+    }
+
+    _drawRoutePath(startX, cardY, gap, totalLevels, unlocked) {
+        if (totalLevels < 2) return;
+
+        const path = this.add.graphics().setDepth(12);
+        for (let i = 0; i < totalLevels - 1; i++) {
+            const x1 = startX + i * gap + 105;
+            const x2 = startX + (i + 1) * gap - 105;
+            const y = cardY;
+            const nextUnlocked = LevelConfigs[i + 1].id <= unlocked;
+
+            path.lineStyle(2, nextUnlocked ? Palette.hero : 0x3a4250, nextUnlocked ? 0.55 : 0.35);
+            path.beginPath();
+            path.moveTo(x1, y);
+            path.lineTo(x2, y);
+            path.strokePath();
+
+            const dotCount = 5;
+            for (let d = 0; d <= dotCount; d++) {
+                const t = d / dotCount;
+                const dx = x1 + (x2 - x1) * t;
+                path.fillStyle(nextUnlocked ? Palette.warning : 0x4a5568, nextUnlocked ? 0.7 : 0.4);
+                path.fillCircle(dx, y, 3);
+            }
+        }
+    }
+
+    _createLevelCard(level, x, y, cardW, cardH, state) {
+        const { isUnlocked, completed, index, isRecommended } = state;
+        const bossConfig = BossConfigs[level.boss?.type] || BossConfigs.mechanicalDino;
+        const accent = completed ? Palette.energy : (isUnlocked ? Palette.warning : 0x555555);
+
+        const container = this.add.container(x, y + 36).setDepth(20).setAlpha(0);
+        container.cardData = { level, isUnlocked, completed, accent };
+
+        const shadow = this.add.rectangle(0, 4, cardW + 8, cardH + 8, 0x000000, 0.35);
+        const bg = this.add.rectangle(0, 0, cardW, cardH, isUnlocked ? 0x0c1424 : 0x080a10, 0.94)
+            .setStrokeStyle(2, accent, isUnlocked ? 0.9 : 0.45);
+        const glow = this.add.rectangle(0, 0, cardW + 10, cardH + 10, accent, 0)
+            .setStrokeStyle(3, accent, 0);
+
+        const frame = this.add.graphics();
+        this._drawCardCorners(frame, cardW, cardH, accent, isUnlocked ? 0.9 : 0.35);
+
+        const previewY = -cardH / 2 + 62;
+        const previewW = cardW - 18;
+        const previewH = 96;
+
+        let previewKey = null;
+        const levelBgKey = `level_bg_${level.id}`;
+        if (this.textures.exists(levelBgKey)) {
+            previewKey = levelBgKey;
+        } else {
+            const resultKey = `result_bg_${level.id}`;
+            if (this.textures.exists(resultKey)) previewKey = resultKey;
+        }
+
+        const previewBox = this._buildCardPreviewBox(previewKey, previewW, previewH, accent, isUnlocked);
+        previewBox.setPosition(0, previewY);
+
+        const levelBadge = this.add.text(-cardW / 2 + 16, -cardH / 2 + 14, `STAGE ${level.id}`, {
+            font: 'bold 11px Arial',
+            color: isUnlocked ? PaletteHex.warning : '#666666',
+            stroke: '#000',
+            strokeThickness: 3
+        }).setOrigin(0, 0.5);
+
+        const displayTitle = level.title.replace(/^第 \d 关 · /, '');
+        const title = this.add.text(0, 18, displayTitle, {
+            font: 'bold 22px Microsoft YaHei, Arial',
+            color: isUnlocked ? '#ffffff' : '#666666',
+            align: 'center',
+            wordWrap: { width: cardW - 24 }
+        }).setOrigin(0.5);
+
+        const bossName = this.add.text(0, 52, bossConfig.name || '未知 Boss', {
+            font: 'bold 14px Microsoft YaHei, Arial',
+            color: isUnlocked ? PaletteHex.hero : '#555555'
+        }).setOrigin(0.5);
+
+        const subtitle = (level.subtitle || '').replace(/^[^：]+：/, '');
+        const subText = this.add.text(0, 76, subtitle, {
+            font: '12px Microsoft YaHei, Arial',
+            color: isUnlocked ? '#8aa0b8' : '#444444',
+            align: 'center',
+            wordWrap: { width: cardW - 28 }
+        }).setOrigin(0.5);
+
+        const statusLabel = completed ? '已通关' : (isUnlocked ? '可挑战' : '未解锁');
+        const statusColor = completed ? PaletteHex.hero : (isUnlocked ? PaletteHex.warning : '#666666');
+        const statusBg = this.add.rectangle(0, cardH / 2 - 22, 108, 26, 0x050810, 0.9)
+            .setStrokeStyle(1, accent, 0.6);
+        const statusText = this.add.text(0, cardH / 2 - 22, statusLabel, {
+            font: 'bold 13px Microsoft YaHei, Arial',
+            color: statusColor,
+            stroke: '#000',
+            strokeThickness: 3
+        }).setOrigin(0.5);
+
+        const cardLayers = [shadow, glow, bg, frame, previewBox, levelBadge, title, bossName, subText, statusBg, statusText];
+        container.add(cardLayers);
+
+        if (!isUnlocked) {
+            const lockOverlay = this.add.rectangle(0, 0, cardW, cardH, 0x000000, 0.52);
+            const lockText = this.add.text(0, 0, 'LOCKED', {
+                font: 'bold 28px Arial',
+                color: '#888888',
+                stroke: '#000',
+                strokeThickness: 5
+            }).setOrigin(0.5);
+            container.add([lockOverlay, lockText]);
+        }
+
+        if (isRecommended && isUnlocked) {
+            this.tweens.add({
+                targets: glow,
+                alpha: { from: 0.08, to: 0.22 },
+                duration: 900,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        }
+
+        this.tweens.add({
+            targets: container,
+            alpha: 1,
+            y: y,
+            duration: 420,
+            delay: 160 + index * 110,
+            ease: 'Cubic.easeOut'
+        });
+
+        if (isUnlocked) {
+            const hitZone = this.add.zone(0, 0, cardW, cardH)
+                .setInteractive({ useHandCursor: true });
+            container.add(hitZone);
+            container.hitZone = hitZone;
+
+            hitZone.on('pointerover', () => {
+                this.focusIndex = index;
+                this._updateCardFocus();
+                this.tweens.add({
+                    targets: container,
+                    scale: 1.05,
+                    duration: 120,
+                    ease: 'Sine.easeOut'
+                });
+                bg.setStrokeStyle(3, Palette.hero, 1);
+            });
+            hitZone.on('pointerout', () => {
+                this.tweens.add({
+                    targets: container,
+                    scale: 1,
+                    duration: 140,
+                    ease: 'Sine.easeOut'
+                });
+                this._updateCardFocus();
+            });
+            hitZone.on('pointerdown', () => this._enterLevel(level.id));
+        }
+
+        container.glow = glow;
+        container.bg = bg;
+        container.frame = frame;
+        return container;
+    }
+
+    _buildCardPreviewBox(textureKey, width, height, accent, isUnlocked) {
+        const box = this.add.container(0, 0);
+        box.add(this.add.rectangle(0, 0, width, height, 0x050810, 1));
+
+        if (textureKey) {
+            const src = this.textures.get(textureKey).getSourceImage();
+            if (src && src.width && src.height) {
+                const rt = this.add.renderTexture(0, 0, width, height).setOrigin(0.5);
+                const stamp = this.make.image({ key: textureKey, add: false });
+                stamp.setScale(Math.max(width / src.width, height / src.height));
+                rt.draw(stamp, width / 2, height / 2);
+                stamp.destroy();
+
+                rt.setAlpha(isUnlocked ? 1 : 0.45);
+                if (!isUnlocked) rt.setTint(0x777777);
+                box.add(rt);
+            }
+        }
+
+        box.add(this.add.rectangle(0, 0, width, height, 0x000000, 0)
+            .setStrokeStyle(2, accent, isUnlocked ? 0.75 : 0.35));
+
+        return box;
+    }
+
+    _drawCardCorners(g, cardW, cardH, accent, alpha) {
+        g.clear();
+        g.lineStyle(2, accent, alpha);
+        const hw = cardW / 2;
+        const hh = cardH / 2;
+        const len = 14;
+        [
+            [-hw, -hh + len, -hw, -hh, -hw + len, -hh],
+            [hw - len, -hh, hw, -hh, hw, -hh + len],
+            [-hw, hh - len, -hw, hh, -hw + len, hh],
+            [hw - len, hh, hw, hh, hw, hh - len]
+        ].forEach(([x1, y1, x2, y2, x3, y3]) => {
+            g.beginPath();
+            g.moveTo(x1, y1);
+            g.lineTo(x2, y2);
+            g.lineTo(x3, y3);
+            g.strokePath();
+        });
+    }
+
+    _attachPVButtons(level, x, baseY) {
+        const pvBtnW = 84;
+        const pvBtnH = 28;
+        const pvBtnGap = 10;
+        const pvBtns = [];
+        if (level.startVideoUrl) {
+            pvBtns.push({ label: '开始 PV', action: () => this._playLevelPV(level, 'start') });
+        }
+        if (level.endVideoUrl) {
+            pvBtns.push({ label: '结束 PV', action: () => this._playLevelPV(level, 'end') });
+        }
+        const totalPvW = pvBtns.length * pvBtnW + (pvBtns.length - 1) * pvBtnGap;
+        const firstPvX = x - totalPvW / 2 + pvBtnW / 2;
+        pvBtns.forEach((btn, idx) => {
+            const bx = firstPvX + idx * (pvBtnW + pvBtnGap);
+            this._createPVButton(bx, baseY, pvBtnW, pvBtnH, btn.label, btn.action);
+        });
+    }
+
+    _moveFocus(delta) {
+        if (!this.levelCards || !this.levelCards.length) return;
+        let next = this.focusIndex;
+        for (let step = 0; step < this.levelCards.length; step++) {
+            next = (next + delta + this.levelCards.length) % this.levelCards.length;
+            if (this.levelCards[next].cardData.isUnlocked) break;
+        }
+        this.focusIndex = next;
+        this._updateCardFocus();
+    }
+
+    _updateCardFocus() {
+        if (!this.levelCards) return;
+        this.levelCards.forEach((card, i) => {
+            const { accent, isUnlocked } = card.cardData;
+            const focused = i === this.focusIndex && isUnlocked;
+            card.bg.setStrokeStyle(focused ? 3 : 2, focused ? Palette.hero : accent, focused ? 1 : (isUnlocked ? 0.9 : 0.45));
+            this._drawCardCorners(card.frame, 210, 270, focused ? Palette.hero : accent, focused ? 1 : (isUnlocked ? 0.9 : 0.35));
+        });
+    }
+
+    _enterFocusedLevel() {
+        const card = this.levelCards && this.levelCards[this.focusIndex];
+        if (card && card.cardData.isUnlocked) {
+            this._enterLevel(card.cardData.level.id);
+        }
+    }
+
     _enterLevel(levelId) {
         const level = LevelConfigs.find(l => l.id === levelId);
         if (!level) return;
@@ -162,10 +440,6 @@ class LevelSelectScene extends Phaser.Scene {
         this.scene.start('GameScene', { levelId: levelId });
     }
 
-    /**
-     * 在选关界面回看某关的开始/结束 PV。
-     * 回看时不写 pvId（避免影响首次播放的标记机制），看完直接回到关卡选择界面。
-     */
     _playLevelPV(level, kind) {
         MenuBGM.stop();
         const videoUrl = kind === 'start' ? level.startVideoUrl : level.endVideoUrl;
@@ -177,21 +451,66 @@ class LevelSelectScene extends Phaser.Scene {
         });
     }
 
-    /**
-     * 关卡 PV 已观看标记 key。GameScene 也用同一组 key，集中在静态方法里避免散落。
-     */
     static startPVKey(levelId) { return `level${levelId}-start`; }
     static endPVKey(levelId)   { return `level${levelId}-end`; }
+
+    _createImageButton(x, y, textureKey, label, action, targetWidth = 185) {
+        const container = this.add.container(x, y).setDepth(30);
+
+        const bg = this.add.image(0, 0, textureKey);
+        if (bg.width > 0) bg.setScale(targetWidth / bg.width);
+
+        const textScale = targetWidth / 185;
+        const text = this.add.text(30 * textScale, -1, label, {
+            font: `bold ${Math.round(16 * textScale)}px Microsoft YaHei, Arial`,
+            color: '#e8faff',
+            stroke: '#001428',
+            strokeThickness: Math.max(3, Math.round(4 * textScale))
+        }).setOrigin(0.5);
+
+        container.add([bg, text]);
+
+        const hitW = bg.displayWidth * 0.92;
+        const hitH = bg.displayHeight * 0.72;
+        const hitZone = this.add.zone(x, y, hitW, hitH)
+            .setInteractive({ useHandCursor: true })
+            .setDepth(31);
+
+        hitZone.on('pointerover', () => {
+            bg.setTint(0xb8f4ff);
+            text.setColor(PaletteHex.warning);
+            this.tweens.add({ targets: container, scale: 1.05, duration: 110, ease: 'Sine.easeOut' });
+        });
+        hitZone.on('pointerout', () => {
+            bg.clearTint();
+            text.setColor('#e8faff');
+            this.tweens.add({ targets: container, scale: 1, duration: 130, ease: 'Sine.easeOut' });
+        });
+        hitZone.on('pointerdown', () => {
+            this.tweens.add({
+                targets: container,
+                scale: 0.96,
+                duration: 70,
+                yoyo: true,
+                onComplete: action
+            });
+        });
+
+        return container;
+    }
 
     _createPVButton(x, y, width, height, label, action) {
         const bg = this.add.rectangle(x, y, width, height, 0x070b12, 0.92)
             .setStrokeStyle(1, Palette.hero, 0.7)
-            .setInteractive({ useHandCursor: true });
+            .setInteractive({ useHandCursor: true })
+            .setDepth(24);
         const text = this.add.text(x, y, label, {
-            font: 'bold 13px Microsoft YaHei, Arial',
+            font: 'bold 12px Microsoft YaHei, Arial',
             color: '#cfeaff',
-            stroke: '#000', strokeThickness: 3
-        }).setOrigin(0.5);
+            stroke: '#000',
+            strokeThickness: 3
+        }).setOrigin(0.5).setDepth(25);
+
         bg.on('pointerover', () => {
             bg.setFillStyle(0x12243a, 1);
             bg.setStrokeStyle(2, Palette.warning, 1);
@@ -201,27 +520,6 @@ class LevelSelectScene extends Phaser.Scene {
             bg.setFillStyle(0x070b12, 0.92);
             bg.setStrokeStyle(1, Palette.hero, 0.7);
             text.setColor('#cfeaff');
-        });
-        bg.on('pointerdown', action);
-    }
-
-    _createTextButton(x, y, width, height, label, accent, action) {
-        const bg = this.add.rectangle(x, y, width, height, 0x0a1020, 0.92)
-            .setStrokeStyle(2, accent, 0.85)
-            .setInteractive({ useHandCursor: true });
-        const text = this.add.text(x, y, label, {
-            font: 'bold 18px Arial', color: '#ffffff',
-            stroke: '#000', strokeThickness: 4
-        }).setOrigin(0.5);
-        bg.on('pointerover', () => {
-            bg.setFillStyle(0x12243a, 1);
-            bg.setStrokeStyle(3, accent, 1);
-            text.setColor(PaletteHex.warning);
-        });
-        bg.on('pointerout', () => {
-            bg.setFillStyle(0x0a1020, 0.92);
-            bg.setStrokeStyle(2, accent, 0.85);
-            text.setColor('#ffffff');
         });
         bg.on('pointerdown', action);
     }

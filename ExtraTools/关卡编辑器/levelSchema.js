@@ -8,12 +8,21 @@ const LevelEditorSchema = (() => {
     const PLATFORM_W = 96;
     const PLATFORM_H = 20;
 
+    const PICKUP_SIZE = 28;
+
     const PALETTE = [
         {
             category: '地形',
             items: [
                 { kind: 'platform', label: '浮空平台', icon: '▬', color: '#7b5ea7' },
-                { kind: 'wall', label: '竖墙', icon: '▮', color: '#5a5a6e' }
+                { kind: 'wall', label: '竖墙', icon: '▮', color: '#5a5a6e' },
+                { kind: 'destructible_wall', label: '可破坏墙', icon: '▨', color: '#c87840' }
+            ]
+        },
+        {
+            category: '道具',
+            items: [
+                { kind: 'health_pickup', label: '回血道具', icon: '♥', color: '#44dd88' }
             ]
         },
         {
@@ -54,9 +63,12 @@ const LevelEditorSchema = (() => {
             endVideoUrl: null,
             normalBgmUrl: null,
             bossBgmUrl: null,
+            bgUrl: null,
             resultBgUrl: null,
             platforms: [],
             walls: [],
+            destructibleWalls: [],
+            pickups: [],
             spawns: [],
             hazards: []
         };
@@ -68,6 +80,15 @@ const LevelEditorSchema = (() => {
         level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80, ...(raw.boss || {}) };
         level.platforms = (raw.platforms || []).map(p => [...p]);
         level.walls = (raw.walls || []).map(w => ({ ...w }));
+        level.destructibleWalls = (raw.destructibleWalls || []).map(w => ({
+            hp: 3,
+            ...w
+        }));
+        level.pickups = (raw.pickups || []).map(p => ({
+            type: 'health',
+            amount: 30,
+            ...p
+        }));
         level.spawns = (raw.spawns || []).map(s => ({
             type: s.type || 'melee',
             x: s.x,
@@ -85,6 +106,10 @@ const LevelEditorSchema = (() => {
                 return { category: 'platforms', data: [sx, sy, 1] };
             case 'wall':
                 return { category: 'walls', data: { x: sx, y: sy, w: 32, h: 200 } };
+            case 'destructible_wall':
+                return { category: 'destructibleWalls', data: { x: sx, y: sy, w: 32, h: 200, hp: 3 } };
+            case 'health_pickup':
+                return { category: 'pickups', data: { type: 'health', x: sx, y: sy, amount: 30 } };
             case 'electric':
                 return { category: 'hazards', data: { type: 'electric', x: sx, y: sy, w: 140, h: 60, period: 2400, activeDuration: 1000, damage: 6 } };
             case 'wind':
@@ -121,7 +146,12 @@ const LevelEditorSchema = (() => {
                 return { x: x - PLATFORM_W / 2, y: y - PLATFORM_H / 2, w, h: PLATFORM_H };
             }
             case 'walls':
+            case 'destructibleWalls':
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
+            case 'pickups': {
+                const y = data.y ?? (GROUND_Y - 4);
+                return { x: data.x - PICKUP_SIZE / 2, y: y - PICKUP_SIZE / 2, w: PICKUP_SIZE, h: PICKUP_SIZE };
+            }
             case 'hazards':
                 if (data.type === 'missile') {
                     const y = data.y ?? (GROUND_Y - 4);
@@ -156,6 +186,10 @@ const LevelEditorSchema = (() => {
                 return `平台 #${index + 1} (${data[2]}段)`;
             case 'walls':
                 return `竖墙 #${index + 1}`;
+            case 'destructibleWalls':
+                return `可破坏墙 #${index + 1} (HP ${data.hp ?? 3})`;
+            case 'pickups':
+                return data.type === 'health' ? `回血 #${index + 1} (+${data.amount ?? 30})` : `道具 #${index + 1}`;
             case 'spawns':
                 return `${data.type === 'melee' ? '近战' : '远程'} #${index + 1}`;
             case 'hazards':
@@ -173,6 +207,8 @@ const LevelEditorSchema = (() => {
         const items = [];
         level.platforms.forEach((data, index) => items.push({ category: 'platforms', index, data }));
         level.walls.forEach((data, index) => items.push({ category: 'walls', index, data }));
+        level.destructibleWalls.forEach((data, index) => items.push({ category: 'destructibleWalls', index, data }));
+        level.pickups.forEach((data, index) => items.push({ category: 'pickups', index, data }));
         level.spawns.forEach((data, index) => items.push({ category: 'spawns', index, data }));
         level.hazards.forEach((data, index) => items.push({ category: 'hazards', index, data }));
         items.push({ category: 'playerStart', index: 0, data: level.playerStart });
@@ -207,6 +243,7 @@ const LevelEditorSchema = (() => {
         GROUND_Y,
         PLATFORM_W,
         PLATFORM_H,
+        PICKUP_SIZE,
         PALETTE,
         createEmptyLevel,
         normalizeLevel,

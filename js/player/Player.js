@@ -388,6 +388,11 @@ class Player {
         this.fsm.change('hurt', { fromRight: fromX > this.x });
     }
 
+    heal(amount) {
+        if (this.hp <= 0) return;
+        this.hp = Math.min(PlayerConfig.maxHp, this.hp + amount);
+    }
+
     spawnDashTrail() {
         const scene = this.scene;
         const useSheet = scene.textures.exists('tex_hero_dash');

@@ -20,6 +20,8 @@ async function loadLevelConfigs(manifestUrl = 'assets/levels/manifest.json') {
         }
         const data = await res.json();
         if (!data.walls) data.walls = [];
+        if (!data.destructibleWalls) data.destructibleWalls = [];
+        if (!data.pickups) data.pickups = [];
         return data;
     }));
 

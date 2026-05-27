@@ -32,6 +32,7 @@ class GameScene extends Phaser.Scene {
         this.groundSolids = this.physics.add.staticGroup();
         this.platforms = this.physics.add.staticGroup();
         this._buildLevel();
+        this.destructibleWalls = DestructibleWalls.spawn(this, this.levelConfig);
 
         // 机关（含坍塌平台）须在玩家碰撞器建立前生成，确保平台已加入 staticGroup
         this.hazards = Hazards.spawn(this, this.levelConfig);
@@ -112,6 +113,9 @@ class GameScene extends Phaser.Scene {
             if (this._playerIsPhasing()) return;
             this._damagePlayer(enemy.contactDamage, enemy.x);
         });
+
+        this._bindDestructibleWallHits();
+        this.pickups = Pickups.spawn(this, this.levelConfig);
 
         // Boss（关卡尾部触发）
         this.boss = null;
@@ -309,18 +313,16 @@ class GameScene extends Phaser.Scene {
 
     /**
      * 关卡视差背景：
-     * - 第 1 关："钢甲要塞"使用 assets/UI/第一关背景图.png 作为完整设计稿背景。
-     *   按高度等比缩放，水平方向用 tileSprite 平铺以覆盖整个关卡宽度；
-     *   配合较慢的 scrollFactor 制造视差感。
-     * - 其他关：保持原三层程序生成的视差背景。
-     * - 若图片资源缺失，回退到原三层视差。
+     * - 配置了 bgUrl 的关卡：按高度等比缩放，水平 tileSprite 平铺；较慢 scrollFactor 制造视差。
+     * - 未配置或资源缺失：回退三层程序生成视差背景。
      */
     _createParallaxBackground(W, H) {
-        const useCustomBg = this.levelId === 1 && this.textures.exists('bg_level1');
+        const bgKey = `level_bg_${this.levelId}`;
+        const useCustomBg = this.levelConfig.bgUrl && this.textures.exists(bgKey);
         if (useCustomBg) {
-            const src = this.textures.get('bg_level1').getSourceImage();
+            const src = this.textures.get(bgKey).getSourceImage();
             const tileScale = src && src.height ? (H / src.height) : 1;
-            this.bgFar = this.add.tileSprite(0, 0, this.levelWidth, H, 'bg_level1')
+            this.bgFar = this.add.tileSprite(0, 0, this.levelWidth, H, bgKey)
                 .setOrigin(0)
                 .setScrollFactor(0.2);
             if (this.bgFar.setTileScale) this.bgFar.setTileScale(tileScale, tileScale);
@@ -443,15 +445,22 @@ class GameScene extends Phaser.Scene {
         const player = this.player;
         if (!player || !player.body) return;
 
-        const walls = this.levelConfig.walls || [];
-        if (!walls.length) return;
+        const staticWalls = this.levelConfig.walls || [];
+        const breakableRects = (this.destructibleWalls || [])
+            .map(w => w.getCollisionRect())
+            .filter(Boolean);
+        const wallRects = [
+            ...staticWalls.map(w => ({ x: w.x, y: w.y, w: w.w || 32, h: w.h || 200 })),
+            ...breakableRects
+        ];
+        if (!wallRects.length) return;
 
         const body = player.body;
         const isDash = player.fsm.is('dash');
         const isAttackDash = player.fsm.is('attackDash');
         if (!isDash && !isAttackDash && Math.abs(body.velocity.x) < 50) return;
 
-        for (const w of walls) {
+        for (const w of wallRects) {
             const wallW = w.w || 32;
             const wallH = w.h || 200;
             const left = w.x - wallW / 2;
@@ -776,6 +785,14 @@ class GameScene extends Phaser.Scene {
             this.hud.addCombo(this.time.now);
         });
 
+        (this.destructibleWalls || []).forEach((wall) => {
+            if (!wall || wall.broken) return;
+            if (!this._canAttackDashTick(player, wall, now)) return;
+            if (!wall.hitByRect(hitRect, 1)) return;
+            this._markAttackDashTick(player, wall, now);
+            Effects.shake(this, 50, 0.004);
+        });
+
         if (!this.boss || !this.boss.alive) return;
 
         const bb = this.boss.sprite.body;
@@ -815,6 +832,26 @@ class GameScene extends Phaser.Scene {
             || this.player.fsm.is('attackDash')
             || this.player.isSuperArmored?.()
             || this.player.fsm.is('dead');
+    }
+
+    _bindDestructibleWallHits() {
+        if (!this.destructibleWalls?.length) return;
+        this.destructibleWalls.forEach(wall => {
+            if (!wall.sprite) return;
+            this.physics.add.overlap(this.playerBullets, wall.sprite, (a, b) => {
+                const bullet = this._pickPlayerBullet(a, b);
+                if (!bullet?.active || wall.broken) return;
+                wall.takeHit(1);
+                if (!bullet._swordQiPierce) bullet.destroy();
+            });
+            this.physics.add.overlap(this.playerMelees, wall.sprite, (a, b) => {
+                const melee = this._pickPlayerMelee(a, b);
+                if (!melee?.active || wall.broken) return;
+                if (melee._hitDestructible) return;
+                melee._hitDestructible = true;
+                wall.takeHit(1);
+            });
+        });
     }
 
     _bindCrumblePlatformOverlaps() {
