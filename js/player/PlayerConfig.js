@@ -106,7 +106,7 @@ const PlayerConfig = {
     swordQiDisplayWidth: 110,
     swordQiHitWidthMult: 2,
     swordQiHitHeightMult: 4,
-    swordQiOffsetY: 42,
+    swordQiOffsetY: 54,
     swordQiSpawnOffsetXMin: 18,
     swordQiSpawnOffsetXMax: 44,
     ultimateEnergyCost: 100,

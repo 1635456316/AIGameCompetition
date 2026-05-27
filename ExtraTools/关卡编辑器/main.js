@@ -385,18 +385,32 @@
         });
     }
 
+    function spawnColor(type, selected) {
+        if (type === 'flying') return selected ? '#88ccff' : '#66bbff';
+        if (type === 'ranged') return selected ? '#ffaa88' : '#ff8866';
+        return selected ? '#ff7788' : '#ff5566';
+    }
+
+    function spawnLabel(type) {
+        if (type === 'flying') return '飞';
+        if (type === 'ranged') return '远';
+        return '近';
+    }
+
     function drawSpawns() {
         level.spawns.forEach((s, i) => {
             const sel = selection?.category === 'spawns' && selection.index === i;
             const y = s.y ?? (S.GROUND_Y - 4);
-            ctx.fillStyle = s.type === 'melee' ? (sel ? '#ff7788' : '#ff5566') : (sel ? '#ffaa88' : '#ff8866');
+            const r = 14;
+            ctx.fillStyle = spawnColor(s.type, sel);
             ctx.beginPath();
-            ctx.arc(s.x, y - 12, 14, 0, Math.PI * 2);
+            // 圆底边 = y（与游戏内脚底坐标一致）
+            ctx.arc(s.x, y - r, r, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#fff';
             ctx.font = '11px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(s.type === 'melee' ? '近' : '远', s.x, y - 8);
+            ctx.fillText(spawnLabel(s.type), s.x, y - r + 4);
             ctx.textAlign = 'left';
         });
     }
@@ -621,7 +635,14 @@
         } else if (selection.category === 'spawns') {
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
-            addField('类型', 'type', 'select', { value: data.type, options: [{ v: 'melee', t: '近战' }, { v: 'ranged', t: '远程' }] });
+            addField('类型', 'type', 'select', {
+                value: data.type,
+                options: [
+                    { v: 'melee', t: '近战' },
+                    { v: 'ranged', t: '远程' },
+                    { v: 'flying', t: '飞行' }
+                ]
+            });
         } else if (selection.category === 'hazards') {
             if (data.type === 'electric') {
                 addField('X', 'x', 'number', { value: data.x });
@@ -897,6 +918,78 @@
         document.getElementById('file-input').click();
     }
 
+    /** 计算拖动时鼠标相对元素锚点的偏移（松开时保持该偏移） */
+    function getDragGrabOffset(category, data, worldX, worldY) {
+        if (!data) return { x: 0, y: 0 };
+        if (category === 'platforms') {
+            return { x: worldX - data[0], y: worldY - data[1] };
+        }
+        if (category === 'playerStart') {
+            return {
+                x: worldX - level.playerStart.x,
+                y: worldY - S.playerY(level)
+            };
+        }
+        if (category === 'boss') {
+            const bx = level.width - (level.boss.xOffset || 240);
+            const by = S.GAME_HEIGHT - (level.boss.yOffset || 80);
+            return { x: worldX - bx, y: worldY - by };
+        }
+        if (category === 'hazards' && data.type === 'missile') {
+            const cy = (data.y ?? (S.GROUND_Y - 4));
+            return { x: worldX - (data.xMin + data.xMax) / 2, y: worldY - cy };
+        }
+        if (category === 'spawns' || category === 'pickups') {
+            return {
+                x: worldX - data.x,
+                y: worldY - (data.y ?? (S.GROUND_Y - 4))
+            };
+        }
+        if (typeof data === 'object') {
+            return {
+                x: data.x !== undefined ? worldX - data.x : 0,
+                y: data.y !== undefined ? worldY - data.y : 0
+            };
+        }
+        return { x: 0, y: 0 };
+    }
+
+    function applyDragAtCursor(worldX, worldY) {
+        const data = getSelectionData();
+        if (!data || !selection || !dragState) return;
+        const ox = dragState.grabOffsetX ?? 0;
+        const oy = dragState.grabOffsetY ?? 0;
+
+        if (selection.category === 'platforms') {
+            level.platforms[selection.index] = [worldX - ox, worldY - oy, data[2]];
+        } else if (selection.category === 'playerStart') {
+            level.playerStart.x = worldX - ox;
+            level.playerStart.yOffset = S.GAME_HEIGHT - (worldY - oy);
+        } else if (selection.category === 'boss') {
+            level.boss.xOffset = level.width - (worldX - ox);
+            level.boss.yOffset = S.GAME_HEIGHT - (worldY - oy);
+        } else if (selection.category === 'hazards' && data.type === 'missile') {
+            const h = { ...data };
+            const halfW = (h.xMax - h.xMin) / 2;
+            const cx = worldX - ox;
+            const cy = worldY - oy;
+            h.xMin = cx - halfW;
+            h.xMax = cx + halfW;
+            h.y = cy;
+            level.hazards[selection.index] = h;
+        } else if (selection.category === 'spawns') {
+            const item = { ...data };
+            item.x = worldX - ox;
+            item.y = worldY - oy;
+            setSelectionData(item);
+        } else if (typeof data === 'object') {
+            const item = { ...data };
+            if (item.x !== undefined) item.x = worldX - ox;
+            if (item.y !== undefined) item.y = worldY - oy;
+            setSelectionData(item);
+        }
+    }
+
     function moveSelection(dx, dy) {
         const data = getSelectionData();
         if (!data) return;
@@ -949,7 +1042,8 @@
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = S.snap(item.x);
-            item.y = S.snap(item.y ?? (S.GROUND_Y - 4));
+            // Y 不吸附网格，避免松手时与拖动位置上下错位（平台/飞行高度）
+            item.y = item.y ?? (S.GROUND_Y - 4);
             setSelectionData(item);
         } else if (typeof data === 'object') {
             const item = { ...data };
@@ -971,7 +1065,9 @@
     }
 
     function endInteraction(e) {
-        if (dragState?.moved) {
+        if (dragState?.moved && selection) {
+            const w = screenToWorld(e.clientX, e.clientY);
+            applyDragAtCursor(w.x, w.y);
             snapSelection();
             render();
             buildPropsForm();
@@ -1040,7 +1136,20 @@
         const hit = hitTest(w.x, w.y);
         if (hit) {
             selection = hit;
-            dragState = { startX: w.x, startY: w.y, moved: false, undoSaved: false };
+            const hitData = hit.category === 'playerStart'
+                ? level.playerStart
+                : hit.category === 'boss'
+                    ? level.boss
+                    : level[hit.category]?.[hit.index];
+            const grab = getDragGrabOffset(hit.category, hitData, w.x, w.y);
+            dragState = {
+                startX: w.x,
+                startY: w.y,
+                grabOffsetX: grab.x,
+                grabOffsetY: grab.y,
+                moved: false,
+                undoSaved: false
+            };
             refreshAll(false);
             buildPropsForm();
             buildHierarchy();
@@ -1084,9 +1193,7 @@
                     pushUndo();
                     dragState.undoSaved = true;
                 }
-                moveSelection(dx, dy);
-                dragState.startX = w.x;
-                dragState.startY = w.y;
+                applyDragAtCursor(w.x, w.y);
                 dragState.moved = true;
                 render();
             }

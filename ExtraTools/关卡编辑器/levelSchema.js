@@ -38,7 +38,8 @@ const LevelEditorSchema = (() => {
             category: '实体',
             items: [
                 { kind: 'spawn_melee', label: '近战敌人', icon: '⚔', color: '#ff5566' },
-                { kind: 'spawn_ranged', label: '远程敌人', icon: '🏹', color: '#ff8866' }
+                { kind: 'spawn_ranged', label: '远程敌人', icon: '🏹', color: '#ff8866' },
+                { kind: 'spawn_flying', label: '飞行敌人', icon: '🪽', color: '#66bbff' }
             ]
         },
         {
@@ -119,9 +120,11 @@ const LevelEditorSchema = (() => {
             case 'crumble':
                 return { category: 'hazards', data: { type: 'crumble', x: sx, y: sy, delay: 800, respawn: 4000 } };
             case 'spawn_melee':
-                return { category: 'spawns', data: { type: 'melee', x: sx, y: GROUND_Y - 4 } };
+                return { category: 'spawns', data: { type: 'melee', x: sx, y: sy } };
             case 'spawn_ranged':
-                return { category: 'spawns', data: { type: 'ranged', x: sx, y: GROUND_Y - 4 } };
+                return { category: 'spawns', data: { type: 'ranged', x: sx, y: sy } };
+            case 'spawn_flying':
+                return { category: 'spawns', data: { type: 'flying', x: sx, y: sy - 120 } };
             default:
                 return null;
         }
@@ -163,7 +166,8 @@ const LevelEditorSchema = (() => {
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
             case 'spawns': {
                 const y = data.y ?? (GROUND_Y - 4);
-                return { x: data.x - 16, y: y - 24, w: 32, h: 32 };
+                // y 为脚底坐标，与画布圆点底边对齐
+                return { x: data.x - 16, y: y - 28, w: 32, h: 28 };
             }
             case 'playerStart': {
                 const px = level.playerStart.x;
@@ -190,8 +194,10 @@ const LevelEditorSchema = (() => {
                 return `可破坏墙 #${index + 1} (HP ${data.hp ?? 3})`;
             case 'pickups':
                 return data.type === 'health' ? `回血 #${index + 1} (+${data.amount ?? 30})` : `道具 #${index + 1}`;
-            case 'spawns':
-                return `${data.type === 'melee' ? '近战' : '远程'} #${index + 1}`;
+            case 'spawns': {
+                const labels = { melee: '近战', ranged: '远程', flying: '飞行' };
+                return `${labels[data.type] || data.type} #${index + 1}`;
+            }
             case 'hazards':
                 return `${data.type} #${index + 1}`;
             case 'playerStart':

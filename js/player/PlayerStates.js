@@ -5,6 +5,16 @@ function _animDurationMs(scene, animKey, fallback) {
     return total > 0 ? total : fallback;
 }
 
+function _animFrameStartMs(scene, animKey, frameIndex) {
+    const anim = scene.anims.get(animKey);
+    if (!anim || !anim.frames) return 0;
+    let t = 0;
+    for (let i = 0; i < frameIndex && i < anim.frames.length; i++) {
+        t += anim.frames[i].duration || 0;
+    }
+    return t;
+}
+
 const IdleState = {
     enter(player) {
         player.setVelocityX(0);
@@ -275,12 +285,19 @@ const SwordReleaseState = {
     enter(player) {
         const scene = player.scene;
         const slashKey = 'hero_sword_slash';
+        player._swordQiSpawned = false;
         player._heroDisplayScaleMult = PlayerConfig.swordReleaseDisplayScaleMult;
         player.playHeroAnim(slashKey, true);
         player.setVelocityX(player.facing * PlayerConfig.moveSpeed * 0.15);
-        player.spawnSwordQi(player.swordChargeRatio);
 
         const animMs = _animDurationMs(scene, slashKey, PlayerConfig.swordReleaseDuration);
+        const frame2StartMs = _animFrameStartMs(scene, slashKey, 1);
+
+        player._swordQiSpawnTimer = scene.time.delayedCall(frame2StartMs, () => {
+            if (!player.fsm.is('swordRelease') || player._swordQiSpawned) return;
+            player._swordQiSpawned = true;
+            player.spawnSwordQi(player.swordChargeRatio);
+        });
 
         const finishRelease = () => {
             if (!player.fsm.is('swordRelease')) return;
@@ -303,6 +320,10 @@ const SwordReleaseState = {
         }
     },
     exit(player) {
+        if (player._swordQiSpawnTimer) {
+            player._swordQiSpawnTimer.remove(false);
+            player._swordQiSpawnTimer = null;
+        }
         if (player._swordReleaseFallbackTimer) {
             player._swordReleaseFallbackTimer.remove(false);
             player._swordReleaseFallbackTimer = null;
@@ -311,6 +332,7 @@ const SwordReleaseState = {
             player.viewSprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
             player._onSwordSlashComplete = null;
         }
+        player._swordQiSpawned = false;
         player.swordChargeMs = 0;
         player.setHeroDisplayScaleMult(1);
     },

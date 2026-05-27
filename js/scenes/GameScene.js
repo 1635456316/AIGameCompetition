@@ -56,9 +56,10 @@ class GameScene extends Phaser.Scene {
         this.enemies = [];
         this.enemySprites = this.physics.add.group();
         this._spawnEnemies();
-        this.physics.add.collider(this.enemySprites, this.groundSolids);
-        this.physics.add.collider(this.enemySprites, this.platforms);
-        this.physics.add.collider(this.player.sprite, this.enemySprites, null, () => !this._playerIsPhasing());
+        const isGroundEnemy = (spr) => spr?.owner?.type !== 'flying';
+        this.physics.add.collider(this.enemySprites, this.groundSolids, null, isGroundEnemy);
+        this.physics.add.collider(this.enemySprites, this.platforms, null, isGroundEnemy);
+        // 小怪与玩家不做物理碰撞（避免推挤），接触伤害仅靠下方 overlap 判定
 
         // 子弹组
         this.playerBullets = this.physics.add.group();
@@ -109,9 +110,15 @@ class GameScene extends Phaser.Scene {
         });
         this.physics.add.overlap(this.enemySprites, this.player.sprite, (a, b) => {
             const enemy = this._pickEnemyFromOverlap(a, b);
-            if (!enemy || !enemy.alive) return;
+            if (!enemy || !enemy.alive || !enemy.contactDamage) return;
             if (this._playerIsPhasing()) return;
             this._damagePlayer(enemy.contactDamage, enemy.x);
+        });
+        this.physics.add.collider(this.enemyBullets, this.groundSolids, (bullet) => {
+            if (bullet?.active) bullet.destroy();
+        });
+        this.physics.add.collider(this.enemyBullets, this.platforms, (bullet) => {
+            if (bullet?.active) bullet.destroy();
         });
 
         this._bindDestructibleWallHits();

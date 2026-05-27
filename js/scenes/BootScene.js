@@ -119,6 +119,11 @@ class BootScene extends Phaser.Scene {
         // 使用英文文件名，避免部分本地服务器对中文路径加载失败
         this.load.image('fx_shockwave', 'assets/effects/shockwave.png');
 
+        // 小怪贴图
+        this.load.image('tex_enemy_melee', 'assets/character/LittleMonster/近战怪.png');
+        this.load.image('tex_enemy_ranged', 'assets/character/LittleMonster/远程怪.png');
+        this.load.image('tex_enemy_flying', 'assets/character/LittleMonster/飞行小怪.png');
+
         // 视频资源（主菜单待机）
         // 主菜单待机：丢弃音轨，便于自动循环播放。后续 BGM 单独接入。
         this.load.video('video_menu_idle', 'assets/video/主界面待机.mp4', true);

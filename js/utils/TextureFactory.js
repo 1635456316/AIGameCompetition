@@ -8,8 +8,6 @@ class TextureFactory {
         TextureFactory.heroAttack(scene, 'hero_attack');
         TextureFactory.heroDash(scene, 'hero_dash');
 
-        TextureFactory.enemyMelee(scene, 'enemy_melee');
-        TextureFactory.enemyRange(scene, 'enemy_range');
         TextureFactory.boss(scene, 'boss_default');
 
         TextureFactory.bullet(scene, 'bullet_hero', Palette.heroAccent);
@@ -121,51 +119,6 @@ class TextureFactory {
     static heroDash(scene, key) {
         TextureFactory._bake(scene, key, 48, 64, g => {
             TextureFactory._drawHumanoid(g, { bodyColor: 0x66f0ff, darkColor: Palette.hero });
-        });
-    }
-
-    static enemyMelee(scene, key) {
-        TextureFactory._bake(scene, key, 44, 56, g => {
-            // 红色矮壮机械兵
-            g.fillStyle(Palette.enemy, 1);
-            g.fillRect(6, 10, 32, 38);
-            g.fillStyle(Palette.enemyDark, 1);
-            g.fillRect(6, 32, 32, 16);
-            // 头
-            g.fillStyle(Palette.enemyDark, 1);
-            g.fillRect(12, 0, 20, 14);
-            // 眼
-            g.fillStyle(Palette.warning, 1);
-            g.fillRect(16, 4, 4, 4);
-            g.fillRect(24, 4, 4, 4);
-            // 描边
-            g.lineStyle(2, Palette.black, 1);
-            g.strokeRect(6, 10, 32, 38);
-            g.strokeRect(12, 0, 20, 14);
-        });
-    }
-
-    static enemyRange(scene, key) {
-        TextureFactory._bake(scene, key, 44, 56, g => {
-            // 紫色细长远程兵 + 炮管
-            g.fillStyle(0x8a2be2, 1);
-            g.fillRect(10, 8, 24, 40);
-            g.fillStyle(0x4b0082, 1);
-            g.fillRect(10, 32, 24, 16);
-            // 头
-            g.fillStyle(0x4b0082, 1);
-            g.fillRect(14, 0, 16, 12);
-            // 眼
-            g.fillStyle(Palette.warning, 1);
-            g.fillRect(18, 3, 8, 4);
-            // 炮管
-            g.fillStyle(Palette.black, 1);
-            g.fillRect(30, 22, 14, 6);
-            g.fillStyle(Palette.danger, 1);
-            g.fillRect(40, 24, 4, 2);
-            g.lineStyle(2, Palette.black, 1);
-            g.strokeRect(10, 8, 24, 40);
-            g.strokeRect(14, 0, 16, 12);
         });
     }
 

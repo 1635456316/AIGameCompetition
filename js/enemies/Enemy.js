@@ -19,15 +19,27 @@ class Enemy {
         this.hp = this.maxHp;
         this.alive = true;
         this.facing = -1;
-        this.state = 'patrol';
         this.lastAttackAt = -99999;
-        this.attackCooldown = logic.attackCooldown;
-        this.detectRange = logic.detectRange;
-        this.attackRange = logic.attackRange;
+        this.attackCooldown = logic.attackCooldown || 0;
         this.moveSpeed = logic.moveSpeed;
         this.contactDamage = logic.contactDamage;
         this.patrolOriginX = x;
-        this.patrolRange = logic.patrolRange;
+        this.patrolRange = logic.patrolRange ?? 120;
+        this.samePlaneThreshold = logic.samePlaneThreshold ?? 72;
+        this.detectRangeX = logic.detectRangeX ?? 360;
+        this.shootRangeX = logic.shootRangeX ?? 380;
+
+        this._platformBounds = null;
+        this._initPlatformBounds(x, y);
+
+        this.anchorY = y;
+        if (type === 'flying') {
+            this.logic.sprite.body.setAllowGravity(false);
+        }
+
+        this._rayPhase = null;
+        this._rayAngle = 0;
+        this._rayWarningGfx = null;
 
         const barCfg = cfg.visual.hpBar || {};
         this._hpBarW = barCfg.width || 40;
@@ -49,40 +61,292 @@ class Enemy {
         this.view.syncFromLogic(this.logic);
     }
 
-    update(time, delta, player) {
-        if (!this.alive) return;
+    _initPlatformBounds(x, y) {
+        const platforms = this.scene.levelConfig?.platforms || [];
+        const tolerance = 28;
+        for (const plat of platforms) {
+            const px = plat[0];
+            const py = plat[1];
+            const count = plat[2] || 1;
+            if (Math.abs(y - py) > tolerance) continue;
+            const halfSeg = 48;
+            const left = px - halfSeg + 10;
+            const right = px + (count - 1) * 96 + halfSeg - 10;
+            if (x >= left - 40 && x <= right + 40) {
+                this._platformBounds = { left, right, y: py };
+                return;
+            }
+        }
+        this._platformBounds = null;
+    }
+
+    _patrolLimits() {
+        let left = this.patrolOriginX - this.patrolRange;
+        let right = this.patrolOriginX + this.patrolRange;
+        if (this._platformBounds) {
+            left = Math.max(left, this._platformBounds.left);
+            right = Math.min(right, this._platformBounds.right);
+        }
+        return { left, right };
+    }
+
+    _isSamePlaneAs(target) {
+        return Math.abs(this.y - target.y) <= this.samePlaneThreshold;
+    }
+
+    _edgeTurnDir(dir) {
+        if (!this._platformBounds || this.type === 'flying') return dir;
+        const margin = 14;
+        const body = this.body;
+        const halfW = body ? body.width * 0.5 : 16;
+        const nextFront = this.x + dir * (halfW + margin);
+        if (nextFront <= this._platformBounds.left || nextFront >= this._platformBounds.right) {
+            return -dir;
+        }
+        return dir;
+    }
+
+    _updatePatrol() {
+        const { left, right } = this._patrolLimits();
+        if (this.x >= right - 4) this.facing = -1;
+        else if (this.x <= left + 4) this.facing = 1;
+        let dir = this.facing;
+        dir = this._edgeTurnDir(dir);
+        this.facing = dir;
+        const speed = this.type === 'flying' ? this.moveSpeed : this.moveSpeed * 0.55;
+        this.logic.setVelocityX(dir * speed);
+        if (this.type === 'flying') {
+            this.logic.setVelocityY(0);
+        }
+    }
+
+    _updateGroundCombat(time, player) {
+        const dx = player.x - this.x;
+        const distX = Math.abs(dx);
+        const dir = dx >= 0 ? 1 : -1;
+        const samePlane = this._isSamePlaneAs(player);
+        const logic = this.config.logic;
+
+        if (this.type === 'melee' && samePlane && distX < this.detectRangeX) {
+            this.facing = this._edgeTurnDir(dir);
+            this.logic.setVelocityX(this.facing * this.moveSpeed);
+        } else if (this.type === 'ranged' && distX < this.detectRangeX) {
+            this.facing = dir;
+            if (samePlane) {
+                this.logic.setVelocityX(0);
+                if (distX < this.shootRangeX && time - this.lastAttackAt > this.attackCooldown) {
+                    this.lastAttackAt = time;
+                    const spawnX = this.x + dir * (logic.bulletSpawnOffsetX || 28);
+                    const spawnY = this.y - (logic.bulletSpawnOffsetY || 36);
+                    this.scene.spawnEnemyBullet(spawnX, spawnY, dir * (logic.bulletSpeed || 400));
+                }
+            } else {
+                this._updatePatrol();
+            }
+        } else {
+            this._updatePatrol();
+        }
+    }
+
+    _updateFlying(time, player) {
+        if (this._rayPhase === 'warn') {
+            this.logic.setVelocity(0, 0);
+            this._drawRayWarning();
+            if (time >= this._rayFireAt) {
+                this._fireRay(player);
+            }
+            return;
+        }
 
         const dx = player.x - this.x;
-        const dist = Math.abs(dx);
+        const distX = Math.abs(dx);
         const dir = dx >= 0 ? 1 : -1;
         const logic = this.config.logic;
 
-        if (dist < this.detectRange) {
+        if (distX < this.detectRangeX && time - this.lastAttackAt > this.attackCooldown) {
             this.facing = dir;
-            if (this.type === 'ranged') {
-                if (dist < this.attackRange * 0.6) {
-                    this.logic.setVelocityX(-dir * this.moveSpeed);
-                } else if (dist > this.attackRange) {
-                    this.logic.setVelocityX(dir * this.moveSpeed);
-                } else {
-                    this.logic.setVelocityX(0);
-                }
-                if (dist < this.attackRange && time - this.lastAttackAt > this.attackCooldown) {
-                    this.lastAttackAt = time;
-                    this.scene.spawnEnemyBullet(
-                        this.x + dir * (logic.bulletSpawnOffsetX || 24),
-                        this.y - (logic.bulletSpawnOffsetY || 28),
-                        dir * (logic.bulletSpeed || 380)
-                    );
-                }
-            } else {
-                this.logic.setVelocityX(dir * this.moveSpeed);
-            }
+            this.logic.setVelocity(0, 0);
+            this._beginRayAttack(player, time, logic);
         } else {
-            const offset = this.x - this.patrolOriginX;
-            if (offset > this.patrolRange) this.facing = -1;
-            else if (offset < -this.patrolRange) this.facing = 1;
-            this.logic.setVelocityX(this.facing * this.moveSpeed * 0.5);
+            this._updatePatrol();
+        }
+    }
+
+    /** 飞行怪射线固定长度：足够贯穿整屏（与玩家距离无关） */
+    _getRayLength(logic) {
+        if (logic?.rayLength) return logic.rayLength;
+        const w = typeof GAME_WIDTH !== 'undefined' ? GAME_WIDTH : 1280;
+        const h = typeof GAME_HEIGHT !== 'undefined' ? GAME_HEIGHT : 720;
+        return Math.ceil(Math.hypot(w, h)) + 160;
+    }
+
+    _beginRayAttack(player, time, logic) {
+        const ox = this.x;
+        const oy = this.y - 20;
+        const tx = player.x;
+        const ty = player.y - 28;
+        this._rayAngle = Math.atan2(ty - oy, tx - ox);
+        this._rayPhase = 'warn';
+        this._rayFireAt = time + (logic.rayWarningMs || 1000);
+        this._rayLength = this._getRayLength(logic);
+        this.lastAttackAt = time;
+        this._ensureRayWarningGfx();
+    }
+
+    _ensureRayWarningGfx() {
+        if (this._rayWarningGfx?.active) return;
+        this._rayWarningGfx = this.scene.add.graphics().setDepth(14);
+    }
+
+    _drawRayWarning() {
+        if (!this._rayWarningGfx) return;
+        const logic = this.config.logic;
+        const clipGround = logic.rayClipGround !== false;
+        const len = this._clipRayLength(this.x, this.y - 20, this._rayAngle, this._rayLength, clipGround);
+        const ox = this.x;
+        const oy = this.y - 20;
+        const ex = ox + Math.cos(this._rayAngle) * len;
+        const ey = oy + Math.sin(this._rayAngle) * len;
+        const g = this._rayWarningGfx;
+        const blinkOn = Math.floor(this.scene.time.now / 110) % 2 === 0;
+        const outerA = blinkOn ? 0.55 : 0.12;
+        const innerA = blinkOn ? 0.95 : 0.2;
+        g.clear();
+        g.lineStyle(10, 0xcc2200, outerA);
+        g.beginPath();
+        g.moveTo(ox, oy);
+        g.lineTo(ex, ey);
+        g.strokePath();
+        g.lineStyle(5, 0xff6600, innerA);
+        g.beginPath();
+        g.moveTo(ox, oy);
+        g.lineTo(ex, ey);
+        g.strokePath();
+        g.lineStyle(2, 0xffdd88, innerA * 0.85);
+        g.beginPath();
+        g.moveTo(ox, oy);
+        g.lineTo(ex, ey);
+        g.strokePath();
+    }
+
+    _clipRayLength(ox, oy, angle, maxLen, clipGround = true) {
+        let len = maxLen;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const walls = this.scene.levelConfig?.walls || [];
+        for (const w of walls) {
+            const wallW = w.w || 32;
+            const wallH = w.h || 200;
+            const rect = new Phaser.Geom.Rectangle(w.x - wallW / 2, w.y - wallH / 2, wallW, wallH);
+            const hit = Enemy._rayRectIntersection(ox, oy, cos, sin, len, rect);
+            if (hit != null && hit < len) len = hit;
+        }
+        if (clipGround) {
+            const solids = this.scene.groundSolids;
+            if (solids?.children) {
+                solids.children.iterate((block) => {
+                    if (!block?.body) return;
+                    const b = block.body;
+                    const rect = new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height);
+                    const hit = Enemy._rayRectIntersection(ox, oy, cos, sin, len, rect);
+                    if (hit != null && hit < len) len = hit;
+                });
+            }
+        }
+        return Math.max(24, len);
+    }
+
+    static _rayRectIntersection(ox, oy, cos, sin, maxLen, rect) {
+        const steps = 24;
+        for (let i = 1; i <= steps; i++) {
+            const t = (maxLen * i) / steps;
+            const px = ox + cos * t;
+            const py = oy + sin * t;
+            if (Phaser.Geom.Rectangle.Contains(rect, px, py)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    _fireRay(player) {
+        const logic = this.config.logic;
+        const ox = this.x;
+        const oy = this.y - 20;
+        const clipGround = logic.rayClipGround !== false;
+        const maxLen = this._rayLength || this._getRayLength(logic);
+        const len = this._clipRayLength(ox, oy, this._rayAngle, maxLen, clipGround);
+        const ex = ox + Math.cos(this._rayAngle) * len;
+        const ey = oy + Math.sin(this._rayAngle) * len;
+        this._clearRayWarning();
+
+        const beamKey = this.scene.textures.exists('laser_beam_red') ? 'laser_beam_red' : 'laser_beam';
+        const glowW = logic.rayBeamGlowWidth || 40;
+        const coreW = logic.rayBeamWidth || 26;
+        const beamGlow = this.scene.add.image(ox, oy, beamKey)
+            .setOrigin(0, 0.5)
+            .setRotation(this._rayAngle)
+            .setDisplaySize(len, glowW)
+            .setBlendMode(Phaser.BlendModes.NORMAL)
+            .setTint(0x660000)
+            .setDepth(14)
+            .setAlpha(0.75);
+        const beam = this.scene.add.image(ox, oy, beamKey)
+            .setOrigin(0, 0.5)
+            .setRotation(this._rayAngle)
+            .setDisplaySize(len, coreW)
+            .setBlendMode(Phaser.BlendModes.NORMAL)
+            .setTint(0xbb1100)
+            .setDepth(15)
+            .setAlpha(1);
+        this.scene.tweens.add({
+            targets: [beam, beamGlow],
+            alpha: 0,
+            duration: 200,
+            delay: 140,
+            onComplete: () => {
+                beam.destroy();
+                beamGlow.destroy();
+            }
+        });
+
+        if (!this.scene._playerIsPhasing?.() && player?.body) {
+            const half = logic.rayHalfThickness || 10;
+            const line = new Phaser.Geom.Line(ox, oy, ex, ey);
+            const pad = half;
+            const rect = new Phaser.Geom.Rectangle(
+                player.body.x - pad,
+                player.body.y - pad,
+                player.body.width + pad * 2,
+                player.body.height + pad * 2
+            );
+            if (Phaser.Geom.Intersects.LineToRectangle(line, rect)) {
+                this.scene._damagePlayer(logic.rayDamage || 14, ox);
+                Effects.hitFlash(this.scene, player.x, player.y - 24);
+            }
+        }
+
+        this._rayPhase = null;
+    }
+
+    _clearRayWarning() {
+        if (this._rayWarningGfx) {
+            this._rayWarningGfx.destroy();
+            this._rayWarningGfx = null;
+        }
+    }
+
+    update(time, delta, player) {
+        if (!this.alive) return;
+
+        if (this.type === 'flying') {
+            this._updateFlying(time, player);
+        } else {
+            this._updateGroundCombat(time, player);
+        }
+
+        if (this.type === 'flying') {
+            this.logic.setPosition(this.x, this.anchorY);
         }
 
         this.view.setFlipX(this.facing < 0);
@@ -102,7 +366,11 @@ class Enemy {
         if (!this.alive) return;
         this.hp -= amount;
         const knock = fromX > this.x ? -260 : 260;
-        this.logic.setVelocity(knock, -200);
+        if (this.type === 'flying') {
+            this.logic.setVelocity(knock * 0.35, 0);
+        } else {
+            this.logic.setVelocity(knock, -200);
+        }
         this.view.setTint(0xffffff);
         this.scene.time.delayedCall(70, () => this.viewSprite && this.view.clearTint());
         this._syncHpBar();
@@ -115,6 +383,8 @@ class Enemy {
         this.alive = false;
         const deathX = this.x;
         const deathY = this.y;
+        this._clearRayWarning();
+        this._rayPhase = null;
         if (this.hpBarBg) { this.hpBarBg.destroy(); this.hpBarBg = null; }
         if (this.hpBarFill) { this.hpBarFill.destroy(); this.hpBarFill = null; }
         if (this.sprite) {
