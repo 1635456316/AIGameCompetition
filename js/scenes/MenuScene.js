@@ -8,6 +8,9 @@ class MenuScene extends Phaser.Scene {
     }
 
     create() {
+        this._menuExiting = false;
+        this.input.enabled = true;
+
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         const save = SaveSystem.load();
@@ -27,15 +30,24 @@ class MenuScene extends Phaser.Scene {
         scan.fillStyle(0x000000, 0.12);
         for (let y = 0; y < height; y += 4) scan.fillRect(0, y, width, 2);
 
-        // 装饰：左上电池条 / 右上警告框
-        // this._addDeco('ui_deco_battery', 110, 42, 180);
-        this._addDeco('ui_deco_warning', width - 150, 68, 240);
+        // 装饰：右上警告框
+        const enterOffset = 56;
+        this._menuCornerTop = [];
+        this._menuCornerBottom = [];
+        this._menuEnterOffset = enterOffset;
+
+        const warningY = 68;
+        const warning = this._addDeco('ui_deco_warning', width - 150, warningY - enterOffset, 240)
+            .setAlpha(0);
+        this._menuCornerTop.push({ target: warning, y: warningY });
 
         // 标题 Logo：左上区域
-        const logo = this.add.image(250, 115, 'ui_logo');
+        const logoY = 115;
+        const logo = this.add.image(250, logoY - enterOffset, 'ui_logo');
         const logoTargetWidth = 440;
         if (logo.width > 0) logo.setScale(logoTargetWidth / logo.width);
-        logo.setDepth(20);
+        logo.setDepth(20).setAlpha(0);
+        this._menuCornerTop.push({ target: logo, y: logoY });
 
         // 4 个按钮（左半画面）
         // 按钮 1：首次开始游戏 → 强制播放总开场 PV，再进入关卡选择界面。
@@ -84,15 +96,18 @@ class MenuScene extends Phaser.Scene {
         ];
         this.menuButtons = menuItems.map((item, index) => {
             const [bx, by] = btnPositions[index];
-            return this._createImageButton(
+            const btn = this._createImageButton(
                 bx,
-                by,
+                by + enterOffset,
                 item.key,
                 item.label,
                 item.enabled,
                 item.action,
                 btnTargetWidth
             );
+            if (item.enabled) btn.setAlpha(0);
+            this._menuCornerBottom.push({ target: btn, y: by });
+            return btn;
         });
 
         // 全屏按钮是第 4 个，引用住它的 text 节点，全屏状态变化时实时刷新文字。
@@ -108,11 +123,19 @@ class MenuScene extends Phaser.Scene {
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             document.removeEventListener('fullscreenchange', this._fsChangeHandler);
             document.removeEventListener('webkitfullscreenchange', this._fsChangeHandler);
+            this._menuExiting = false;
+            this.input.enabled = true;
         });
 
-        // 右下角装饰：雷达状态 + 爪印徽章
-        this._addDeco('ui_deco_radar', 1075, 655, 240);
-        this._addDeco('ui_deco_paw',   1225, 652, 68);
+        const radarY = 655;
+        const radar = this._addDeco('ui_deco_radar', 1075, radarY + enterOffset, 240).setAlpha(0);
+        this._menuCornerBottom.push({ target: radar, y: radarY });
+
+        const pawY = 652;
+        const paw = this._addDeco('ui_deco_paw', 1225, pawY + enterOffset, 68).setAlpha(0);
+        this._menuCornerBottom.push({ target: paw, y: pawY });
+
+        this._playMenuCornerEnter();
 
         // 底部版权
         this.add.text(width / 2, height - 12, '© 199X DRAGON DEFENSE FORCE', {
@@ -124,19 +147,80 @@ class MenuScene extends Phaser.Scene {
         this.input.keyboard.once('keydown-ENTER', () => this._startGame());
     }
 
-    _startGame() {
-        if (!SaveSystem.hasIntroWatched()) {
-            MenuBGM.stop();
-            this.scene.start('PVScene', {
-                videoUrl: 'assets/video/PV-开始.mp4',
-                nextScene: 'LevelSelectScene',
-                title: '开 场 PV',
-                markIntroWatched: true
-            });
-            return;
-        }
+    _playMenuCornerEnter() {
+        const duration = 420;
+        const ease = 'Cubic.easeOut';
 
-        this.scene.start('LevelSelectScene');
+        this._menuCornerTop.forEach(({ target, y }, i) => {
+            this.tweens.add({
+                targets: target,
+                alpha: 1,
+                y,
+                duration,
+                delay: i * 60,
+                ease
+            });
+        });
+
+        this._menuCornerBottom.forEach(({ target, y }, i) => {
+            this.tweens.add({
+                targets: target,
+                alpha: 1,
+                y,
+                duration,
+                delay: i * 60,
+                ease
+            });
+        });
+    }
+
+    _playMenuCornerExit(onComplete) {
+        const offset = this._menuEnterOffset || 56;
+        const duration = 300;
+        const ease = 'Cubic.easeIn';
+
+        this._menuCornerTop.forEach(({ target, y }) => {
+            this.tweens.add({
+                targets: target,
+                alpha: 0,
+                y: y - offset,
+                duration,
+                ease
+            });
+        });
+
+        this._menuCornerBottom.forEach(({ target, y }) => {
+            this.tweens.add({
+                targets: target,
+                alpha: 0,
+                y: y + offset,
+                duration,
+                ease
+            });
+        });
+
+        this.time.delayedCall(duration, onComplete);
+    }
+
+    _startGame() {
+        if (this._menuExiting) return;
+        this._menuExiting = true;
+        this.input.enabled = false;
+
+        this._playMenuCornerExit(() => {
+            if (!SaveSystem.hasIntroWatched()) {
+                MenuBGM.stop();
+                this.scene.start('PVScene', {
+                    videoUrl: 'assets/video/PV-开始.mp4',
+                    nextScene: 'LevelSelectScene',
+                    title: '开 场 PV',
+                    markIntroWatched: true
+                });
+                return;
+            }
+
+            this.scene.start('LevelSelectScene');
+        });
     }
 
     _addDeco(key, x, y, targetWidth) {
@@ -174,9 +258,10 @@ class MenuScene extends Phaser.Scene {
         // 命中区域：用按钮图的真实显示尺寸
         const hitW = bg.displayWidth * 0.92;
         const hitH = bg.displayHeight * 0.72;
-        const hitZone = this.add.zone(x, y, hitW, hitH)
-            .setInteractive({ useHandCursor: true })
-            .setDepth(31);
+        const hitZone = this.add.zone(0, 0, hitW, hitH)
+            .setInteractive({ useHandCursor: true });
+        container.add(hitZone);
+        container.sendToBack(hitZone);
 
         const baseScale = container.scale;
         hitZone.on('pointerover', () => {
@@ -200,6 +285,7 @@ class MenuScene extends Phaser.Scene {
             });
         });
         hitZone.on('pointerdown', () => {
+            if (this._menuExiting) return;
             this.tweens.add({
                 targets: container,
                 scale: baseScale * 0.96,
