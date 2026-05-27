@@ -21,6 +21,7 @@ async function loadLevelConfigs(manifestUrl = 'assets/levels/manifest.json') {
         const data = await res.json();
         if (!data.walls) data.walls = [];
         if (!data.destructibleWalls) data.destructibleWalls = [];
+        if (!data.systemWalls) data.systemWalls = [];
         if (!data.pickups) data.pickups = [];
         return data;
     }));

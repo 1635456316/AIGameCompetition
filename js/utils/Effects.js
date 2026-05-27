@@ -103,8 +103,9 @@ class Effects {
         });
     }
 
-    /** 屏幕中上方黄字操作指引（提示区触发） */
-    static hintBanner(scene, text, durationMs = 4200) {
+    /** 屏幕中上方黄字操作指引（提示区内持续显示，离开后由 scheduleHintBannerDismiss 隐藏） */
+    static hintBanner(scene, text) {
+        Effects.cancelHintBannerDismiss(scene);
         if (scene._hintBannerTween) {
             scene._hintBannerTween.stop();
             scene._hintBannerTween = null;
@@ -130,18 +131,80 @@ class Effects {
             duration: 180,
             ease: 'Quad.easeOut'
         });
-        scene.time.delayedCall(durationMs, () => {
-            if (!t.active) return;
-            scene._hintBannerTween = scene.tweens.add({
-                targets: t,
-                alpha: 0,
-                duration: 350,
-                onComplete: () => {
-                    t.destroy();
-                    if (scene._hintBannerText === t) scene._hintBannerText = null;
-                }
-            });
+    }
+
+    static cancelHintBannerDismiss(scene) {
+        if (scene._hintBannerHideTimer) {
+            scene._hintBannerHideTimer.remove(false);
+            scene._hintBannerHideTimer = null;
+        }
+    }
+
+    /** 离开提示区后延迟隐藏 */
+    static scheduleHintBannerDismiss(scene, delayMs = 500) {
+        Effects.cancelHintBannerDismiss(scene);
+        scene._hintBannerHideTimer = scene.time.delayedCall(delayMs, () => {
+            scene._hintBannerHideTimer = null;
+            Effects.dismissHintBanner(scene, { fadeMs: 250 });
         });
+    }
+
+    /** 淡出并清除提示 banner */
+    static dismissHintBanner(scene, opts = {}) {
+        Effects.cancelHintBannerDismiss(scene);
+        if (scene._hintBannerTween) {
+            scene._hintBannerTween.stop();
+            scene._hintBannerTween = null;
+        }
+
+        const t = scene._hintBannerText;
+        if (!t?.active) {
+            scene._hintBannerText = null;
+            return;
+        }
+
+        if (opts.immediate) {
+            t.destroy();
+            scene._hintBannerText = null;
+            return;
+        }
+
+        const fadeMs = opts.fadeMs ?? 220;
+        scene._hintBannerTween = scene.tweens.add({
+            targets: t,
+            alpha: 0,
+            duration: fadeMs,
+            ease: 'Quad.easeIn',
+            onComplete: () => {
+                t.destroy();
+                if (scene._hintBannerText === t) scene._hintBannerText = null;
+            }
+        });
+    }
+
+    /** 闪烁后销毁对象（用于系统墙等） */
+    static flickerVanish(scene, objects, opts = {}) {
+        const targets = (Array.isArray(objects) ? objects : [objects])
+            .filter(o => o && (o.active === undefined || o.active));
+        if (!targets.length) {
+            opts.onComplete?.();
+            return;
+        }
+        const steps = opts.steps ?? 10;
+        const interval = opts.interval ?? 65;
+        let step = 0;
+        const tick = () => {
+            if (step >= steps) {
+                targets.forEach(t => { if (t?.destroy) t.destroy(); });
+                opts.onComplete?.();
+                return;
+            }
+            const alpha = step % 2 === 0 ? 1 : 0.12;
+            targets.forEach(t => { if (t.setAlpha) t.setAlpha(alpha); });
+            step += 1;
+            scene.time.delayedCall(interval, tick);
+        };
+        tick();
     }
 
     /** 经过复活点时的轻微反馈 */

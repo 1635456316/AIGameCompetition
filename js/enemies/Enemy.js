@@ -2,7 +2,7 @@
  * 敌人：逻辑体负责碰撞与 AI，表现层负责贴图与受击反馈。
  */
 class Enemy {
-    constructor(scene, x, y, type) {
+    constructor(scene, x, y, type, spawnCfg = {}) {
         this.scene = scene;
         this.type = type;
         const cfg = EnemyConfigs.get(type);
@@ -15,8 +15,12 @@ class Enemy {
         this.viewSprite = this.view.sprite;
 
         const logic = cfg.logic;
-        this.maxHp = logic.maxHp;
+        this.maxHp = spawnCfg.hp ?? logic.maxHp;
         this.hp = this.maxHp;
+        this.killEnergy = spawnCfg.killEnergy ?? scene.levelConfig?.enemyKillEnergy ?? 10;
+        this.enemyId = spawnCfg.id != null && spawnCfg.id !== ''
+            ? String(spawnCfg.id)
+            : null;
         this.alive = true;
         this.facing = -1;
         this.lastAttackAt = -99999;

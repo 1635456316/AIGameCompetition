@@ -36,6 +36,7 @@ class GameScene extends Phaser.Scene {
         this.platforms = this.physics.add.staticGroup();
         this._buildLevel();
         this.destructibleWalls = DestructibleWalls.spawn(this, this.levelConfig);
+        this.systemWalls = SystemWalls.spawn(this, this.levelConfig);
 
         // 机关（含坍塌平台）须在玩家碰撞器建立前生成，确保平台已加入 staticGroup
         this.hazards = Hazards.spawn(this, this.levelConfig);
@@ -43,7 +44,18 @@ class GameScene extends Phaser.Scene {
 
         // 玩家
         const start = this.levelConfig.playerStart || { x: 160, yOffset: 120 };
+        this.levelEnergyRegenRate = typeof this.levelConfig.energyRegenRate === 'number'
+            ? Math.max(0, this.levelConfig.energyRegenRate)
+            : PlayerConfig.energyRegenRate;
         this.player = new Player(this, start.x, H - start.yOffset);
+        const hpPct = typeof this.levelConfig.hpStartPercent === 'number'
+            ? Phaser.Math.Clamp(this.levelConfig.hpStartPercent, 0, 100)
+            : 100;
+        this.player.hp = PlayerConfig.maxHp * (hpPct / 100);
+        const startPct = typeof this.levelConfig.energyStartPercent === 'number'
+            ? Phaser.Math.Clamp(this.levelConfig.energyStartPercent, 0, 100)
+            : 0;
+        this.player.energy = PlayerConfig.maxEnergy * (startPct / 100);
         this.physics.add.collider(this.player.sprite, this.groundSolids);
         this.physics.add.collider(
             this.player.sprite,
@@ -83,7 +95,6 @@ class GameScene extends Phaser.Scene {
                 }
                 enemy.takeDamage(bullet._swordQiDamage ?? 15, bullet.x);
                 Effects.hitFlash(this, bullet.x, bullet.y);
-                this.player.gainEnergy(4 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
             }
             if (!bullet._swordQiPierce) bullet.destroy();
@@ -109,7 +120,6 @@ class GameScene extends Phaser.Scene {
             Effects.hitFlash(this, hitX, hitY - 24);
             Effects.shake(this, 90, 0.008);
             Effects.hitStop(this, 50);
-            this.player.gainEnergy(6 * this.hud.getEnergyMultiplier());
             this.hud.addCombo(this.time.now);
         });
         this.physics.add.overlap(this.enemySprites, this.player.sprite, (a, b) => {
@@ -169,8 +179,9 @@ class GameScene extends Phaser.Scene {
 
         // 玩家击杀回调
         this.onEnemyKilled = (enemy) => {
-            this.player.gainEnergy(10);
+            this.player.gainEnergy(enemy.killEnergy ?? this.levelConfig.enemyKillEnergy ?? 10);
             this.hud.addScore(100);
+            if (enemy.enemyId) this._removeSystemWallsForEnemyId(enemy.enemyId);
         };
         this.onBossDefeated = () => {
             this._completeLevel();
@@ -347,12 +358,16 @@ class GameScene extends Phaser.Scene {
             block.refreshBody();
         }
 
-        // 浮空平台（单向：可自下穿越，按住下+跳跃可落下）
-        (this.levelConfig.platforms || []).forEach(([x, y, n]) => {
+        // 浮空平台（薄平台单向；加高后当墙，L 冲刺全向穿透）
+        (this.levelConfig.platforms || []).forEach((entry) => {
+            const [x, y, n, hRaw] = entry;
+            const h = hRaw ?? 20;
             for (let i = 0; i < n; i++) {
                 const px = x + i * 96;
                 const p = this.platforms.create(px, y, 'tile_platform');
                 p.setOrigin(0.5, 0.5);
+                if (h !== 20) p.setDisplaySize(96, h);
+                p.setData('platHeight', h);
                 p.refreshBody();
             }
         });
@@ -380,7 +395,11 @@ class GameScene extends Phaser.Scene {
     _spawnEnemies() {
         const groundY = this.levelHeight - 64;
         (this.levelConfig.spawns || []).forEach(s => {
-            const e = new Enemy(this, s.x, s.y || groundY - 4, s.type);
+            const e = new Enemy(this, s.x, s.y || groundY - 4, s.type, {
+                hp: s.hp,
+                killEnergy: s.killEnergy,
+                id: s.id
+            });
             this.enemies.push(e);
             this.enemySprites.add(e.sprite);
         });
@@ -453,9 +472,13 @@ class GameScene extends Phaser.Scene {
         const breakableRects = (this.destructibleWalls || [])
             .map(w => w.getCollisionRect())
             .filter(Boolean);
+        const systemRects = (this.systemWalls || [])
+            .map(w => w.getCollisionRect())
+            .filter(Boolean);
         const wallRects = [
             ...staticWalls.map(w => ({ x: w.x, y: w.y, w: w.w || 32, h: w.h || 200 })),
-            ...breakableRects
+            ...breakableRects,
+            ...systemRects
         ];
         if (!wallRects.length) return;
 
@@ -589,7 +612,6 @@ class GameScene extends Phaser.Scene {
                 }
                 this.boss.takeDamage(bullet._swordQiDamage ?? 10, bullet.x);
                 Effects.hitFlash(this, bullet.x, bullet.y);
-                this.player.gainEnergy(3 * this.hud.getEnergyMultiplier());
                 this.hud.addCombo(this.time.now);
             }
             if (!bullet._swordQiPierce) bullet.destroy();
@@ -722,7 +744,6 @@ class GameScene extends Phaser.Scene {
         Effects.hitFlash(this, this.boss.x, this.boss.y - 80);
         Effects.shake(this, 120, 0.012);
         Effects.hitStop(this, 60);
-        this.player.gainEnergy(6 * this.hud.getEnergyMultiplier());
         this.hud.addCombo(this.time.now);
         return true;
     }
@@ -830,7 +851,6 @@ class GameScene extends Phaser.Scene {
             Effects.hitFlash(this, hitX, hitY - 24);
             Effects.shake(this, 70, 0.006);
             Effects.hitStop(this, 35);
-            this.player.gainEnergy(3 * this.hud.getEnergyMultiplier());
             this.hud.addCombo(this.time.now);
         });
 
@@ -870,7 +890,6 @@ class GameScene extends Phaser.Scene {
         Effects.hitFlash(this, this.boss.x, this.boss.y - 80);
         Effects.shake(this, 120, 0.01);
         Effects.hitStop(this, 50);
-        this.player.gainEnergy(4 * this.hud.getEnergyMultiplier());
         this.hud.addCombo(this.time.now);
     }
 
@@ -879,8 +898,17 @@ class GameScene extends Phaser.Scene {
         // attackDash：第三段前冲可命中 Boss，但不应吃接触伤害
         return this.player.fsm.is('dash')
             || this.player.fsm.is('attackDash')
-            || this.player.isSuperArmored?.()
             || this.player.fsm.is('dead');
+    }
+
+    _removeSystemWallsForEnemyId(enemyId) {
+        const id = String(enemyId);
+        (this.systemWalls || []).forEach(wall => {
+            if (!wall.removed && wall.bindEnemyId === id) wall.remove();
+        });
+        (this.hazards || []).forEach(h => {
+            if (h.bindEnemyId === id && !h.removed && typeof h.remove === 'function') h.remove();
+        });
     }
 
     _bindDestructibleWallHits() {
@@ -978,14 +1006,25 @@ class GameScene extends Phaser.Scene {
         return onPlatform;
     }
 
-    /** 单向平台：上升穿透；下+跳期间穿透；仅能从上方落下 */
+    /** 单向薄平台 / 加高墙：L 冲刺全向穿透；薄平台可自下穿越 */
     _canCollideWithPlatform(playerSpr, platform) {
         const pb = playerSpr.body;
         const plat = platform.body;
         if (!pb || !plat || !this._platformColliderActive(platform)) return false;
+        if (this._playerIsPhasing()) return false;
         if (this.time.now < this.player.platformDropUntil) return false;
+
+        const platH = platform.getData('platHeight') ?? 20;
+        const overlapX = pb.right > plat.left + 2 && pb.left < plat.right - 2;
+        if (!overlapX) return false;
+
+        // 纵向加高：全向实体墙（仅冲刺可穿）
+        if (platH > 20) {
+            return pb.bottom > plat.top + 2 && pb.top < plat.bottom - 2;
+        }
+
+        // 薄平台：仅能从上方落下
         if (pb.velocity.y < 0) return false;
-        if (pb.right < plat.left + 2 || pb.left > plat.right - 2) return false;
 
         const platTop = plat.top;
         const dt = this.game.loop.delta / 1000;
@@ -1027,6 +1066,7 @@ class GameScene extends Phaser.Scene {
     _resolvePlayerPlatformLanding() {
         const player = this.player;
         if (!player?.body || this.time.now < player.platformDropUntil) return;
+        if (this._playerIsPhasing()) return;
         const pb = player.body;
         if (pb.velocity.y < 0) return;
 
@@ -1035,6 +1075,7 @@ class GameScene extends Phaser.Scene {
 
         this.platforms.children.iterate((plat) => {
             if (!plat?.body || !this._platformColliderActive(plat)) return;
+            if ((plat.getData('platHeight') ?? 20) > 20) return;
             const platBody = plat.body;
             if (pb.right < platBody.left + 2 || pb.left > platBody.right - 2) return;
 
@@ -1114,7 +1155,7 @@ class GameScene extends Phaser.Scene {
         });
 
         Effects.shake(this, 280, 0.015);
-        this.player.respawnAt(cp.x, cp.y);
+        this.player.respawnAt(cp.x, cp.y, cp.respawnHpPercent, cp.respawnEnergyPercent);
 
         GameDebug.logPlayerPose(this.player, 'scene.respawn.afterRespawnAt');
 

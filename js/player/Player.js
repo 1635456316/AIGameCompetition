@@ -129,12 +129,12 @@ class Player {
         this.view.setDisplayScaleMult(this._heroDisplayScaleMult);
     }
 
-    isSuperArmored() {
-        return this.fsm.is('swordRelease');
-    }
-
     isSwordCharging() {
         return this.fsm.is('swordCharge');
+    }
+
+    isSwordReleasing() {
+        return this.fsm.is('swordRelease');
     }
 
     applySheetHeroBody() {
@@ -273,9 +273,10 @@ class Player {
         this.view.setFlipX(this.facing < 0);
         if (this.hp > 0) {
             const regenMult = GameDebug.showHitboxes ? 20 : 1;
+            const regenRate = this.scene.levelEnergyRegenRate ?? PlayerConfig.energyRegenRate;
             this.energy = Math.min(
                 PlayerConfig.maxEnergy,
-                this.energy + PlayerConfig.energyRegenRate * regenMult * delta / 1000
+                this.energy + regenRate * regenMult * delta / 1000
             );
         }
         this.fsm.update(time, delta);
@@ -364,13 +365,15 @@ class Player {
 
     takeDamage(amount, fromX) {
         if (this.fsm.is('dead')) return;
-        if (this.isSuperArmored()) return;
 
         const now = this.scene.time.now;
         const charging = this.isSwordCharging();
-        if (!charging && now < this.invulnerableUntil) return;
+        const releasing = this.isSwordReleasing();
+        const swordQiMitigation = charging || releasing;
 
-        if (charging) {
+        if (!swordQiMitigation && now < this.invulnerableUntil) return;
+
+        if (swordQiMitigation) {
             amount *= PlayerConfig.swordChargeDamageMult;
         }
 
@@ -382,10 +385,10 @@ class Player {
             return;
         }
 
-        if (charging) {
+        if (swordQiMitigation) {
             this.view.setTint(0xff8888);
             this.scene.time.delayedCall(90, () => {
-                if (this.viewSprite.active && this.isSwordCharging()) {
+                if (this.viewSprite.active && (this.isSwordCharging() || this.isSwordReleasing())) {
                     this.view.clearTint();
                 }
             });
@@ -402,7 +405,7 @@ class Player {
     }
 
     /** 在检查点复活：脚点 X/Y 对齐复活点，略抬高后靠重力落下 */
-    respawnAt(x, y) {
+    respawnAt(x, y, respawnHpPercent, respawnEnergyPercent) {
         const lift = PlayerConfig.checkpointRespawnLift;
         const spawnY = y - lift;
         const sprite = this.logic.sprite;
@@ -425,7 +428,14 @@ class Player {
         this._leaveGroundFrames = 0;
         this._landFrames = 0;
 
-        this.hp = PlayerConfig.maxHp;
+        const hpPct = typeof respawnHpPercent === 'number'
+            ? Phaser.Math.Clamp(respawnHpPercent, 0, 100)
+            : 100;
+        this.hp = Math.max(1, PlayerConfig.maxHp * (hpPct / 100));
+        const energyPct = typeof respawnEnergyPercent === 'number'
+            ? Phaser.Math.Clamp(respawnEnergyPercent, 0, 100)
+            : 100;
+        this.energy = PlayerConfig.maxEnergy * (energyPct / 100);
         this.view.clearTint();
         this.resetMeleeCombo();
         this.invulnerableUntil = this.scene.time.now + PlayerConfig.invulnAfterHurt * 3;

@@ -2,14 +2,18 @@
   "id": 1,
   "title": "第 1 关 · 钢 甲 要 塞",
   "subtitle": "教学关：电磁机关与钢甲三角龙",
-  "width": 6400,
+  "width": 9000,
   "playerStart": {
-    "x": 48,
-    "yOffset": 544,
+    "x": 128,
+    "yOffset": 96,
     "h": 16,
     "y": 584
   },
-  "bossTriggerOffset": 620,
+  "energyStartPercent": 0,
+  "energyRegenRate": 0,
+  "hpStartPercent": 10,
+  "enemyKillEnergy": 10,
+  "bossTriggerOffset": 900,
   "boss": {
     "type": "steelTriceratops",
     "xOffset": 176,
@@ -23,233 +27,385 @@
   "resultBgUrl": "assets/UI/第一关Boss倒地.jpg",
   "platforms": [
     [
-      192,
-      496,
+      1384,
+      472,
       2
     ],
     [
-      592,
-      384,
-      3
-    ],
-    [
-      1040,
-      500,
-      2
-    ],
-    [
-      1312,
-      352,
-      3
-    ],
-    [
-      1740,
-      480,
-      2
-    ],
-    [
-      2060,
-      400,
-      3
-    ],
-    [
-      2432,
-      416,
-      2
-    ],
-    [
-      2768,
-      368,
-      3
-    ],
-    [
-      3104,
-      288,
-      2
-    ],
-    [
-      256,
-      304,
+      3840,
+      560,
       1
     ],
     [
-      64,
-      208,
+      4000,
+      448,
       1
     ],
     [
-      1488,
-      224,
-      1
-    ],
-    [
-      1632,
-      208,
-      1
-    ],
-    [
-      1344,
-      208,
+      4160,
+      336,
       1
     ]
   ],
   "walls": [
     {
-      "x": 416,
-      "y": 224,
+      "x": 1040,
+      "y": 560,
+      "w": 584,
+      "h": 197
+    },
+    {
+      "x": 1512,
+      "y": 232,
       "w": 32,
+      "h": 458
+    },
+    {
+      "x": 2080,
+      "y": 560,
+      "w": 200,
       "h": 200
     },
     {
-      "x": 592,
-      "y": 144,
-      "w": 288,
-      "h": 20
-    }
-  ],
-  "destructibleWalls": [
-    {
-      "hp": 3,
-      "x": 144,
-      "y": 112,
-      "w": 32,
+      "x": 3088,
+      "y": 560,
+      "w": 128,
       "h": 200
+    },
+    {
+      "x": 4280,
+      "y": 184,
+      "w": 32,
+      "h": 282
+    },
+    {
+      "x": 4400,
+      "y": 312,
+      "w": 268,
+      "h": 26
+    },
+    {
+      "x": 5114,
+      "y": 560,
+      "w": 364,
+      "h": 200
+    },
+    {
+      "x": 6048,
+      "y": 576,
+      "w": 112,
+      "h": 172
     }
   ],
-  "pickups": [],
+  "destructibleWalls": [],
+  "systemWalls": [
+    {
+      "x": 4520,
+      "y": 491.5,
+      "w": 32,
+      "h": 329,
+      "bindEnemyId": "wall_guard",
+      "id": "wall_guard"
+    }
+  ],
+  "pickups": [
+    {
+      "type": "energy",
+      "amount": 5,
+      "x": 1872,
+      "y": 640
+    },
+    {
+      "type": "health",
+      "amount": 100,
+      "x": 3056,
+      "y": 432
+    },
+    {
+      "type": "health",
+      "amount": 30,
+      "x": 4704,
+      "y": 632
+    },
+    {
+      "type": "energy",
+      "amount": 100,
+      "x": 4824,
+      "y": 632
+    },
+    {
+      "type": "energy",
+      "amount": 25,
+      "x": 4160,
+      "y": 304
+    },
+    {
+      "type": "health",
+      "amount": 100,
+      "x": 7792,
+      "y": 616
+    },
+    {
+      "type": "energy",
+      "amount": 25,
+      "x": 7888,
+      "y": 616
+    }
+  ],
   "spawns": [
     {
       "type": "melee",
-      "x": 1456,
-      "y": 320
+      "x": 3408,
+      "y": 640
     },
     {
       "type": "flying",
-      "x": 864,
-      "y": 80
+      "x": 4544,
+      "y": 256.83333333333337,
+      "id": "wall_guard"
     },
     {
       "type": "melee",
-      "x": 688,
-      "y": 652
+      "x": 5560,
+      "y": 646
     },
     {
       "type": "ranged",
-      "x": 1104,
-      "y": 464
+      "x": 5680,
+      "y": 644
     },
     {
       "type": "melee",
-      "x": 1616,
-      "y": 176
+      "x": 5624,
+      "y": 643
     },
     {
       "type": "ranged",
-      "x": 1744,
-      "y": 432
+      "x": 5488,
+      "y": 648
+    },
+    {
+      "type": "ranged",
+      "x": 5768,
+      "y": 648
     }
   ],
   "hazards": [
     {
-      "type": "electric",
-      "x": 578.5,
-      "y": 529,
-      "w": 59,
-      "h": 254,
-      "period": 0,
-      "activeDuration": 1000
+      "type": "hint",
+      "x": 128,
+      "y": 608,
+      "w": 180,
+      "h": 100,
+      "text": "试着使用键盘上的A D左右移动吧",
+      "once": true
     },
     {
-      "type": "electric",
-      "x": 1504,
-      "y": 560,
-      "w": 160,
-      "h": 60,
-      "period": 2000,
-      "activeDuration": 900
+      "type": "hint",
+      "x": 624,
+      "y": 608,
+      "w": 180,
+      "h": 100,
+      "text": "试着按下两次空格/W跳过前面的高台！",
+      "once": true
     },
     {
-      "type": "electric",
-      "x": 2200,
-      "y": 440,
-      "w": 120,
-      "h": 60,
-      "period": 2600,
-      "activeDuration": 1100
+      "type": "hint",
+      "x": 1392,
+      "y": 368,
+      "w": 180,
+      "h": 100,
+      "text": "前面过不去了，试着连按两下S跳下平台！",
+      "once": true
     },
     {
-      "type": "missile",
-      "xMin": 528,
-      "xMax": 688,
-      "y": 240,
-      "interval": 3000,
-      "damage": 12
-    },
-    {
-      "type": "crumble",
-      "x": 832,
-      "y": 256,
-      "delay": 800,
-      "respawn": 4000
-    },
-    {
-      "type": "wind",
-      "x": 1078,
-      "y": 269,
-      "w": 148,
-      "h": 326,
-      "force": 180,
-      "dir": 1
-    },
-    {
-      "type": "missile",
-      "xMin": 1216,
-      "xMax": 1376,
-      "y": 624,
-      "interval": 3000,
-      "damage": 12
-    },
-    {
-      "type": "wind",
-      "x": 4176,
-      "y": 432,
-      "w": 1770,
-      "h": 454,
-      "force": 180,
-      "dir": 1
+      "type": "hint",
+      "x": 2072,
+      "y": 400,
+      "w": 180,
+      "h": 100,
+      "text": "前方是一片死亡区域！试着跳跃加L冲刺穿过去！",
+      "once": true,
+      "respawnHpPercent": 8,
+      "amount": 10
     },
     {
       "type": "checkpoint",
-      "x": 256,
-      "y": 294,
-      "w": 80,
+      "x": 1432,
+      "y": 649,
+      "w": 127.9372549019754,
       "h": 60,
-      "feetAnchor": true
+      "feetAnchor": true,
+      "respawnHpPercent": 10,
+      "respawnEnergyPercent": 25
     },
     {
       "type": "death",
-      "x": 4232,
-      "y": 624,
-      "w": 1456,
+      "x": 2496,
+      "y": 640,
+      "w": 608,
       "h": 24
     },
     {
       "type": "hint",
-      "x": 3136,
-      "y": 320,
+      "x": 3088,
+      "y": 400,
       "w": 180,
-      "h": 649,
-      "text": "请注意前方区域请不要触地",
+      "h": 100,
+      "text": "现在的你血量满满，下方有一个小怪，试着用你的拳头把它揍飞！",
+      "once": true
+    },
+    {
+      "type": "checkpoint",
+      "x": 2984,
+      "y": 646,
+      "w": 80,
+      "h": 60,
+      "feetAnchor": true,
+      "respawnHpPercent": 100,
+      "respawnEnergyPercent": 0
+    },
+    {
+      "type": "checkpoint",
+      "x": 3840,
+      "y": 540,
+      "w": 80,
+      "h": 60,
+      "feetAnchor": true,
+      "respawnHpPercent": 100,
+      "respawnEnergyPercent": 100
+    },
+    {
+      "type": "hint",
+      "x": 4168,
+      "y": 272,
+      "w": 74,
+      "h": 100,
+      "text": "前方有一个小怪躲在了墙后面，试着按下K蓄力把它打死！",
+      "once": false,
+      "respawnEnergyPercent": 80,
+      "bindEnemyId": "wall_guard"
+    },
+    {
+      "type": "hint",
+      "x": 4400,
+      "y": 592,
+      "w": 180,
+      "h": 100,
+      "text": "捡起前方的能量吧！左上角蓝色条为你的能量，注意不要浪费哦",
+      "once": false,
+      "bindEnemyId": "wall_guard"
+    },
+    {
+      "type": "hint",
+      "x": 1632,
+      "y": 608,
+      "w": 122,
+      "h": 100,
+      "text": "捡起前方的回能道具，左上方蓝条为你的能量槽，不要浪费能量哦！",
       "once": true
     },
     {
       "type": "hint",
-      "x": 64,
-      "y": 144,
+      "x": 5192,
+      "y": 400,
       "w": 180,
       "h": 100,
-      "text": "把前面的墙壁打破冲出牢笼吧！",
+      "text": "下方有着许多小怪，试着按住K蓄个大剑气再下去把它们砍翻！",
+      "once": true,
+      "amount": 100
+    },
+    {
+      "type": "checkpoint",
+      "x": 5056,
+      "y": 451,
+      "w": 80,
+      "h": 60,
+      "feetAnchor": true,
+      "respawnHpPercent": 100,
+      "respawnEnergyPercent": 100,
+      "amount": 80
+    },
+    {
+      "type": "checkpoint",
+      "x": 6056,
+      "y": 484,
+      "w": 80,
+      "h": 60,
+      "feetAnchor": true,
+      "respawnHpPercent": 100,
+      "respawnEnergyPercent": 100,
+      "text": "对它按O使用大招吧！"
+    },
+    {
+      "type": "wind",
+      "x": 6912,
+      "y": 418.5,
+      "w": 1602,
+      "h": 475,
+      "force": 180,
+      "dir": 1
+    },
+    {
+      "type": "hint",
+      "x": 6224,
+      "y": 432,
+      "w": 354,
+      "h": 100,
+      "text": "Boss就在前方，冲过去击败它吧！",
       "once": true
+    },
+    {
+      "type": "hint",
+      "x": 7840,
+      "y": 600,
+      "w": 234,
+      "h": 100,
+      "text": "Boss就在前方，对它按O使用大招击败它吧！",
+      "once": true,
+      "amount": 100
+    },
+    {
+      "type": "death",
+      "x": 6912,
+      "y": 640,
+      "w": 1584,
+      "h": 24
+    },
+    {
+      "type": "crumble",
+      "x": 6336,
+      "y": 368,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 6560,
+      "y": 312,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 6832,
+      "y": 360,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 7120,
+      "y": 384,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 7416,
+      "y": 384,
+      "delay": 800,
+      "respawn": 4000
     }
   ]
 }

@@ -88,7 +88,7 @@ const PlayerConfig = {
     swordReleaseDisplayScaleMult: 1.1,
     swordChargeBarWidth: 58,
     swordChargeBarHeight: 7,
-    swordChargeDamageMult: 0.5,
+    swordChargeDamageMult: 0.5,   // 蓄力/释放剑气期间减伤 50%
     swordChargeRingStartRadius: 58,
     swordChargeRingEndRadius: 10,
     swordChargeRingOffsetY: 58,
@@ -132,7 +132,7 @@ const PlayerConfig = {
     ultimateFireSfxVolume: 2,    // 激光炮发射音量倍率
     maxHp: 100,
     maxEnergy: 100,
-    energyRegenRate: 3,
+    energyRegenRate: 0,
     invulnAfterHurt: 600,     // ms
     hurtDuration: 200,        // ms
     platformDropDuration: 400,   // ms，穿落期间忽略单向平台碰撞

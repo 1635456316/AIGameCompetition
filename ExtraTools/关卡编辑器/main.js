@@ -201,7 +201,7 @@
             { id: 's', x: b.x + b.w / 2, y: b.y + b.h }
         ];
         if (selection.category === 'platforms') {
-            handles.length = 1;
+            handles.length = 3;
         } else if (selection.category === 'pickups') {
             handles.length = 0;
         }
@@ -289,14 +289,15 @@
     }
 
     function drawPlatforms() {
-        level.platforms.forEach(([x, y, count], i) => {
+        level.platforms.forEach(([x, y, count, ph], i) => {
             const sel = selection?.category === 'platforms' && selection.index === i;
+            const h = ph ?? S.PLATFORM_H;
             for (let n = 0; n < count; n++) {
                 const px = x + n * S.PLATFORM_W;
-                ctx.fillStyle = sel ? '#9b7ec8' : '#7b5ea7';
-                ctx.fillRect(px - S.PLATFORM_W / 2, y - S.PLATFORM_H / 2, S.PLATFORM_W, S.PLATFORM_H);
+                ctx.fillStyle = sel ? '#9b7ec8' : (h > S.PLATFORM_H ? '#6a4a92' : '#7b5ea7');
+                ctx.fillRect(px - S.PLATFORM_W / 2, y - h / 2, S.PLATFORM_W, h);
                 ctx.strokeStyle = sel ? '#c8b0e8' : '#5a4080';
-                ctx.strokeRect(px - S.PLATFORM_W / 2 + 0.5, y - S.PLATFORM_H / 2 + 0.5, S.PLATFORM_W - 1, S.PLATFORM_H - 1);
+                ctx.strokeRect(px - S.PLATFORM_W / 2 + 0.5, y - h / 2 + 0.5, S.PLATFORM_W - 1, h - 1);
             }
         });
     }
@@ -343,22 +344,45 @@
         });
     }
 
+    function drawSystemWalls() {
+        level.systemWalls.forEach((w, i) => {
+            const sel = selection?.category === 'systemWalls' && selection.index === i;
+            ctx.fillStyle = sel ? '#88aacc' : '#6688aa';
+            ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
+            ctx.strokeStyle = sel ? '#aaccee' : '#446688';
+            ctx.lineWidth = sel ? 2 : 1;
+            ctx.strokeRect(w.x - w.w / 2 + 0.5, w.y - w.h / 2 + 0.5, w.w - 1, w.h - 1);
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 4]);
+            ctx.strokeStyle = sel ? 'rgba(170,204,238,0.85)' : 'rgba(100,140,180,0.65)';
+            ctx.strokeRect(w.x - w.w / 2 + 6, w.y - w.h / 2 + 6, w.w - 12, w.h - 12);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#eef6ff';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            const bind = w.bindEnemyId != null && w.bindEnemyId !== '' ? w.bindEnemyId : '?';
+            ctx.fillText(`⛨${bind}`, w.x, w.y + 4);
+            ctx.textAlign = 'left';
+        });
+    }
+
     function drawPickups() {
         level.pickups.forEach((p, i) => {
             const sel = selection?.category === 'pickups' && selection.index === i;
             const y = p.y ?? (S.GROUND_Y - 4);
             const half = S.PICKUP_SIZE / 2;
-            ctx.fillStyle = sel ? '#66ffaa' : '#44dd88';
+            const isEnergy = p.type === 'energy';
+            ctx.fillStyle = sel ? (isEnergy ? '#88ccff' : '#66ffaa') : (isEnergy ? '#44aaff' : '#44dd88');
             ctx.beginPath();
             ctx.arc(p.x, y, half - 2, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = sel ? '#aaffcc' : '#228855';
+            ctx.strokeStyle = sel ? (isEnergy ? '#cceeff' : '#aaffcc') : (isEnergy ? '#2266aa' : '#228855');
             ctx.lineWidth = sel ? 2 : 1;
             ctx.stroke();
             ctx.fillStyle = '#fff';
-            ctx.font = 'bold 12px sans-serif';
+            ctx.font = isEnergy ? '13px sans-serif' : 'bold 12px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('+', p.x, y + 4);
+            ctx.fillText(isEnergy ? '⚡' : '+', p.x, y + 4);
             ctx.textAlign = 'left';
         });
     }
@@ -413,7 +437,12 @@
                 ctx.font = '11px sans-serif';
                 ctx.textAlign = 'center';
                 const preview = (h.text || '提示').slice(0, 16);
-                ctx.fillText(preview, h.x, h.y + 4);
+                ctx.fillText(preview, h.x, h.y - 4);
+                if (h.bindEnemyId != null && h.bindEnemyId !== '') {
+                    ctx.font = '10px sans-serif';
+                    ctx.fillStyle = '#ffe066';
+                    ctx.fillText(`→ ${h.bindEnemyId}`, h.x, h.y + 12);
+                }
                 ctx.textAlign = 'left';
             } else if (h.type === 'wind') {
                 ctx.fillStyle = 'rgba(170,204,255,0.08)';
@@ -474,6 +503,11 @@
             ctx.font = '11px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(spawnLabel(s.type), s.x, y - r + 4);
+            if (s.id != null && s.id !== '') {
+                ctx.font = '9px sans-serif';
+                ctx.fillStyle = '#ffe066';
+                ctx.fillText(String(s.id), s.x, y - r - 6);
+            }
             ctx.textAlign = 'left';
         });
     }
@@ -538,7 +572,9 @@
         ctx.setLineDash([]);
 
         const handles = [{ x: b.x + b.w, y: b.y + b.h / 2 }];
-        if (selection.category !== 'platforms' && selection.category !== 'pickups') {
+        if (selection.category === 'platforms') {
+            handles.push({ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w / 2, y: b.y + b.h });
+        } else if (selection.category !== 'pickups') {
             handles.push({ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w / 2, y: b.y + b.h });
         }
         ctx.fillStyle = '#5a9fd4';
@@ -557,6 +593,7 @@
         drawPlatforms();
         drawWalls();
         drawDestructibleWalls();
+        drawSystemWalls();
         drawPickups();
         drawHazards();
         drawSpawns();
@@ -638,7 +675,7 @@
             pushUndo();
             const sx = S.snap(wx);
             const sy = S.snap(wy);
-            level.hazards.push({ type: 'checkpoint', x: sx, y: sy, w: 80, h: 60, feetAnchor: true });
+            level.hazards.push({ type: 'checkpoint', x: sx, y: sy, w: 80, h: 60, feetAnchor: true, respawnHpPercent: 100, respawnEnergyPercent: 100 });
             selection = { category: 'hazards', index: level.hazards.length - 1 };
             refreshAll();
             return;
@@ -699,6 +736,11 @@
                 if (key === 'x') p[0] = S.snap(v);
                 else if (key === 'y') p[1] = S.snap(v);
                 else if (key === 'count') p[2] = Math.max(1, Math.round(v));
+                else if (key === 'height') {
+                    const h = Math.max(S.PLATFORM_H, Math.round(v));
+                    if (h > S.PLATFORM_H) p[3] = h;
+                    else p.length = 3;
+                }
                 level.platforms[selection.index] = p;
             } else if (selection.category === 'playerStart') {
                 if (key === 'x') level.playerStart.x = S.snap(v);
@@ -715,14 +757,45 @@
             } else if (selection.category === 'hazards' && level.hazards[selection.index].type === 'checkpoint') {
                 const item = { ...level.hazards[selection.index], feetAnchor: true };
                 if (key === 'x') item[key] = S.snap(v);
-                else if (key === 'w' || key === 'h' || key === 'id') {
-                    item[key] = Number.isNaN(v) ? undefined : v;
+                else if (key === 'w' || key === 'h' || key === 'id' || key === 'respawnHpPercent' || key === 'respawnEnergyPercent') {
+                    if (key === 'respawnHpPercent' || key === 'respawnEnergyPercent') {
+                        item[key] = Number.isNaN(v) ? 100 : Math.max(0, Math.min(100, v));
+                    } else {
+                        item[key] = Number.isNaN(v) ? undefined : v;
+                    }
                 } else item[key] = v;
                 level.hazards[selection.index] = item;
+            } else if (selection.category === 'spawns') {
+                const item = { ...level.spawns[selection.index] };
+                if (key === 'x') item.x = S.snap(v);
+                else if (key === 'y') item.y = S.snap(v);
+                else if (key === 'type') item.type = v;
+                else if (key === 'hp') {
+                    if (v === '' || Number.isNaN(v)) delete item.hp;
+                    else item.hp = Math.max(1, Math.round(v));
+                } else if (key === 'killEnergy') {
+                    if (v === '' || Number.isNaN(v)) delete item.killEnergy;
+                    else item.killEnergy = Math.max(0, Math.round(v));
+                } else if (key === 'id') {
+                    if (v === '' || v == null) delete item.id;
+                    else item.id = String(v);
+                } else item[key] = v;
+                level.spawns[selection.index] = item;
+            } else if (selection.category === 'systemWalls') {
+                const item = { ...level.systemWalls[selection.index] };
+                if (key === 'x' || key === 'y' || key === 'w' || key === 'h') item[key] = S.snap(v);
+                else if (key === 'bindEnemyId') {
+                    item.bindEnemyId = v === '' || v == null ? '' : String(v);
+                } else item[key] = v;
+                level.systemWalls[selection.index] = item;
             } else {
                 const item = { ...getSelectionData() };
                 if (key === 'dir') item[key] = parseInt(v, 10);
                 else if (key === 'once') item[key] = v === '1' || v === 1 || v === true;
+                else if (key === 'bindEnemyId') {
+                    if (v === '' || v == null) delete item.bindEnemyId;
+                    else item.bindEnemyId = String(v);
+                }
                 else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'force', 'id'].includes(key)) {
                     item[key] = S.snap(v);
                 }
@@ -738,7 +811,8 @@
         if (selection.category === 'platforms') {
             addField('X（首块中心）', 'x', 'number', { value: data[0] });
             addField('Y', 'y', 'number', { value: data[1] });
-            addField('段数 count', 'count', 'number', { value: data[2] });
+            addField('段数 count（横向）', 'count', 'number', { value: data[2] });
+            addField('高度 h（纵向，>20 当墙；L 冲刺可穿）', 'height', 'number', { value: S.platformHeight(data) });
         } else if (selection.category === 'walls' || selection.category === 'destructibleWalls') {
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y });
@@ -747,10 +821,29 @@
             if (selection.category === 'destructibleWalls') {
                 addField('耐久 hp', 'hp', 'number', { value: data.hp ?? 3 });
             }
+        } else if (selection.category === 'systemWalls') {
+            addField('X', 'x', 'number', { value: data.x });
+            addField('Y', 'y', 'number', { value: data.y });
+            addField('宽度 w', 'w', 'number', { value: data.w });
+            addField('高度 h', 'h', 'number', { value: data.h });
+            addField('绑定小怪 id bindEnemyId', 'bindEnemyId', 'text', { value: data.bindEnemyId ?? '' });
+            const swHint = document.createElement('p');
+            swHint.className = 'field-hint';
+            swHint.textContent = '对应 id 的小怪被击杀后，此墙会消失。小怪在「实体 → 敌人生成点」里设置 id。';
+            form.appendChild(swHint);
         } else if (selection.category === 'pickups') {
+            addField('类型', 'type', 'select', {
+                value: data.type || 'health',
+                options: [
+                    { v: 'health', t: '回血' },
+                    { v: 'energy', t: '回能量' }
+                ]
+            });
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
-            addField('回血量 amount', 'amount', 'number', { value: data.amount ?? 30 });
+            const amountLabel = data.type === 'energy' ? '回能量 amount' : '回血量 amount';
+            const amountDefault = data.type === 'energy' ? 25 : 30;
+            addField(amountLabel, 'amount', 'number', { value: data.amount ?? amountDefault });
         } else if (selection.category === 'spawns') {
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
@@ -762,6 +855,10 @@
                     { v: 'flying', t: '飞行' }
                 ]
             });
+            const defaultHp = S.spawnDefaultHp(data.type);
+            addField(`血量 hp（默认 ${defaultHp}）`, 'hp', 'number', { value: data.hp ?? '' });
+            addField(`击杀回能（默认 ${level.enemyKillEnergy ?? 10}）`, 'killEnergy', 'number', { value: data.killEnergy ?? '' });
+            addField('小怪 id（可选，供系统墙绑定）', 'id', 'text', { value: data.id ?? '' });
         } else if (selection.category === 'hazards') {
             if (data.type === 'electric') {
                 addField('X', 'x', 'number', { value: data.x });
@@ -777,6 +874,8 @@
                 addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
                 addField('高 h（向上）', 'h', 'number', { value: data.h ?? 60 });
                 addField('ID（可选，区分多个复活点）', 'id', 'number', { value: data.id ?? '' });
+                addField('复活血量 (%)', 'respawnHpPercent', 'number', { value: data.respawnHpPercent ?? 100 });
+                addField('复活能量 (%)', 'respawnEnergyPercent', 'number', { value: data.respawnEnergyPercent ?? 100 });
                 const cpHint = document.createElement('p');
                 cpHint.className = 'field-hint';
                 cpHint.textContent = '点击放置 = 脚底落点（与敌人生成点相同）。⛳ 即复活位置，虚线框为触发区。';
@@ -803,6 +902,11 @@
                     value: data.once !== false ? '1' : '0',
                     options: [{ v: '1', t: '是' }, { v: '0', t: '否' }]
                 });
+                addField('绑定小怪 id bindEnemyId（可选）', 'bindEnemyId', 'text', { value: data.bindEnemyId ?? '' });
+                const hintBindNote = document.createElement('p');
+                hintBindNote.className = 'field-hint';
+                hintBindNote.textContent = '若填写 bindEnemyId，对应小怪被击杀后此提示区失效（正在显示的文字也会立即关闭）。';
+                form.appendChild(hintBindNote);
             } else if (data.type === 'wind') {
                 addField('X', 'x', 'number', { value: data.x });
                 addField('Y', 'y', 'number', { value: data.y });
@@ -886,6 +990,14 @@
             { section: 'Boss', items: [
                 ['bossTriggerOffset', 'Boss 触发距右边缘 (px)', 'number']
             ]},
+            { section: '玩家属性', items: [
+                ['hpStartPercent', '初始血量 (%)', 'number'],
+                ['energyStartPercent', '初始能量 (%)', 'number'],
+                ['energyRegenRate', '回能量速度 (/秒)', 'number']
+            ]},
+            { section: '小怪', items: [
+                ['enemyKillEnergy', '击杀回能（默认）', 'number']
+            ]},
             { section: '媒体资源', items: [
                 ['startVideoUrl', '开场 PV URL', 'text'],
                 ['endVideoUrl', '终结 PV URL', 'text'],
@@ -914,6 +1026,11 @@
                     const k = e.target.dataset.key;
                     let v = e.target.value;
                     if (type === 'number') v = parseFloat(v);
+                    if (Number.isNaN(v)) return;
+                    if (k === 'energyStartPercent') v = Math.max(0, Math.min(100, v));
+                    if (k === 'hpStartPercent') v = Math.max(0, Math.min(100, v));
+                    if (k === 'energyRegenRate') v = Math.max(0, v);
+                    if (k === 'enemyKillEnergy') v = Math.max(0, v);
                     if (v === '' && k.includes('Url')) level[k] = null;
                     else level[k] = v;
                     if (k === 'bgUrl') loadBgForLevel();
@@ -949,7 +1066,7 @@
 
     function updateInfo() {
         document.getElementById('level-info').textContent =
-            `${level.title} · 宽 ${level.width}px · 平台 ${level.platforms.length} · 墙 ${level.walls.length} · 可破坏 ${level.destructibleWalls.length} · 道具 ${level.pickups.length} · 机关 ${level.hazards.length}`;
+            `${level.title} · 宽 ${level.width}px · 平台 ${level.platforms.length} · 墙 ${level.walls.length} · 可破坏 ${level.destructibleWalls.length} · 系统墙 ${level.systemWalls.length} · 道具 ${level.pickups.length} · 机关 ${level.hazards.length}`;
     }
 
     function loadBgForLevel() {
@@ -1282,8 +1399,19 @@
         if (!data) return;
         if (selection.category === 'platforms') {
             const b = S.getItemBounds('platforms', data, level);
-            const newCount = Math.max(1, Math.round((S.snap(wx) - (data[0] - S.PLATFORM_W / 2)) / S.PLATFORM_W));
-            level.platforms[selection.index] = [data[0], data[1], newCount];
+            const h = S.platformHeight(data);
+            if (handle === 'e' || handle === 'se') {
+                const newCount = Math.max(1, Math.round((S.snap(wx) - (data[0] - S.PLATFORM_W / 2)) / S.PLATFORM_W));
+                level.platforms[selection.index] = h > S.PLATFORM_H ? [data[0], data[1], newCount, h] : [data[0], data[1], newCount];
+                return;
+            }
+            if (handle === 's' || handle === 'se') {
+                const newH = Math.max(S.PLATFORM_H, S.snap(wy) - b.y);
+                level.platforms[selection.index] = newH > S.PLATFORM_H
+                    ? [data[0], data[1], data[2], newH]
+                    : [data[0], data[1], data[2]];
+                return;
+            }
             return;
         }
         const item = { ...data };
@@ -1537,6 +1665,7 @@
     async function init() {
         buildPalette();
         buildLevelForm();
+        S.setGridSize(parseInt(document.getElementById('grid-size').value, 10));
         try {
             await loadManifest();
             if (levelsCache.length) await loadLevel(levelsCache[0]);

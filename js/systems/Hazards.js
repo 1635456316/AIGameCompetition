@@ -109,6 +109,8 @@ class CheckpointZone {
         this.w = cfg.w || 80;
         this.h = cfg.h || 60;
         this.id = cfg.id != null ? cfg.id : index;
+        this.respawnHpPercent = hazardNumber(cfg.respawnHpPercent, 100);
+        this.respawnEnergyPercent = hazardNumber(cfg.respawnEnergyPercent, 100);
         this.activated = false;
 
         this.marker = scene.add.text(this.feetX, this.feetY, '⛳', {
@@ -127,7 +129,13 @@ class CheckpointZone {
     }
 
     _spawnPoint() {
-        return { x: this.feetX, y: this.feetY, id: this.id };
+        return {
+            x: this.feetX,
+            y: this.feetY,
+            id: this.id,
+            respawnHpPercent: this.respawnHpPercent,
+            respawnEnergyPercent: this.respawnEnergyPercent
+        };
     }
 
     update(time, delta, player) {
@@ -233,10 +241,27 @@ class HintZone {
         this.h = cfg.h || 120;
         this.text = cfg.text || '操作提示';
         this.once = cfg.once !== false;
+        this.bindEnemyId = cfg.bindEnemyId != null && cfg.bindEnemyId !== ''
+            ? String(cfg.bindEnemyId)
+            : '';
         this.inside = false;
+        this._bannerShown = false;
+        this.removed = false;
+    }
+
+    remove() {
+        if (this.removed) return;
+        this.removed = true;
+        if (this.scene._hintBannerOwner === this) {
+            Effects.dismissHintBanner(this.scene, { immediate: true });
+            this.scene._hintBannerOwner = null;
+        }
+        this.inside = false;
+        this._bannerShown = false;
     }
 
     update(time, delta, player) {
+        if (this.removed) return;
         if (player.fsm.is('dead')) return;
 
         const overlapping = playerOverlapsRect(player, this.x, this.y, this.w, this.h);
@@ -246,9 +271,21 @@ class HintZone {
             if (this.once && this.scene._shownHints?.has(key)) return;
             this.scene._shownHints = this.scene._shownHints || new Set();
             this.scene._shownHints.add(key);
+            this._bannerShown = true;
+            this.scene._hintBannerOwner = this;
+            Effects.cancelHintBannerDismiss(this.scene);
             Effects.hintBanner(this.scene, this.text);
         } else if (!overlapping) {
+            if (this.inside && this._bannerShown) {
+                if (this.scene._hintBannerOwner === this) {
+                    this.scene._hintBannerOwner = null;
+                }
+                Effects.scheduleHintBannerDismiss(this.scene, 500);
+                this._bannerShown = false;
+            }
             this.inside = false;
+        } else if (overlapping && this.inside && this._bannerShown) {
+            Effects.cancelHintBannerDismiss(this.scene);
         }
     }
 }
