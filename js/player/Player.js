@@ -401,6 +401,23 @@ class Player {
         this.hp = Math.min(PlayerConfig.maxHp, this.hp + amount);
     }
 
+    /** 在检查点复活：恢复生命、清除死亡态并短暂无敌 */
+    respawnAt(x, y) {
+        if (this.body) {
+            this.body.reset(x, y);
+            this.body.setAllowGravity(true);
+            this.body.setVelocity(0, 0);
+        } else {
+            this.logic.setPosition(x, y);
+        }
+        this.hp = PlayerConfig.maxHp;
+        this.view.clearTint();
+        this.resetMeleeCombo();
+        this.invulnerableUntil = this.scene.time.now + PlayerConfig.invulnAfterHurt * 3;
+        this.fsm.change(this.onGround() ? 'idle' : 'fall');
+        this.syncView();
+    }
+
     spawnDashTrail() {
         const scene = this.scene;
         const useSheet = scene.textures.exists('tex_hero_dash');

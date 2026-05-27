@@ -31,7 +31,9 @@ const LevelEditorSchema = (() => {
                 { kind: 'electric', label: '电磁区', icon: '⚡', color: '#00e5ff' },
                 { kind: 'wind', label: '风力区', icon: '💨', color: '#aaccff' },
                 { kind: 'missile', label: '导弹打击', icon: '🚀', color: '#ff6644' },
-                { kind: 'crumble', label: '坍塌平台', icon: '▧', color: '#ff8800' }
+                { kind: 'crumble', label: '坍塌平台', icon: '▧', color: '#ff8800' },
+                { kind: 'death', label: '必死区', icon: '☠', color: '#ff2244' },
+                { kind: 'hint', label: '提示区', icon: '💬', color: '#ffdd44' }
             ]
         },
         {
@@ -46,6 +48,7 @@ const LevelEditorSchema = (() => {
             category: '标记',
             items: [
                 { kind: 'player_start', label: '玩家出生', icon: '★', color: '#44ff88' },
+                { kind: 'checkpoint', label: '复活点', icon: '⛳', color: '#44cc88' },
                 { kind: 'boss', label: 'Boss 位置', icon: '👹', color: '#cc44ff' }
             ]
         }
@@ -119,6 +122,12 @@ const LevelEditorSchema = (() => {
                 return { category: 'hazards', data: { type: 'missile', xMin: sx - 80, xMax: sx + 80, y: GROUND_Y - 4, interval: 3000, damage: 12 } };
             case 'crumble':
                 return { category: 'hazards', data: { type: 'crumble', x: sx, y: sy, delay: 800, respawn: 4000 } };
+            case 'death':
+                return { category: 'hazards', data: { type: 'death', x: sx, y: sy, w: 96, h: 24 } };
+            case 'hint':
+                return { category: 'hazards', data: { type: 'hint', x: sx, y: sy, w: 180, h: 100, text: '操作提示', once: true } };
+            case 'checkpoint':
+                return { category: 'hazards', data: { type: 'checkpoint', x: sx, y: sy, w: 80, h: 120 } };
             case 'spawn_melee':
                 return { category: 'spawns', data: { type: 'melee', x: sx, y: sy } };
             case 'spawn_ranged':
@@ -163,6 +172,9 @@ const LevelEditorSchema = (() => {
                 if (data.type === 'crumble') {
                     return { x: data.x - PLATFORM_W / 2, y: data.y - PLATFORM_H / 2, w: PLATFORM_W, h: PLATFORM_H };
                 }
+                if (data.type === 'checkpoint' || data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind') {
+                    return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
+                }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
             case 'spawns': {
                 const y = data.y ?? (GROUND_Y - 4);
@@ -198,8 +210,15 @@ const LevelEditorSchema = (() => {
                 const labels = { melee: '近战', ranged: '远程', flying: '飞行' };
                 return `${labels[data.type] || data.type} #${index + 1}`;
             }
-            case 'hazards':
-                return `${data.type} #${index + 1}`;
+            case 'hazards': {
+                const labels = {
+                    electric: '电磁区', wind: '风力区', missile: '导弹', crumble: '坍塌',
+                    checkpoint: '复活点', death: '必死区', hint: '提示区'
+                };
+                const name = labels[data.type] || data.type;
+                if (data.type === 'hint' && data.text) return `${name} #${index + 1}: ${data.text.slice(0, 12)}`;
+                return `${name} #${index + 1}`;
+            }
             case 'playerStart':
                 return '玩家出生点';
             case 'boss':
@@ -235,6 +254,18 @@ const LevelEditorSchema = (() => {
         return errors;
     }
 
+    function hazardNumber(value, fallback) {
+        return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
+    }
+
+    /** period <= 0 表示常开 */
+    function electricIsActive(time, period, activeDuration) {
+        const p = hazardNumber(period, 2400);
+        const d = hazardNumber(activeDuration, 1000);
+        if (p <= 0) return true;
+        return (time % p) < Math.min(d, p);
+    }
+
     function bossTriggerX(level) {
         return level.width - (level.bossTriggerOffset || 600);
     }
@@ -263,6 +294,8 @@ const LevelEditorSchema = (() => {
         exportLevel,
         validateLevel,
         bossTriggerX,
-        playerY
+        playerY,
+        hazardNumber,
+        electricIsActive
     };
 })();

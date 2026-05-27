@@ -103,6 +103,68 @@ class Effects {
         });
     }
 
+    /** 屏幕中上方黄字操作指引（提示区触发） */
+    static hintBanner(scene, text, durationMs = 4200) {
+        if (scene._hintBannerTween) {
+            scene._hintBannerTween.stop();
+            scene._hintBannerTween = null;
+        }
+        if (scene._hintBannerText?.active) {
+            scene._hintBannerText.destroy();
+        }
+
+        const cam = scene.cameras.main;
+        const t = scene.add.text(cam.width / 2, 68, text, {
+            font: 'bold 26px "Microsoft YaHei", Arial, sans-serif',
+            color: '#ffdd44',
+            stroke: '#000000',
+            strokeThickness: 5,
+            align: 'center',
+            wordWrap: { width: cam.width - 96 }
+        }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1400).setAlpha(0);
+        scene._hintBannerText = t;
+
+        scene.tweens.add({
+            targets: t,
+            alpha: 1,
+            duration: 180,
+            ease: 'Quad.easeOut'
+        });
+        scene.time.delayedCall(durationMs, () => {
+            if (!t.active) return;
+            scene._hintBannerTween = scene.tweens.add({
+                targets: t,
+                alpha: 0,
+                duration: 350,
+                onComplete: () => {
+                    t.destroy();
+                    if (scene._hintBannerText === t) scene._hintBannerText = null;
+                }
+            });
+        });
+    }
+
+    /** 经过复活点时的轻微反馈 */
+    static checkpointFlash(scene) {
+        const cam = scene.cameras.main;
+        const t = scene.add.text(cam.width / 2, 48, '存档点', {
+            font: 'bold 20px "Microsoft YaHei", Arial, sans-serif',
+            color: '#66ffaa',
+            stroke: '#003322',
+            strokeThickness: 4
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(1390).setAlpha(0);
+
+        scene.tweens.add({
+            targets: t,
+            alpha: 1,
+            y: 40,
+            duration: 200,
+            yoyo: true,
+            hold: 400,
+            onComplete: () => t.destroy()
+        });
+    }
+
     /** 大招：切片固定在屏幕左侧垂直居中，持续至释放结束 */
     static ultimateSliceBanner(scene, player, durationMs = PlayerConfig.ultimateReleaseDuration) {
         if (!scene.textures.exists('ui_ultimate_slice') || !player) return;

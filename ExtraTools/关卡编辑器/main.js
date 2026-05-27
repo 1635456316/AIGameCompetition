@@ -361,13 +361,52 @@
         level.hazards.forEach((h, i) => {
             const sel = selection?.category === 'hazards' && selection.index === i;
             if (h.type === 'electric') {
-                const phase = animTime % (h.period || 2400);
-                const active = phase < (h.activeDuration || 1000);
+                const active = S.electricIsActive(animTime, h.period, h.activeDuration);
                 ctx.fillStyle = active ? 'rgba(0,229,255,0.35)' : 'rgba(0,229,255,0.08)';
                 ctx.strokeStyle = active ? '#66ffff' : 'rgba(0,229,255,0.4)';
                 ctx.lineWidth = sel ? 3 : 2;
                 ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+            } else if (h.type === 'checkpoint') {
+                ctx.fillStyle = sel ? 'rgba(68,204,136,0.35)' : 'rgba(68,204,136,0.18)';
+                ctx.strokeStyle = sel ? '#88ffaa' : '#44cc88';
+                ctx.lineWidth = sel ? 3 : 2;
+                ctx.setLineDash([6, 4]);
+                ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#66ffaa';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('⛳', h.x, h.y + 5);
+                ctx.textAlign = 'left';
+            } else if (h.type === 'death') {
+                ctx.fillStyle = sel ? 'rgba(255,34,68,0.45)' : 'rgba(255,34,68,0.28)';
+                ctx.strokeStyle = sel ? '#ff6688' : '#ff2244';
+                ctx.lineWidth = sel ? 3 : 2;
+                ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.strokeStyle = 'rgba(255,100,120,0.6)';
+                ctx.beginPath();
+                for (let sx = h.x - h.w / 2; sx < h.x + h.w / 2; sx += 12) {
+                    ctx.moveTo(sx, h.y - h.h / 2);
+                    ctx.lineTo(sx + 6, h.y + h.h / 2);
+                }
+                ctx.stroke();
+            } else if (h.type === 'hint') {
+                ctx.fillStyle = sel ? 'rgba(255,221,68,0.22)' : 'rgba(255,221,68,0.12)';
+                ctx.strokeStyle = sel ? '#ffee88' : '#ffdd44';
+                ctx.lineWidth = sel ? 3 : 2;
+                ctx.setLineDash([5, 5]);
+                ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#ffdd44';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                const preview = (h.text || '提示').slice(0, 16);
+                ctx.fillText(preview, h.x, h.y + 4);
+                ctx.textAlign = 'left';
             } else if (h.type === 'wind') {
                 ctx.fillStyle = 'rgba(170,204,255,0.08)';
                 ctx.strokeStyle = '#8899bb';
@@ -623,8 +662,12 @@
             } else {
                 const item = { ...getSelectionData() };
                 if (key === 'dir') item[key] = parseInt(v, 10);
-                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'force'].includes(key)) {
+                else if (key === 'once') item[key] = v === '1' || v === 1 || v === true;
+                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'force', 'id'].includes(key)) {
                     item[key] = S.snap(v);
+                }
+                else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id') {
+                    item[key] = Number.isNaN(v) ? undefined : v;
                 }
                 else item[key] = v;
                 setSelectionData(item);
@@ -665,9 +708,37 @@
                 addField('Y', 'y', 'number', { value: data.y });
                 addField('宽 w', 'w', 'number', { value: data.w });
                 addField('高 h', 'h', 'number', { value: data.h });
-                addField('周期 period (ms)', 'period', 'number', { value: data.period });
-                addField('激活时长 activeDuration (ms)', 'activeDuration', 'number', { value: data.activeDuration });
-                addField('伤害 damage', 'damage', 'number', { value: data.damage });
+                addField('周期 period (ms，0=常开)', 'period', 'number', { value: data.period ?? 2400 });
+                addField('激活时长 activeDuration (ms)', 'activeDuration', 'number', { value: data.activeDuration ?? 1000 });
+                addField('伤害 damage', 'damage', 'number', { value: data.damage ?? 6 });
+            } else if (data.type === 'checkpoint') {
+                addField('X', 'x', 'number', { value: data.x });
+                addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 120 });
+                addField('ID（可选，区分多个复活点）', 'id', 'number', { value: data.id ?? '' });
+            } else if (data.type === 'death') {
+                addField('X', 'x', 'number', { value: data.x });
+                addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 96 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 24 });
+            } else if (data.type === 'hint') {
+                addField('X', 'x', 'number', { value: data.x });
+                addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 180 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 100 });
+                const textRow = document.createElement('div');
+                textRow.className = 'field-row';
+                textRow.innerHTML = `<label for="prop-text">提示文字</label><input id="prop-text" type="text" value="${(data.text || '').replace(/"/g, '&quot;')}">`;
+                form.appendChild(textRow);
+                textRow.querySelector('input').addEventListener('change', e => {
+                    pushUndo();
+                    applyPropChange('text', e.target.value);
+                });
+                addField('仅显示一次', 'once', 'select', {
+                    value: data.once !== false ? '1' : '0',
+                    options: [{ v: '1', t: '是' }, { v: '0', t: '否' }]
+                });
             } else if (data.type === 'wind') {
                 addField('X', 'x', 'number', { value: data.x });
                 addField('Y', 'y', 'number', { value: data.y });

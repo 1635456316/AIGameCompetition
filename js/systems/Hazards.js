@@ -1,12 +1,34 @@
+function hazardNumber(value, fallback) {
+    return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
+}
+
+function playerOverlapsRect(player, x, y, w, h) {
+    const body = player.body;
+    if (!body) return false;
+    const pRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
+    const zRect = new Phaser.Geom.Rectangle(x - w / 2, y - h / 2, w, h);
+    return Phaser.Geom.Rectangle.Overlaps(pRect, zRect);
+}
+
+/** period <= 0 表示常开；否则按周期与激活时长切换 */
+function electricIsActive(time, period, activeDuration) {
+    if (period <= 0) return true;
+    const duration = Math.min(activeDuration, period);
+    return (time % period) < duration;
+}
+
 class Hazards {
     static spawn(scene, levelConfig) {
         const hazards = levelConfig.hazards || [];
-        return hazards.map(cfg => {
+        return hazards.map((cfg, index) => {
             switch (cfg.type) {
                 case 'electric': return new ElectricZone(scene, cfg);
                 case 'missile':  return new MissileStrike(scene, cfg);
                 case 'wind':     return new WindZone(scene, cfg);
                 case 'crumble':  return new CrumblePlatform(scene, cfg);
+                case 'checkpoint': return new CheckpointZone(scene, cfg, index);
+                case 'death':    return new DeathZone(scene, cfg);
+                case 'hint':     return new HintZone(scene, cfg, index);
                 default: return null;
             }
         }).filter(Boolean);
@@ -20,9 +42,9 @@ class ElectricZone {
         this.y = cfg.y;
         this.w = cfg.w || 120;
         this.h = cfg.h || 80;
-        this.period = cfg.period || 2400;
-        this.activeDuration = cfg.activeDuration || 1000;
-        this.damage = cfg.damage || 6;
+        this.period = hazardNumber(cfg.period, 2400);
+        this.activeDuration = hazardNumber(cfg.activeDuration, 1000);
+        this.damage = hazardNumber(cfg.damage, 6);
         this.active = false;
         this.lastToggle = 0;
         this.lastDamageAt = -9999;
@@ -34,8 +56,7 @@ class ElectricZone {
     }
 
     update(time, delta, player) {
-        const phase = time % this.period;
-        const shouldActive = phase < this.activeDuration;
+        const shouldActive = electricIsActive(time, this.period, this.activeDuration);
 
         if (shouldActive !== this.active) {
             this.active = shouldActive;
@@ -49,17 +70,113 @@ class ElectricZone {
         }
 
         if (this.active && time - this.lastDamageAt > 500) {
-            const body = player.body;
-            if (!body) return;
-            const pRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
-            const zBounds = new Phaser.Geom.Rectangle(
-                this.x - this.w / 2, this.y - this.h / 2, this.w, this.h
-            );
-            if (Phaser.Geom.Rectangle.Overlaps(pRect, zBounds)) {
+            if (playerOverlapsRect(player, this.x, this.y, this.w, this.h)) {
                 this.lastDamageAt = time;
                 player.takeDamage(this.damage, this.x);
                 Effects.shake(this.scene, 60, 0.005);
             }
+        }
+    }
+}
+
+class CheckpointZone {
+    constructor(scene, cfg, index) {
+        this.scene = scene;
+        this.index = index;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 80;
+        this.h = cfg.h || 120;
+        this.id = cfg.id != null ? cfg.id : index;
+        this.activated = false;
+
+        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0x44cc88, 0.14)
+            .setStrokeStyle(2, 0x66ffaa, 0.65).setDepth(45);
+        this.marker = scene.add.text(this.x, this.y + this.h / 2 - 4, '⛳', {
+            font: '22px Arial'
+        }).setOrigin(0.5, 1).setDepth(46);
+    }
+
+    update(time, delta, player) {
+        if (player.fsm.is('dead')) return;
+        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
+
+        const cp = { x: player.x, y: player.y, id: this.id };
+        const prev = this.scene.lastCheckpoint;
+        if (prev && prev.id === cp.id) return;
+
+        this.scene.lastCheckpoint = cp;
+        if (!this.activated) {
+            this.activated = true;
+            this.visual.setFillStyle(0x44cc88, 0.28);
+            this.visual.setStrokeStyle(3, 0x88ffcc, 0.95);
+            Effects.checkpointFlash(this.scene);
+        }
+    }
+}
+
+class DeathZone {
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 96;
+        this.h = cfg.h || 24;
+
+        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff2244, 0.32)
+            .setStrokeStyle(2, 0xff6688, 0.85).setDepth(45);
+        this.stripes = scene.add.graphics().setDepth(46);
+        this._drawStripes();
+    }
+
+    _drawStripes() {
+        const g = this.stripes;
+        g.clear();
+        g.lineStyle(2, 0xff8899, 0.45);
+        const left = this.x - this.w / 2;
+        const top = this.y - this.h / 2;
+        const bottom = this.y + this.h / 2;
+        for (let sx = left; sx < left + this.w; sx += 14) {
+            g.lineBetween(sx, top, sx + 7, bottom);
+        }
+    }
+
+    update(time, delta, player) {
+        if (player.fsm.is('dead')) return;
+        if (time < player.invulnerableUntil) return;
+        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
+
+        player.hp = 0;
+        player.fsm.change('dead');
+    }
+}
+
+class HintZone {
+    constructor(scene, cfg, index) {
+        this.scene = scene;
+        this.index = index;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 160;
+        this.h = cfg.h || 120;
+        this.text = cfg.text || '操作提示';
+        this.once = cfg.once !== false;
+        this.inside = false;
+    }
+
+    update(time, delta, player) {
+        if (player.fsm.is('dead')) return;
+
+        const overlapping = playerOverlapsRect(player, this.x, this.y, this.w, this.h);
+        if (overlapping && !this.inside) {
+            this.inside = true;
+            const key = `hint-${this.index}`;
+            if (this.once && this.scene._shownHints?.has(key)) return;
+            this.scene._shownHints = this.scene._shownHints || new Set();
+            this.scene._shownHints.add(key);
+            Effects.hintBanner(this.scene, this.text);
+        } else if (!overlapping) {
+            this.inside = false;
         }
     }
 }

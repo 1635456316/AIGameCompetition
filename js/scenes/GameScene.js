@@ -10,6 +10,8 @@ class GameScene extends Phaser.Scene {
         this.gameOver = false;
         this._gameOverShown = false;
         this.paused = false;
+        this.lastCheckpoint = null;
+        this._shownHints = new Set();
     }
 
     create() {
@@ -202,6 +204,10 @@ class GameScene extends Phaser.Scene {
         };
         this.onPlayerDead = () => {
             if (this.gameOver) return;
+            if (this.lastCheckpoint) {
+                this._respawnAtCheckpoint();
+                return;
+            }
             this.gameOver = true;
             Effects.shake(this, 400, 0.02);
             this.time.delayedCall(900, () => this._showGameOver());
@@ -1059,6 +1065,16 @@ class GameScene extends Phaser.Scene {
             if (obj._meleeWidth != null) return obj;
         }
         return null;
+    }
+
+    _respawnAtCheckpoint() {
+        const cp = this.lastCheckpoint;
+        if (!cp || !this.player) return;
+
+        Effects.shake(this, 280, 0.015);
+        this.player.respawnAt(cp.x, cp.y);
+        this.cameras.main.centerOn(this.player.viewSprite.x, this.player.viewSprite.y);
+        Effects.bigText(this, '复 活', PaletteHex.warning);
     }
 
     _showGameOver() {
