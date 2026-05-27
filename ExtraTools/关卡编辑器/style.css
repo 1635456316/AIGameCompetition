@@ -369,3 +369,87 @@ h2 {
 .delete-btn:hover {
     background: #4a2830;
 }
+
+.insert-blank-btn {
+    margin-top: 8px;
+    width: 100%;
+}
+
+.insert-pick-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.insert-pick-row .btn-sm {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+
+/* === 场景工具弹窗 === */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+}
+
+.modal-overlay[hidden] {
+    display: none;
+}
+
+.modal-panel {
+    width: min(420px, calc(100vw - 32px));
+    background: linear-gradient(180deg, #1e242d 0%, #181c23 100%);
+    border: 1px solid #303844;
+    border-radius: 10px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid #262c35;
+}
+
+.modal-header h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6e8eb;
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 0;
+}
+
+.modal-close {
+    min-width: 32px;
+    padding: 4px 10px;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.scene-tools-body {
+    padding: 14px 16px 18px;
+}
+
+.scene-tools-body .field-row {
+    margin-bottom: 10px;
+}
+
+.scene-tools-width {
+    margin-bottom: 12px;
+    color: #8893a3;
+}
+
+.scene-tools-width span {
+    color: #6cc6ff;
+    font-weight: 600;
+}

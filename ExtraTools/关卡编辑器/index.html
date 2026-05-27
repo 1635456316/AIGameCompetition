@@ -10,6 +10,9 @@
     <header class="top-bar">
         <h1>关卡编辑器</h1>
         <div class="top-tools">
+            <button class="btn" id="btn-scene-tools" title="插入空白段等场景编辑工具">场景工具</button>
+            <button class="btn" id="btn-clear-scene" title="清空地图内所有元素">清空场景</button>
+            <span class="divider"></span>
             <button class="btn" id="btn-new" title="新建关卡">新建</button>
             <button class="btn" id="btn-open" title="打开 JSON">打开</button>
             <input type="file" id="file-input" accept=".json,application/json" hidden>
@@ -76,6 +79,32 @@
                 <form id="level-form" class="level-form"></form>
             </div>
         </aside>
+    </div>
+
+    <div id="scene-tools-modal" class="modal-overlay" hidden>
+        <div class="modal-panel scene-tools-panel" role="dialog" aria-labelledby="scene-tools-title">
+            <div class="modal-header">
+                <h2 id="scene-tools-title">场景工具</h2>
+                <button type="button" class="btn modal-close" id="btn-scene-tools-close" title="关闭">×</button>
+            </div>
+            <div class="modal-body scene-tools-body">
+                <p class="field-hint">在指定 X 处插入空白：关卡变宽，该位置及右侧所有元素整体右移。</p>
+                <p class="field-hint scene-tools-width">当前关卡宽度：<span id="scene-tools-level-width">—</span></p>
+                <div class="field-row">
+                    <label for="insert-at-x">插入位置 X (px)</label>
+                    <input id="insert-at-x" type="number" step="8" value="800">
+                </div>
+                <div class="insert-pick-row">
+                    <button type="button" class="btn btn-sm" id="btn-insert-cursor-x" title="将画布上鼠标位置的 X 填入">使用光标 X</button>
+                    <button type="button" class="btn btn-sm" id="btn-insert-sel-x" title="将当前选中元素的 X 填入">使用选中元素 X</button>
+                </div>
+                <div class="field-row">
+                    <label for="insert-length">插入长度 (px)</label>
+                    <input id="insert-length" type="number" step="8" value="100">
+                </div>
+                <button type="button" class="btn primary insert-blank-btn" id="btn-insert-blank">插入空白段</button>
+            </div>
+        </div>
     </div>
 
     <script src="levelSchema.js"></script>

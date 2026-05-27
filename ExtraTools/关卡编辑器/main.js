@@ -19,6 +19,7 @@
     let paletteKind = null;
     let bgImage = null;
     let animTime = 0;
+    let lastCursorX = 0;
     let undoStack = [];
     let redoStack = [];
     const MAX_UNDO = 40;
@@ -1038,6 +1039,79 @@
                 });
             });
         });
+
+    }
+
+    function setupSceneToolsModal() {
+        const modal = document.getElementById('scene-tools-modal');
+        const widthLabel = document.getElementById('scene-tools-level-width');
+
+        function openSceneToolsModal() {
+            if (widthLabel) widthLabel.textContent = `${level.width}px`;
+            modal.hidden = false;
+        }
+
+        function closeSceneToolsModal() {
+            modal.hidden = true;
+        }
+
+        document.getElementById('btn-scene-tools').addEventListener('click', openSceneToolsModal);
+        document.getElementById('btn-scene-tools-close').addEventListener('click', closeSceneToolsModal);
+        modal.addEventListener('click', e => {
+            if (e.target === modal) closeSceneToolsModal();
+        });
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && !modal.hidden) closeSceneToolsModal();
+        });
+
+        document.getElementById('btn-insert-cursor-x').addEventListener('click', () => {
+            document.getElementById('insert-at-x').value = S.snap(lastCursorX);
+        });
+        document.getElementById('btn-insert-sel-x').addEventListener('click', () => {
+            const x = getSelectionWorldX();
+            if (x == null) {
+                alert('请先在地图上选中一个元素');
+                return;
+            }
+            document.getElementById('insert-at-x').value = S.snap(x);
+        });
+        document.getElementById('btn-insert-blank').addEventListener('click', () => {
+            const atX = parseFloat(document.getElementById('insert-at-x').value);
+            const len = parseFloat(document.getElementById('insert-length').value);
+            if (Number.isNaN(atX) || Number.isNaN(len)) {
+                alert('请填写有效的插入位置与长度');
+                return;
+            }
+            if (len <= 0) {
+                alert('插入长度须大于 0');
+                return;
+            }
+            if (atX < 0 || atX > level.width) {
+                if (!confirm(`插入位置 X=${atX} 在关卡宽度 ${level.width}px 之外，仍要继续？`)) return;
+            }
+            pushUndo();
+            S.insertBlankSpace(level, atX, len);
+            selection = null;
+            refreshAll();
+            closeSceneToolsModal();
+        });
+    }
+
+    function getSelectionWorldX() {
+        if (!selection) return null;
+        const data = getSelectionData();
+        if (!data) return null;
+        if (selection.category === 'platforms') return data[0];
+        if (selection.category === 'playerStart') return data.x;
+        if (selection.category === 'boss') {
+            return level.width - (data.xOffset || 240);
+        }
+        if (selection.category === 'finish') return data.x;
+        if (selection.category === 'hazards' && data.type === 'missile') {
+            return (data.xMin + data.xMax) / 2;
+        }
+        if (typeof data.x === 'number') return data.x;
+        return null;
     }
 
     function buildHierarchy() {
@@ -1511,6 +1585,7 @@
 
     window.addEventListener('mousemove', e => {
         const w = screenToWorld(e.clientX, e.clientY);
+        lastCursorX = w.x;
         document.getElementById('cursor-pos').textContent = `X: ${Math.round(w.x)}  Y: ${Math.round(w.y)}`;
 
         if (panning && panStart) {
@@ -1597,6 +1672,14 @@
         render();
     });
 
+    document.getElementById('btn-clear-scene').addEventListener('click', () => {
+        if (!confirm('清空场景？\n将删除所有平台、墙、敌人、道具、机关等。\n关卡 ID、宽度、Boss 与媒体设置会保留。')) return;
+        pushUndo();
+        S.clearLevelContent(level);
+        selection = null;
+        refreshAll();
+    });
+
     document.getElementById('btn-new').addEventListener('click', async () => {
         if (!confirm('新建空白关卡？未保存的更改将丢失。')) return;
         const newId = Math.max(1, ...levelsCache.map(l => l.id), level.id) + 1;
@@ -1665,6 +1748,7 @@
     async function init() {
         buildPalette();
         buildLevelForm();
+        setupSceneToolsModal();
         S.setGridSize(parseInt(document.getElementById('grid-size').value, 10));
         try {
             await loadManifest();

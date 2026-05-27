@@ -507,6 +507,72 @@ const LevelEditorSchema = (() => {
         return GAME_HEIGHT - (level.playerStart?.yOffset || 120);
     }
 
+    /** 清空地图元素，保留关卡 ID、宽度、Boss/媒体等元数据 */
+    function clearLevelContent(level) {
+        level.platforms = [];
+        level.walls = [];
+        level.destructibleWalls = [];
+        level.systemWalls = [];
+        level.pickups = [];
+        level.spawns = [];
+        level.hazards = [];
+        level.playerStart = { x: 160, yOffset: 120 };
+        level.finish = null;
+        return level;
+    }
+
+    /**
+     * 在 atX 处插入空白段：关卡宽度 +length，所有锚点 x >= atX 的元素右移 length。
+     * Boss 以 xOffset 存于右缘；仅当插入点在 Boss 左侧时才随宽度右移。
+     */
+    function insertBlankSpace(level, atX, length) {
+        const P = snap(atX);
+        const L = Math.max(snap(length), getGridSize());
+        if (L <= 0) return level;
+
+        const shiftIf = (x) => (typeof x === 'number' && !Number.isNaN(x) && x >= P ? x + L : x);
+
+        level.platforms = level.platforms.map(p => {
+            if (p[0] >= P) {
+                const out = [p[0] + L, p[1], p[2]];
+                if (p[3] != null) out[3] = p[3];
+                return out;
+            }
+            return p;
+        });
+        level.walls = level.walls.map(w => (w.x >= P ? { ...w, x: w.x + L } : w));
+        level.destructibleWalls = level.destructibleWalls.map(w => (w.x >= P ? { ...w, x: w.x + L } : w));
+        level.systemWalls = level.systemWalls.map(w => (w.x >= P ? { ...w, x: w.x + L } : w));
+        level.pickups = level.pickups.map(p => (p.x >= P ? { ...p, x: p.x + L } : p));
+        level.spawns = level.spawns.map(s => (s.x >= P ? { ...s, x: s.x + L } : s));
+        level.hazards = level.hazards.map(h => {
+            if (h.type === 'missile') {
+                if (h.xMin >= P) return { ...h, xMin: h.xMin + L, xMax: h.xMax + L };
+                return h;
+            }
+            if (typeof h.x === 'number' && h.x >= P) return { ...h, x: h.x + L };
+            return h;
+        });
+
+        if (level.playerStart?.x >= P) {
+            level.playerStart = { ...level.playerStart, x: shiftIf(level.playerStart.x) };
+        }
+        if (level.finish?.x >= P) {
+            level.finish = { ...level.finish, x: shiftIf(level.finish.x) };
+        }
+        if (isBossLevel(level) && level.boss) {
+            const bossX = level.width - (level.boss.xOffset || 240);
+            if (bossX >= P) {
+                // 宽度增加后 Boss 自然右移
+            } else {
+                level.boss = { ...level.boss, xOffset: (level.boss.xOffset || 240) + L };
+            }
+        }
+
+        level.width = (level.width || 2400) + L;
+        return level;
+    }
+
     return {
         GAME_HEIGHT,
         GROUND_TILE,
@@ -537,6 +603,8 @@ const LevelEditorSchema = (() => {
         resolveStandingFeetY,
         electricIsActive,
         spawnDefaultHp,
-        ENEMY_DEFAULT_HP
+        ENEMY_DEFAULT_HP,
+        clearLevelContent,
+        insertBlankSpace
     };
 })();
