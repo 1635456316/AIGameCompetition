@@ -5,16 +5,6 @@ function _animDurationMs(scene, animKey, fallback) {
     return total > 0 ? total : fallback;
 }
 
-function _animFrameStartMs(scene, animKey, frameIndex) {
-    const anim = scene.anims.get(animKey);
-    if (!anim || !anim.frames) return 0;
-    let t = 0;
-    for (let i = 0; i < frameIndex && i < anim.frames.length; i++) {
-        t += anim.frames[i].duration || 0;
-    }
-    return t;
-}
-
 const IdleState = {
     enter(player) {
         player.setVelocityX(0);
@@ -285,23 +275,12 @@ const SwordReleaseState = {
     enter(player) {
         const scene = player.scene;
         const slashKey = 'hero_sword_slash';
-        player._swordQiSpawned = false;
         player._heroDisplayScaleMult = PlayerConfig.swordReleaseDisplayScaleMult;
         player.playHeroAnim(slashKey, true);
         player.setVelocityX(player.facing * PlayerConfig.moveSpeed * 0.15);
+        player.spawnSwordQi(player.swordChargeRatio);
 
         const animMs = _animDurationMs(scene, slashKey, PlayerConfig.swordReleaseDuration);
-        const slashAnim = scene.anims.get(slashKey);
-        const lastFrameIdx = slashAnim && slashAnim.frames.length
-            ? slashAnim.frames.length - 1
-            : 0;
-        const lastFrameStartMs = _animFrameStartMs(scene, slashKey, lastFrameIdx);
-
-        player._swordQiSpawnTimer = scene.time.delayedCall(lastFrameStartMs, () => {
-            if (!player.fsm.is('swordRelease') || player._swordQiSpawned) return;
-            player._swordQiSpawned = true;
-            player.spawnSwordQi(player.swordChargeRatio);
-        });
 
         const finishRelease = () => {
             if (!player.fsm.is('swordRelease')) return;
@@ -324,10 +303,6 @@ const SwordReleaseState = {
         }
     },
     exit(player) {
-        if (player._swordQiSpawnTimer) {
-            player._swordQiSpawnTimer.remove(false);
-            player._swordQiSpawnTimer = null;
-        }
         if (player._swordReleaseFallbackTimer) {
             player._swordReleaseFallbackTimer.remove(false);
             player._swordReleaseFallbackTimer = null;
@@ -336,7 +311,6 @@ const SwordReleaseState = {
             player.viewSprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE, player._onSwordSlashComplete);
             player._onSwordSlashComplete = null;
         }
-        player._swordQiSpawned = false;
         player.swordChargeMs = 0;
         player.setHeroDisplayScaleMult(1);
     },
@@ -374,15 +348,43 @@ const DeadState = {
 
 const UltimateState = {
     enter(player) {
-        player.playHeroAnim('hero_idle');
-        player.ultEndAt = player.scene.time.now + PlayerConfig.ultimateDuration;
+        const cfg = PlayerConfig;
+        const scene = player.scene;
+        const now = scene.time.now;
+
+        player.ultPhase = 'charge';
+        player.ultEndAt = now + cfg.ultimateDuration;
+        player.ultReleaseAt = now + cfg.ultimateChargeDuration;
+        player.playHeroAnim('hero_idle', true);
         player.setVelocity(0, 0);
         player.body.allowGravity = false;
         player.invulnerableUntil = Math.max(player.invulnerableUntil, player.ultEndAt + 200);
         player.energy = 0;
-        player.fireUltimate();
+
+        Effects.createUltimateChargeFx(player);
+        player.startChargeSfx();
+
+        player._ultReleaseTimer = scene.time.delayedCall(cfg.ultimateChargeDuration, () => {
+            if (!player.fsm?.is('ultimate')) return;
+
+            player.ultPhase = 'release';
+            Effects.destroyUltimateChargeFx(player);
+            player.stopChargeSfx();
+            player.applySheetHeroBody();
+
+            if (scene.anims.exists('hero_ultimate')) {
+                player.playHeroAnim('hero_ultimate', true);
+            } else if (scene.textures.exists('tex_hero_ultimate')) {
+                player.showHeroSheetFrame('tex_hero_ultimate', 'ultimate_0');
+            }
+
+            scene.spawnPlayerUltimate(player);
+        });
     },
-    update(player, time, delta) {
+    update(player, time) {
+        if (player.ultPhase === 'charge') {
+            Effects.syncUltimateChargeFx(player);
+        }
         if (time >= player.ultEndAt) {
             player.body.allowGravity = true;
             player.fsm.change(player.onGround() ? 'idle' : 'fall');
@@ -390,5 +392,12 @@ const UltimateState = {
     },
     exit(player) {
         player.body.allowGravity = true;
+        if (player._ultReleaseTimer) {
+            player._ultReleaseTimer.remove(false);
+            player._ultReleaseTimer = null;
+        }
+        Effects.destroyUltimateChargeFx(player);
+        player.stopChargeSfx();
+        player.ultPhase = null;
     }
 };

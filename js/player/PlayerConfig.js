@@ -110,9 +110,17 @@ const PlayerConfig = {
     swordQiSpawnOffsetXMin: 18,
     swordQiSpawnOffsetXMax: 44,
     ultimateEnergyCost: 100,
-    ultimateDuration: 1400,   // ms
-    ultimateBeamOffsetY: 36,
+    ultimateChargeDuration: 500,   // ms，蓄力阶段（idle + 特效）
+    ultimateReleaseDuration: 2000, // ms，大招动作 + 光柱
+    ultimateDuration: 2500,       // ms，总时长（蓄力 0.5s + 释放 2s）
+    ultimateBeamOffsetY: 58,
     ultimateHitHalfHeight: 120,
+    ultimateChargeRingStartRadius: 130,
+    ultimateChargeRingEndRadius: 16,
+    ultimateChargeRingInterval: 80,
+    ultimateChargeRingDuration: 440,
+    ultimateChargeGlowStartRadius: 100,
+    ultimateChargeGlowEndRadius: 34,
     maxHp: 100,
     maxEnergy: 100,
     energyRegenRate: 3,

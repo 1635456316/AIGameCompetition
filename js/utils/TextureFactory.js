@@ -26,7 +26,9 @@ class TextureFactory {
         TextureFactory.bgNear(scene, 'bg_near', 1280, 720);
 
         TextureFactory.hitFlash(scene, 'hit_flash');
+        TextureFactory.hitSpark(scene, 'hit_spark');
         TextureFactory.laserBeam(scene, 'laser_beam', 1280, 64);
+        TextureFactory.laserBeamRed(scene, 'laser_beam_red', 1280, 64);
     }
 
     static _bake(scene, key, width, height, drawFn) {
@@ -293,12 +295,47 @@ class TextureFactory {
 
     static hitFlash(scene, key) {
         TextureFactory._bake(scene, key, 64, 64, g => {
+            const cx = 32;
+            const cy = 32;
+            const rays = [
+                { angle: 0, len: 30, w: 3.5 },
+                { angle: Math.PI / 2, len: 30, w: 3.5 },
+                { angle: Math.PI, len: 30, w: 3.5 },
+                { angle: Math.PI * 1.5, len: 30, w: 3.5 },
+                { angle: Math.PI / 4, len: 20, w: 2.5 },
+                { angle: Math.PI * 0.75, len: 20, w: 2.5 },
+                { angle: Math.PI * 1.25, len: 20, w: 2.5 },
+                { angle: Math.PI * 1.75, len: 20, w: 2.5 }
+            ];
+
+            rays.forEach(({ angle, len, w }) => {
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                const px = -sin * w;
+                const py = cos * w;
+                g.fillStyle(Palette.warning, 0.95);
+                g.fillTriangle(cx + px, cy + py, cx - px, cy - py, cx + cos * len, cy + sin * len);
+                g.fillStyle(Palette.white, 0.75);
+                g.fillTriangle(
+                    cx + px * 0.4, cy + py * 0.4,
+                    cx - px * 0.4, cy - py * 0.4,
+                    cx + cos * len * 0.82, cy + sin * len * 0.82
+                );
+            });
+
             g.fillStyle(Palette.white, 1);
-            g.fillCircle(32, 32, 30);
-            g.fillStyle(Palette.warning, 1);
-            g.fillCircle(32, 32, 18);
-            g.fillStyle(Palette.danger, 1);
-            g.fillCircle(32, 32, 8);
+            g.fillCircle(cx, cy, 8);
+            g.fillStyle(Palette.warning, 0.55);
+            g.fillCircle(cx, cy, 14);
+        });
+    }
+
+    static hitSpark(scene, key) {
+        TextureFactory._bake(scene, key, 12, 4, g => {
+            g.fillStyle(Palette.white, 1);
+            g.fillRect(0, 0, 12, 4);
+            g.fillStyle(Palette.warning, 0.85);
+            g.fillRect(0, 1, 9, 2);
         });
     }
 
@@ -309,6 +346,17 @@ class TextureFactory {
             g.fillStyle(Palette.energy, 0.8);
             g.fillRect(0, h * 0.25, w, h * 0.5);
             g.fillStyle(Palette.white, 1);
+            g.fillRect(0, h * 0.45, w, h * 0.1);
+        });
+    }
+
+    static laserBeamRed(scene, key, w, h) {
+        TextureFactory._bake(scene, key, w, h, g => {
+            g.fillStyle(Palette.danger, 0.35);
+            g.fillRect(0, 0, w, h);
+            g.fillStyle(0xff3333, 0.85);
+            g.fillRect(0, h * 0.25, w, h * 0.5);
+            g.fillStyle(0xffcccc, 1);
             g.fillRect(0, h * 0.45, w, h * 0.1);
         });
     }

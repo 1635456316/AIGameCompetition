@@ -268,7 +268,11 @@ class Player {
     update(time, delta) {
         this.view.setFlipX(this.facing < 0);
         if (this.hp > 0) {
-            this.energy = Math.min(PlayerConfig.maxEnergy, this.energy + PlayerConfig.energyRegenRate * delta / 1000);
+            const regenMult = GameDebug.showHitboxes ? 20 : 1;
+            this.energy = Math.min(
+                PlayerConfig.maxEnergy,
+                this.energy + PlayerConfig.energyRegenRate * regenMult * delta / 1000
+            );
         }
         this.fsm.update(time, delta);
     }

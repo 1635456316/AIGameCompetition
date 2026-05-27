@@ -187,7 +187,7 @@ class EntityDebugRenderer {
             );
         }
 
-        if (player.fsm?.is('ultimate')) {
+        if (player.fsm?.is('ultimate') && player.ultPhase === 'release') {
             const cfg = PlayerConfig;
             const beamY = player.y - cfg.ultimateBeamOffsetY;
             const hitHalfH = cfg.ultimateHitHalfHeight;
@@ -195,7 +195,7 @@ class EntityDebugRenderer {
                 ? Math.max(0, (scene.levelWidth || GAME_WIDTH) - player.x)
                 : player.x;
             const x = player.facing > 0 ? player.x : player.x - width;
-            this.drawRect(x, beamY - hitHalfH, width, hitHalfH * 2, 0xffdd00, 0.22);
+            this.drawRect(x, beamY - hitHalfH, width, hitHalfH * 2, 0xff2b2b, 0.22);
         }
     }
 }

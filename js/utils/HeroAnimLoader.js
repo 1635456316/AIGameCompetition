@@ -42,6 +42,32 @@ class HeroAnimLoader {
             framePrefix: 'slash',
             repeat: 0
         });
+        HeroAnimLoader.registerSingleFrame(scene, {
+            textureKey: 'tex_hero_ultimate',
+            framePrefix: 'ultimate',
+            animKey: 'hero_ultimate',
+            durationMs: PlayerConfig.ultimateReleaseDuration
+        });
+    }
+
+    static registerSingleFrame(scene, { textureKey, framePrefix, animKey, durationMs = 1000 }) {
+        if (!scene.textures.exists(textureKey)) return;
+        const texture = scene.textures.get(textureKey);
+        const src = texture.getSourceImage();
+        if (!src || !src.width || !src.height) return;
+
+        const frameName = `${framePrefix}_0`;
+        if (!texture.has(frameName)) {
+            texture.add(frameName, 0, 0, 0, src.width, src.height);
+        }
+        if (scene.anims.exists(animKey)) {
+            scene.anims.remove(animKey);
+        }
+        scene.anims.create({
+            key: animKey,
+            frames: [{ key: textureKey, frame: frameName, duration: durationMs }],
+            repeat: 0
+        });
     }
 
     static registerSheet(scene, { textureKey, metaKey, animKey, framePrefix, repeat = -1 }) {

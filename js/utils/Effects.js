@@ -45,15 +45,226 @@ class Effects {
         });
     }
 
-    static hitFlash(scene, x, y) {
-        const f = scene.add.image(x, y, 'hit_flash').setDepth(900).setScale(0.6);
-        scene.tweens.add({
-            targets: f,
-            scale: 1.4,
-            alpha: 0,
-            duration: 220,
-            onComplete: () => f.destroy()
+    /** 大招：切片固定在屏幕左侧垂直居中，持续至释放结束 */
+    static ultimateSliceBanner(scene, player, durationMs = PlayerConfig.ultimateReleaseDuration) {
+        if (!scene.textures.exists('ui_ultimate_slice') || !player) return;
+
+        const cam = scene.cameras.main;
+        const src = scene.textures.get('ui_ultimate_slice').getSourceImage();
+        const targetW = 600;
+        const scale = src && src.width ? targetW / src.width : 1;
+        const x = targetW / 2 + 24;
+        const y = cam.height / 2;
+
+        const banner = scene.add.image(x, y, 'ui_ultimate_slice')
+            .setOrigin(0.5)
+            .setScale(scale)
+            .setScrollFactor(0)
+            .setDepth(1250);
+
+        scene.time.delayedCall(durationMs, () => {
+            if (banner.active) banner.destroy();
         });
+    }
+
+    static createUltimateChargeFx(player) {
+        const scene = player.scene;
+        const cfg = PlayerConfig;
+        const offsetY = cfg.ultimateBeamOffsetY;
+
+        Effects._spawnUltimateChargeRing(player);
+        player._ultimateChargeRingTimer = scene.time.addEvent({
+            delay: cfg.ultimateChargeRingInterval,
+            loop: true,
+            callback: () => {
+                if (player.fsm?.is('ultimate') && player.ultPhase === 'charge') {
+                    Effects._spawnUltimateChargeRing(player);
+                }
+            }
+        });
+
+        const emitter = scene.add.particles(0, 0, 'particle_fire', {
+            speed: { min: 48, max: 140 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.75, end: 0 },
+            alpha: { start: 0.9, end: 0 },
+            lifespan: { min: 220, max: 520 },
+            frequency: 18,
+            quantity: 3,
+            blendMode: 'ADD',
+            tint: [Palette.danger, 0xff4400, Palette.warning]
+        });
+        player.ultimateChargeEmitter = emitter;
+
+        const glow = scene.add.graphics()
+            .setDepth(27)
+            .setBlendMode(Phaser.BlendModes.ADD);
+        player.ultimateChargeGlow = glow;
+        Effects.syncUltimateChargeFx(player);
+    }
+
+    static _spawnUltimateChargeRing(player) {
+        const scene = player.scene;
+        const cfg = PlayerConfig;
+        const offsetY = cfg.ultimateBeamOffsetY;
+        const cx = player.x;
+        const cy = player.y - offsetY;
+        const elapsed = cfg.ultimateChargeDuration - Math.max(0, player.ultReleaseAt - scene.time.now);
+        const ratio = Phaser.Math.Clamp(elapsed / cfg.ultimateChargeDuration, 0, 1);
+        const startR = Phaser.Math.Linear(
+            cfg.ultimateChargeRingStartRadius,
+            cfg.ultimateChargeRingStartRadius + 36,
+            ratio
+        );
+        const endScale = cfg.ultimateChargeRingEndRadius / startR;
+        const duration = Phaser.Math.Linear(cfg.ultimateChargeRingDuration, cfg.ultimateChargeRingDuration * 0.72, ratio);
+
+        const ring = scene.add.graphics();
+        ring.lineStyle(4, Palette.danger, 0.88);
+        ring.strokeCircle(0, 0, startR);
+        ring.setPosition(cx, cy);
+        ring.setDepth(28);
+        ring.setBlendMode(Phaser.BlendModes.ADD);
+
+        const outerRing = scene.add.graphics();
+        outerRing.lineStyle(6, Palette.warning, 0.42);
+        outerRing.strokeCircle(0, 0, startR * 1.1);
+        outerRing.setPosition(cx, cy);
+        outerRing.setDepth(27);
+        outerRing.setBlendMode(Phaser.BlendModes.ADD);
+
+        scene.tweens.add({
+            targets: [ring, outerRing],
+            scaleX: endScale,
+            scaleY: endScale,
+            alpha: 0,
+            duration,
+            ease: 'Sine.easeIn',
+            onComplete: () => {
+                ring.destroy();
+                outerRing.destroy();
+            }
+        });
+    }
+
+    static syncUltimateChargeFx(player) {
+        const cfg = PlayerConfig;
+        const offsetY = cfg.ultimateBeamOffsetY;
+        const em = player.ultimateChargeEmitter;
+        if (em && em.active) {
+            em.setPosition(player.x, player.y - offsetY);
+        }
+
+        const glow = player.ultimateChargeGlow;
+        if (!glow || !glow.active) return;
+
+        glow.setPosition(player.x, player.y - offsetY);
+        const ratio = Phaser.Math.Clamp(
+            (player.scene.time.now - (player.ultReleaseAt - cfg.ultimateChargeDuration)) / cfg.ultimateChargeDuration,
+            0,
+            1
+        );
+        const pulse = 0.5 + 0.5 * Math.sin(player.scene.time.now * 0.014);
+        const outerR = Phaser.Math.Linear(cfg.ultimateChargeGlowStartRadius, cfg.ultimateChargeGlowEndRadius, ratio)
+            + pulse * 14;
+        const innerR = Phaser.Math.Linear(cfg.ultimateChargeGlowStartRadius * 0.62, cfg.ultimateChargeGlowEndRadius * 0.55, ratio)
+            + pulse * 8;
+        glow.clear();
+        glow.lineStyle(7, Palette.danger, 0.18 + ratio * 0.32 + pulse * 0.14);
+        glow.strokeCircle(0, 0, outerR);
+        glow.lineStyle(3, Palette.warning, 0.38 + ratio * 0.42);
+        glow.strokeCircle(0, 0, innerR);
+    }
+
+    static destroyUltimateChargeFx(player) {
+        if (player._ultimateChargeRingTimer) {
+            player._ultimateChargeRingTimer.remove(false);
+            player._ultimateChargeRingTimer = null;
+        }
+        if (player.ultimateChargeGlow) {
+            player.ultimateChargeGlow.destroy();
+            player.ultimateChargeGlow = null;
+        }
+        if (player.ultimateChargeEmitter) {
+            player.ultimateChargeEmitter.stop();
+            player.ultimateChargeEmitter.destroy();
+            player.ultimateChargeEmitter = null;
+        }
+    }
+
+    static hitFlash(scene, x, y, scale = 1) {
+        const rot = Phaser.Math.FloatBetween(0, Math.PI);
+        const depth = 900;
+
+        const burst = scene.add.image(x, y, 'hit_flash')
+            .setDepth(depth + 1)
+            .setScale(0.35 * scale)
+            .setRotation(rot)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setAlpha(0.95);
+        scene.tweens.add({
+            targets: burst,
+            scale: 1.15 * scale,
+            alpha: 0,
+            duration: 170,
+            ease: 'Cubic.easeOut',
+            onComplete: () => burst.destroy()
+        });
+
+        const cross = scene.add.image(x, y, 'hit_flash')
+            .setDepth(depth)
+            .setScale(0.25 * scale)
+            .setRotation(rot + Math.PI / 4)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setAlpha(0.75);
+        scene.tweens.add({
+            targets: cross,
+            scale: 0.85 * scale,
+            alpha: 0,
+            duration: 140,
+            ease: 'Quad.easeOut',
+            onComplete: () => cross.destroy()
+        });
+
+        const ring = scene.add.graphics()
+            .setPosition(x, y)
+            .setDepth(depth - 1)
+            .setBlendMode(Phaser.BlendModes.ADD);
+        ring.lineStyle(2.5, Palette.warning, 0.85);
+        ring.strokeCircle(0, 0, 6 * scale);
+        scene.tweens.add({
+            targets: ring,
+            scaleX: 2.8,
+            scaleY: 2.8,
+            alpha: 0,
+            duration: 200,
+            ease: 'Sine.easeOut',
+            onComplete: () => ring.destroy()
+        });
+
+        const sparks = scene.add.particles(x, y, 'hit_spark', {
+            speed: { min: 120 * scale, max: 280 * scale },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.9 * scale, end: 0 },
+            alpha: { start: 1, end: 0 },
+            lifespan: { min: 80, max: 180 },
+            blendMode: 'ADD',
+            tint: [Palette.white, Palette.warning, Palette.danger]
+        });
+        sparks.explode(Phaser.Math.Between(5, 8));
+        scene.time.delayedCall(260, () => sparks.destroy());
+
+        const embers = scene.add.particles(x, y, 'particle_fire', {
+            speed: { min: 40 * scale, max: 140 * scale },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.5 * scale, end: 0 },
+            alpha: { start: 0.9, end: 0 },
+            lifespan: { min: 120, max: 260 },
+            blendMode: 'ADD',
+            tint: [Palette.warning, Palette.danger, 0xff6600]
+        });
+        embers.explode(4);
+        scene.time.delayedCall(320, () => embers.destroy());
     }
 
     /** 出拳拳风：贴图默认向右，facing 左时会翻转；停留 2 帧后直接消失 */

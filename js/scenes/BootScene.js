@@ -89,6 +89,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('ui_deco_warning', 'assets/UI/Deco2.png');
         this.load.image('ui_deco_radar',   'assets/UI/Deco3.png');
         this.load.image('ui_deco_paw',     'assets/UI/Deco4.png');
+        this.load.image('ui_ultimate_slice', 'assets/UI/大招切片.png');
 
         // 主角序列帧（视频生成序列帧工具导出）
         this.load.image('tex_hero_idle', 'assets/character/Hero/主角-Idle.png');
@@ -97,6 +98,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('tex_hero_dash', 'assets/character/Hero/主角-冲刺.png');
         this.load.image('tex_hero_sword_charge', 'assets/character/Hero/主角-持剑蓄力.png');
         this.load.image('tex_hero_sword_slash', 'assets/character/Hero/主角-持剑劈砍.png');
+        this.load.image('tex_hero_ultimate', 'assets/character/Hero/主角-大招动作.png');
         this.load.json('hero_idle_meta', 'assets/character/Hero/主角-Idle.json');
         this.load.json('hero_run_meta', 'assets/character/Hero/主角-奔跑.json');
         this.load.json('hero_attack_meta', 'assets/character/Hero/主角-普通攻击.json');

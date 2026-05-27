@@ -681,27 +681,30 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnPlayerUltimate(player) {
-        const cam = this.cameras.main;
         const cfg = PlayerConfig;
-        Effects.bigText(this, '终 极 爆 裂 !!', PaletteHex.warning);
-        Effects.shake(this, 600, 0.025);
+        const releaseMs = cfg.ultimateReleaseDuration;
+
+        Effects.bigText(this, '终 极 爆 裂 !!', PaletteHex.danger);
+        Effects.ultimateSliceBanner(this, player, releaseMs);
+        Effects.shake(this, releaseMs, 0.025);
 
         const beamY = player.y - cfg.ultimateBeamOffsetY;
         const hitHalfH = cfg.ultimateHitHalfHeight;
         const beam = this.add.image(
             player.facing > 0 ? player.x + 40 : player.x - 40,
             beamY,
-            'laser_beam'
+            'laser_beam_red'
         ).setOrigin(player.facing > 0 ? 0 : 1, 0.5)
-         .setScale(0.1, 0.2)
+         .setScale(0.04, 0.1)
          .setBlendMode(Phaser.BlendModes.ADD)
+         .setTint(0xff2222)
          .setDepth(1200);
 
         this.tweens.add({
             targets: beam,
             scaleX: 2.5,
             scaleY: 1.6,
-            duration: 220,
+            duration: releaseMs,
             ease: 'Quad.easeOut'
         });
 
@@ -710,8 +713,7 @@ class GameScene extends Phaser.Scene {
             return inFront && Math.abs(targetY - beamY) < hitHalfH;
         };
 
-        // 伤害：扫描所有敌人，X 方向在玩家朝向半边的都吃伤害
-        this.time.delayedCall(180, () => {
+        this.time.delayedCall(Math.round(releaseMs * 0.45), () => {
             this.enemies.forEach(e => {
                 if (!e.alive) return;
                 if (inUltimateBeam(e.x, e.y)) {
@@ -723,11 +725,11 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        this.time.delayedCall(900, () => {
+        this.time.delayedCall(releaseMs, () => {
             this.tweens.add({
                 targets: beam,
                 alpha: 0,
-                duration: 300,
+                duration: 120,
                 onComplete: () => beam.destroy()
             });
         });
