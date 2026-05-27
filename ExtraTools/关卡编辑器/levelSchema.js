@@ -15,8 +15,8 @@ const LevelEditorSchema = (() => {
             category: '地形',
             items: [
                 { kind: 'platform', label: '浮空平台', icon: '▬', color: '#7b5ea7' },
-                { kind: 'wall', label: '竖墙', icon: '▮', color: '#5a5a6e' },
-                { kind: 'destructible_wall', label: '可破坏墙', icon: '▨', color: '#c87840' }
+                { kind: 'wall', label: '竖墙', icon: '▮', color: '#566578' },
+                { kind: 'destructible_wall', label: '可破坏墙', icon: '▨', color: '#8a7a62' }
             ]
         },
         {

@@ -156,8 +156,12 @@ class Player {
     onGround() {
         const body = this.body;
         if (!body) return false;
-        const grounded = body.blocked.down
+        let grounded = body.blocked.down
             || (body.touching.down && body.velocity.y >= -20 && body.velocity.y <= 80);
+        // 单向/坍塌平台：贴地吸附后往往没有 touching.down（坍塌台还有 overlap），需用台面支撑判定
+        if (!grounded && this.scene.isPlayerOnPlatform?.(this)) {
+            grounded = true;
+        }
         if (grounded) {
             this.jumpsRemaining = PlayerConfig.maxJumps;
             this._leaveGroundFrames = 0;

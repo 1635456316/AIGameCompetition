@@ -37,8 +37,6 @@ class LevelSelectScene extends Phaser.Scene {
         const cardY = 370;
         const useStagger = totalLevels > 3;
 
-        this._drawRoutePath(startX, cardY, gap, totalLevels, unlocked);
-
         this.levelCards = [];
         let defaultFocus = LevelConfigs.findIndex(
             level => level.id <= unlocked && !save.completedLevels.includes(level.id)
@@ -60,10 +58,6 @@ class LevelSelectScene extends Phaser.Scene {
                 isRecommended: isUnlocked && (!completed || i === totalLevels - 1)
             });
             this.levelCards.push(card);
-
-            if (completed) {
-                this._attachPVButtons(level, x, y + cardH / 2 + 28);
-            }
         });
 
         this.focusIndex = defaultFocus;
@@ -73,18 +67,40 @@ class LevelSelectScene extends Phaser.Scene {
         const btnGap = 12;
         const btnY = h - 78;
         const btnStartX = w / 2 - (btnW * 2 + btnGap) / 2 + btnW / 2;
-        this._createImageButton(btnStartX, btnY, 'ui_btn_continue', '返回主菜单', () => {
+        const bottomEnterOffset = 48;
+        const bottomBtnDelay = 220 + totalLevels * 45;
+        const bottomBtnDuration = 300;
+
+        const backBtn = this._createImageButton(btnStartX, btnY + bottomEnterOffset, 'ui_btn_continue', '返回主菜单', () => {
             this.scene.start('MenuScene');
-        }, btnW);
-        this._createImageButton(btnStartX + btnW + btnGap, btnY, 'ui_btn_exit', '重置存档', () => {
+        }, btnW).setAlpha(0);
+        const resetBtn = this._createImageButton(btnStartX + btnW + btnGap, btnY + bottomEnterOffset, 'ui_btn_exit', '重置存档', () => {
             SaveSystem.reset();
             this.scene.restart();
-        }, btnW);
+        }, btnW).setAlpha(0);
 
-        this.add.text(w / 2, h - 18, 'ESC 返回主菜单    R 重置存档    ←→ 切换关卡    ENTER 进入', {
+        this.tweens.add({
+            targets: [backBtn, resetBtn],
+            alpha: 1,
+            y: btnY,
+            duration: bottomBtnDuration,
+            delay: bottomBtnDelay,
+            ease: 'Cubic.easeOut'
+        });
+
+        const hintText = this.add.text(w / 2, h - 18 + bottomEnterOffset, 'ESC 返回主菜单    R 重置存档    ←→ 切换关卡    ENTER 进入', {
             font: 'bold 11px Microsoft YaHei, Arial',
             color: '#7f8998'
-        }).setOrigin(0.5).setDepth(25).setAlpha(0.85);
+        }).setOrigin(0.5).setDepth(25).setAlpha(0);
+
+        this.tweens.add({
+            targets: hintText,
+            alpha: 0.85,
+            y: h - 18,
+            duration: bottomBtnDuration,
+            delay: bottomBtnDelay + 40,
+            ease: 'Cubic.easeOut'
+        });
 
         this.input.keyboard.on('keydown-ESC', () => this.scene.start('MenuScene'));
         this.input.keyboard.on('keydown-R', () => {
@@ -111,22 +127,23 @@ class LevelSelectScene extends Phaser.Scene {
         const panelW = 620;
         const panelH = 96;
         const panelY = 88;
+        const enterOffset = 56;
 
-        this.add.rectangle(w / 2, panelY, panelW, panelH, 0x070b14, 0.82)
-            .setStrokeStyle(2, Palette.warning, 0.55)
-            .setDepth(20);
+        const header = this.add.container(w / 2, panelY - enterOffset).setAlpha(0).setDepth(20);
 
-        const corners = this.add.graphics().setDepth(21);
+        header.add(this.add.rectangle(0, 0, panelW, panelH, 0x070b14, 0.82)
+            .setStrokeStyle(2, Palette.warning, 0.55));
+
+        const corners = this.add.graphics();
         corners.lineStyle(2, Palette.hero, 0.85);
-        const cx = w / 2;
         const hw = panelW / 2;
         const hh = panelH / 2;
         const cl = 16;
         [
-            [cx - hw, panelY - hh + cl, cx - hw, panelY - hh, cx - hw + cl, panelY - hh],
-            [cx + hw - cl, panelY - hh, cx + hw, panelY - hh, cx + hw, panelY - hh + cl],
-            [cx - hw, panelY + hh - cl, cx - hw, panelY + hh, cx - hw + cl, panelY + hh],
-            [cx + hw - cl, panelY + hh, cx + hw, panelY + hh, cx + hw, panelY + hh - cl]
+            [-hw, -hh + cl, -hw, -hh, -hw + cl, -hh],
+            [hw - cl, -hh, hw, -hh, hw, -hh + cl],
+            [-hw, hh - cl, -hw, hh, -hw + cl, hh],
+            [hw - cl, hh, hw, hh, hw, hh - cl]
         ].forEach(([x1, y1, x2, y2, x3, y3]) => {
             corners.beginPath();
             corners.moveTo(x1, y1);
@@ -134,55 +151,36 @@ class LevelSelectScene extends Phaser.Scene {
             corners.lineTo(x3, y3);
             corners.strokePath();
         });
+        header.add(corners);
 
-        this.add.text(w / 2, panelY - 22, '城 市 地 图', {
+        header.add(this.add.text(0, -22, '城 市 地 图', {
             font: 'bold 42px Microsoft YaHei, Arial',
             color: PaletteHex.warning,
             stroke: '#000',
             strokeThickness: 7
-        }).setOrigin(0.5).setDepth(22);
+        }).setOrigin(0.5));
 
-        this.add.text(w / 2, panelY + 8, `击败 Boss 解锁下一区域  ·  进度 ${completedCount} / ${totalLevels}`, {
+        header.add(this.add.text(0, 8, `击败 Boss 解锁下一区域  ·  进度 ${completedCount} / ${totalLevels}`, {
             font: 'bold 15px Microsoft YaHei, Arial',
             color: '#c8d4e8'
-        }).setOrigin(0.5).setDepth(22);
+        }).setOrigin(0.5));
 
         const barW = 360;
-        const barX = w / 2 - barW / 2;
-        const barY = panelY + 30;
-        this.add.rectangle(barX + barW / 2, barY, barW, 8, 0x101828, 0.95)
-            .setDepth(22);
+        const barX = -barW / 2;
+        const barY = 30;
+        header.add(this.add.rectangle(barX + barW / 2, barY, barW, 8, 0x101828, 0.95));
         const fillW = totalLevels > 0 ? (completedCount / totalLevels) * barW : 0;
         if (fillW > 0) {
-            this.add.rectangle(barX + fillW / 2, barY, fillW, 8, Palette.hero, 0.95)
-                .setDepth(23);
+            header.add(this.add.rectangle(barX + fillW / 2, barY, fillW, 8, Palette.hero, 0.95));
         }
-    }
 
-    _drawRoutePath(startX, cardY, gap, totalLevels, unlocked) {
-        if (totalLevels < 2) return;
-
-        const path = this.add.graphics().setDepth(12);
-        for (let i = 0; i < totalLevels - 1; i++) {
-            const x1 = startX + i * gap + 105;
-            const x2 = startX + (i + 1) * gap - 105;
-            const y = cardY;
-            const nextUnlocked = LevelConfigs[i + 1].id <= unlocked;
-
-            path.lineStyle(2, nextUnlocked ? Palette.hero : 0x3a4250, nextUnlocked ? 0.55 : 0.35);
-            path.beginPath();
-            path.moveTo(x1, y);
-            path.lineTo(x2, y);
-            path.strokePath();
-
-            const dotCount = 5;
-            for (let d = 0; d <= dotCount; d++) {
-                const t = d / dotCount;
-                const dx = x1 + (x2 - x1) * t;
-                path.fillStyle(nextUnlocked ? Palette.warning : 0x4a5568, nextUnlocked ? 0.7 : 0.4);
-                path.fillCircle(dx, y, 3);
-            }
-        }
+        this.tweens.add({
+            targets: header,
+            alpha: 1,
+            y: panelY,
+            duration: 480,
+            ease: 'Cubic.easeOut'
+        });
     }
 
     _createLevelCard(level, x, y, cardW, cardH, state) {
@@ -323,6 +321,11 @@ class LevelSelectScene extends Phaser.Scene {
         container.glow = glow;
         container.bg = bg;
         container.frame = frame;
+
+        if (completed) {
+            this._attachPVButtons(container, level, cardW, cardH);
+        }
+
         return container;
     }
 
@@ -371,7 +374,7 @@ class LevelSelectScene extends Phaser.Scene {
         });
     }
 
-    _attachPVButtons(level, x, baseY) {
+    _attachPVButtons(cardContainer, level, cardW, cardH) {
         const pvBtnW = 84;
         const pvBtnH = 28;
         const pvBtnGap = 10;
@@ -382,12 +385,18 @@ class LevelSelectScene extends Phaser.Scene {
         if (level.endVideoUrl) {
             pvBtns.push({ label: '结束 PV', action: () => this._playLevelPV(level, 'end') });
         }
+        if (!pvBtns.length) return;
+
+        const row = this.add.container(0, cardH / 2 + 28);
         const totalPvW = pvBtns.length * pvBtnW + (pvBtns.length - 1) * pvBtnGap;
-        const firstPvX = x - totalPvW / 2 + pvBtnW / 2;
+        const firstPvX = -totalPvW / 2 + pvBtnW / 2;
+
         pvBtns.forEach((btn, idx) => {
             const bx = firstPvX + idx * (pvBtnW + pvBtnGap);
-            this._createPVButton(bx, baseY, pvBtnW, pvBtnH, btn.label, btn.action);
+            this._createPVButton(row, bx, 0, pvBtnW, pvBtnH, btn.label, btn.action);
         });
+
+        cardContainer.add(row);
     }
 
     _moveFocus(delta) {
@@ -472,9 +481,10 @@ class LevelSelectScene extends Phaser.Scene {
 
         const hitW = bg.displayWidth * 0.92;
         const hitH = bg.displayHeight * 0.72;
-        const hitZone = this.add.zone(x, y, hitW, hitH)
-            .setInteractive({ useHandCursor: true })
-            .setDepth(31);
+        const hitZone = this.add.zone(0, 0, hitW, hitH)
+            .setInteractive({ useHandCursor: true });
+        container.add(hitZone);
+        container.sendToBack(hitZone);
 
         hitZone.on('pointerover', () => {
             bg.setTint(0xb8f4ff);
@@ -499,17 +509,20 @@ class LevelSelectScene extends Phaser.Scene {
         return container;
     }
 
-    _createPVButton(x, y, width, height, label, action) {
-        const bg = this.add.rectangle(x, y, width, height, 0x070b12, 0.92)
+    _createPVButton(parent, x, y, width, height, label, action) {
+        const btn = this.add.container(x, y);
+        const bg = this.add.rectangle(0, 0, width, height, 0x070b12, 0.92)
             .setStrokeStyle(1, Palette.hero, 0.7)
-            .setInteractive({ useHandCursor: true })
-            .setDepth(24);
-        const text = this.add.text(x, y, label, {
+            .setInteractive({ useHandCursor: true });
+        const text = this.add.text(0, 0, label, {
             font: 'bold 12px Microsoft YaHei, Arial',
             color: '#cfeaff',
             stroke: '#000',
             strokeThickness: 3
-        }).setOrigin(0.5).setDepth(25);
+        }).setOrigin(0.5);
+
+        btn.add([bg, text]);
+        parent.add(btn);
 
         bg.on('pointerover', () => {
             bg.setFillStyle(0x12243a, 1);

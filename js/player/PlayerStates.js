@@ -106,11 +106,8 @@ const FallState = {
         }
     },
     handleInput(player, input) {
-        if (input.jumpPressed && player.jumpsRemaining > 0) {
-            player.performJump();
-            player.playHeroAnim('hero_idle');
-            player.fsm.change('jump');
-        } else if (input.dashPressed && player.canDash()) {
+        if (player.handleJumpInput(input)) return;
+        if (input.dashPressed && player.canDash()) {
             player.fsm.change('dash');
         } else if (input.attackPressed && player.canAttack()) {
             player.startMeleeAttack();

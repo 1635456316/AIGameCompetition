@@ -13,6 +13,7 @@ const EnemyConfigs = {
             maxHp: 50,
             moveSpeed: 140,
             contactDamage: 12,
+            contactDamageInterval: 1000,
             patrolRange: 120,
             samePlaneThreshold: 72,
             detectRangeX: 360
@@ -34,7 +35,7 @@ const EnemyConfigs = {
             collideWorldBounds: true,
             maxHp: 35,
             moveSpeed: 90,
-            contactDamage: 6,
+            contactDamage: 0,
             patrolRange: 120,
             samePlaneThreshold: 72,
             detectRangeX: 420,

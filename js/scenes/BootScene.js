@@ -44,6 +44,9 @@ class BootScene extends Phaser.Scene {
             if (file && file.key === 'sfx_charge') {
                 console.warn('[BootScene] 蓄力音效加载失败，请确认 assets/audio/charge.mp3 存在');
             }
+            if (file && file.key === 'sfx_monster_hit') {
+                console.warn('[BootScene] 怪物受击音效加载失败，请确认 assets/audio/怪物受击.mp3 存在');
+            }
         });
 
         // 音频资源
@@ -52,6 +55,7 @@ class BootScene extends Phaser.Scene {
         this.load.audio('sfx_punch', 'assets/audio/punch.mp3', { instances: 4 });
         this.load.audio('sfx_dash', 'assets/audio/dash.wav', { instances: 3 });
         this.load.audio('sfx_charge', 'assets/audio/charge.mp3');
+        this.load.audio('sfx_monster_hit', 'assets/audio/怪物受击.mp3', { instances: 4 });
         // 每关 BGM：遍历关卡配置，自动用 `bgm_level_${id}_normal/boss` 作 key 预加载。
         if (typeof LevelConfigs !== 'undefined') {
             LevelConfigs.forEach((level) => {

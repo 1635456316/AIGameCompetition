@@ -235,11 +235,14 @@
     function drawGround() {
         const tile = S.GROUND_TILE;
         const groundY = S.GROUND_Y;
-        ctx.fillStyle = '#2a2535';
         for (let i = 0; i < Math.ceil(level.width / tile); i++) {
-            ctx.fillRect(i * tile, groundY, tile, tile);
-            ctx.strokeStyle = '#3d3550';
-            ctx.strokeRect(i * tile + 0.5, groundY + 0.5, tile - 1, tile - 1);
+            const gx = i * tile;
+            ctx.fillStyle = '#3d4a5c';
+            ctx.fillRect(gx, groundY, tile, tile);
+            ctx.fillStyle = '#5a7088';
+            ctx.fillRect(gx, groundY, tile, 4);
+            ctx.strokeStyle = '#2a3340';
+            ctx.strokeRect(gx + 0.5, groundY + 0.5, tile - 1, tile - 1);
         }
     }
 
@@ -295,9 +298,9 @@
     function drawWalls() {
         level.walls.forEach((w, i) => {
             const sel = selection?.category === 'walls' && selection.index === i;
-            ctx.fillStyle = sel ? '#6a6a80' : '#4a4a5e';
+            ctx.fillStyle = sel ? '#728498' : '#566578';
             ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
-            ctx.strokeStyle = sel ? '#ff6666' : '#8a4040';
+            ctx.strokeStyle = sel ? '#9ab0c4' : '#3e4a5a';
             ctx.lineWidth = sel ? 2 : 1;
             ctx.strokeRect(w.x - w.w / 2 + 0.5, w.y - w.h / 2 + 0.5, w.w - 1, w.h - 1);
             ctx.lineWidth = 1;
@@ -307,9 +310,9 @@
     function drawDestructibleWalls() {
         level.destructibleWalls.forEach((w, i) => {
             const sel = selection?.category === 'destructibleWalls' && selection.index === i;
-            ctx.fillStyle = sel ? '#e8a060' : '#a86838';
+            ctx.fillStyle = sel ? '#a89880' : '#8a7a62';
             ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
-            ctx.strokeStyle = sel ? '#ffcc88' : '#704020';
+            ctx.strokeStyle = sel ? '#c4b498' : '#5c5042';
             ctx.lineWidth = sel ? 2 : 1;
             ctx.strokeRect(w.x - w.w / 2 + 0.5, w.y - w.h / 2 + 0.5, w.w - 1, w.h - 1);
             ctx.lineWidth = 1;

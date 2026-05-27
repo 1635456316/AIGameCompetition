@@ -2,6 +2,31 @@
  * 通用演出工具：屏幕震动、停顿帧、大字、击中粒子、爆炸。
  */
 class Effects {
+    /** 怪物/可破坏墙受击（assets/audio/怪物受击.mp3） */
+    static playMonsterHitSfx(scene) {
+        if (!scene) return;
+        const sound = scene.game?.sound || scene.sound;
+        const cache = scene.game?.cache?.audio || scene.cache?.audio;
+        if (!sound || !cache?.exists('sfx_monster_hit')) return;
+
+        const volume = typeof SaveSystem !== 'undefined' ? SaveSystem.getVolume() : 1;
+        if (volume <= 0) return;
+
+        try {
+            const ctx = sound.context;
+            if (ctx?.state === 'suspended' && typeof ctx.resume === 'function') {
+                ctx.resume();
+            }
+        } catch (e) {}
+
+        try {
+            const sfx = sound.add('sfx_monster_hit', { volume, loop: false, destroy: true });
+            sfx.play();
+        } catch (e) {
+            console.warn('[Effects] 播放 sfx_monster_hit 失败', e);
+        }
+    }
+
     static shake(scene, duration = 120, intensity = 0.01) {
         scene.cameras.main.shake(duration, intensity);
     }

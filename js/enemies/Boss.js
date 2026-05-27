@@ -179,6 +179,7 @@ class Boss {
 
     takeDamage(amount, fromX) {
         if (!this.alive) return;
+        Effects.playMonsterHitSfx(this.scene);
         this.hp = Math.max(0, this.hp - amount);
         this._syncBossBar();
         this.view.setTint(0xffffff);

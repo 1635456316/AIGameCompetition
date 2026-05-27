@@ -20,10 +20,10 @@ class DestructibleWall {
         this.hp = this.maxHp;
         this.broken = false;
 
-        this.sprite = scene.groundSolids.create(this.x, this.y, 'tile_ground');
+        this.sprite = scene.groundSolids.create(this.x, this.y, 'tile_destructible');
         this.sprite.setOrigin(0.5, 0.5);
         this.sprite.setDisplaySize(this.w, this.h);
-        this.sprite.setTint(0x9a6848);
+        this.sprite.clearTint();
         this.sprite.refreshBody();
         this.sprite.setData('isDestructibleWall', true);
         this.sprite.setData('destructibleOwner', this);
@@ -43,13 +43,14 @@ class DestructibleWall {
     _syncTint() {
         if (!this.sprite || this.broken) return;
         const ratio = this.hp / this.maxHp;
-        if (ratio > 0.66) this.sprite.setTint(0x9a6848);
-        else if (ratio > 0.33) this.sprite.setTint(0xbb7744);
-        else this.sprite.setTint(0xdd9955);
+        if (ratio > 0.66) this.sprite.clearTint();
+        else if (ratio > 0.33) this.sprite.setTint(0xffe0b8);
+        else this.sprite.setTint(0xffc878);
     }
 
     takeHit(damage = 1) {
         if (this.broken || !this.sprite?.active) return;
+        Effects.playMonsterHitSfx(this.scene);
         this.hp = Math.max(0, this.hp - damage);
         this._syncTint();
         Effects.hitFlash(this.scene, this.x, this.y);

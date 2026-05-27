@@ -112,6 +112,10 @@ class GameScene extends Phaser.Scene {
             const enemy = this._pickEnemyFromOverlap(a, b);
             if (!enemy || !enemy.alive || !enemy.contactDamage) return;
             if (this._playerIsPhasing()) return;
+            const interval = enemy.contactDamageInterval || 0;
+            const now = this.time.now;
+            if (interval > 0 && now - (enemy.lastContactDamageAt || 0) < interval) return;
+            if (interval > 0) enemy.lastContactDamageAt = now;
             this._damagePlayer(enemy.contactDamage, enemy.x);
         });
         this.physics.add.collider(this.enemyBullets, this.groundSolids, (bullet) => {
@@ -369,7 +373,7 @@ class GameScene extends Phaser.Scene {
         (this.levelConfig.walls || []).forEach(w => {
             const wallW = w.w || 32;
             const wallH = w.h || 200;
-            const wall = this.groundSolids.create(w.x, w.y, 'tile_ground');
+            const wall = this.groundSolids.create(w.x, w.y, 'tile_wall');
             wall.setOrigin(0.5, 0.5);
             wall.setDisplaySize(wallW, wallH);
             wall.refreshBody();
@@ -377,10 +381,10 @@ class GameScene extends Phaser.Scene {
         });
 
         // 边界墙
-        const leftWall = this.groundSolids.create(-16, this.levelHeight / 2, 'tile_ground');
+        const leftWall = this.groundSolids.create(-16, this.levelHeight / 2, 'tile_wall');
         leftWall.displayWidth = 32; leftWall.displayHeight = this.levelHeight;
         leftWall.refreshBody();
-        const rightWall = this.groundSolids.create(this.levelWidth + 16, this.levelHeight / 2, 'tile_ground');
+        const rightWall = this.groundSolids.create(this.levelWidth + 16, this.levelHeight / 2, 'tile_wall');
         rightWall.displayWidth = 32; rightWall.displayHeight = this.levelHeight;
         rightWall.refreshBody();
     }
@@ -893,6 +897,17 @@ class GameScene extends Phaser.Scene {
         if (pb.velocity.y < -40) return false;
         if (pb.right < platBody.left + 2 || pb.left > platBody.right - 2) return false;
         return pb.bottom >= platBody.top - 8 && pb.bottom <= platBody.top + 24;
+    }
+
+    /** 是否站在任意单向/坍塌平台上（用于恢复跳跃次数，不移动角色） */
+    isPlayerOnPlatform(player) {
+        if (!player?.body || this.time.now < player.platformDropUntil) return false;
+        let supported = false;
+        this.platforms.children.iterate((plat) => {
+            if (supported || !plat) return;
+            if (this._isPlayerSupportedByPlatform(player, plat)) supported = true;
+        });
+        return supported;
     }
 
     _onPlayerPlatformCollide(playerSpr, platform) {

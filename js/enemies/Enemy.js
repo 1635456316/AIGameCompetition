@@ -23,6 +23,8 @@ class Enemy {
         this.attackCooldown = logic.attackCooldown || 0;
         this.moveSpeed = logic.moveSpeed;
         this.contactDamage = logic.contactDamage;
+        this.contactDamageInterval = logic.contactDamageInterval || 0;
+        this.lastContactDamageAt = 0;
         this.patrolOriginX = x;
         this.patrolRange = logic.patrolRange ?? 120;
         this.samePlaneThreshold = logic.samePlaneThreshold ?? 72;
@@ -108,8 +110,16 @@ class Enemy {
 
     _updatePatrol() {
         const { left, right } = this._patrolLimits();
-        if (this.x >= right - 4) this.facing = -1;
-        else if (this.x <= left + 4) this.facing = 1;
+        // 平台过窄时避免 left+4 与 right-4 同时成立导致 facing 每帧翻转
+        if (right - left < 16) {
+            this.logic.setVelocityX(0);
+            return;
+        }
+        if (this.x >= right - 4) {
+            this.facing = -1;
+        } else if (this.x <= left + 4) {
+            this.facing = 1;
+        }
         let dir = this.facing;
         dir = this._edgeTurnDir(dir);
         this.facing = dir;
@@ -141,7 +151,8 @@ class Enemy {
                     this.scene.spawnEnemyBullet(spawnX, spawnY, dir * (logic.bulletSpeed || 400));
                 }
             } else {
-                this._updatePatrol();
+                // 玩家在不同高度：站定瞄准，不再巡逻（窄台缘否则会左右抖）
+                this.logic.setVelocityX(0);
             }
         } else {
             this._updatePatrol();
@@ -364,6 +375,7 @@ class Enemy {
 
     takeDamage(amount, fromX) {
         if (!this.alive) return;
+        Effects.playMonsterHitSfx(this.scene);
         this.hp -= amount;
         const knock = fromX > this.x ? -260 : 260;
         if (this.type === 'flying') {

@@ -3,6 +3,10 @@
  */
 class TextureFactory {
     static bakeAll(scene) {
+        ['tile_ground', 'tile_wall', 'tile_destructible', 'tile_platform'].forEach((key) => {
+            if (scene.textures.exists(key)) scene.textures.remove(key);
+        });
+
         // idle / run 使用真实序列帧资源，见 HeroAnimLoader
         TextureFactory.heroJump(scene, 'hero_jump');
         TextureFactory.heroAttack(scene, 'hero_attack');
@@ -17,6 +21,8 @@ class TextureFactory {
         TextureFactory.particle(scene, 'particle_energy', Palette.energy);
 
         TextureFactory.tileGround(scene, 'tile_ground');
+        TextureFactory.tileWall(scene, 'tile_wall');
+        TextureFactory.tileDestructible(scene, 'tile_destructible');
         TextureFactory.tilePlatform(scene, 'tile_platform');
 
         TextureFactory.bgFar(scene, 'bg_far', 1280, 720);
@@ -162,19 +168,40 @@ class TextureFactory {
 
     static tileGround(scene, key) {
         TextureFactory._bake(scene, key, 64, 64, g => {
+            g.fillStyle(Palette.groundShadow, 1);
+            g.fillRect(0, 56, 64, 8);
             g.fillStyle(Palette.ground, 1);
-            g.fillRect(0, 0, 64, 64);
-            g.fillStyle(Palette.groundEdge, 1);
-            g.fillRect(0, 0, 64, 6);
-            // 噪点
-            g.fillStyle(0x1a1a26, 1);
-            for (let i = 0; i < 18; i++) {
-                const x = (i * 37) % 60;
-                const y = 10 + ((i * 53) % 50);
-                g.fillRect(x, y, 2, 2);
+            g.fillRect(0, 0, 64, 56);
+            g.fillStyle(Palette.groundHighlight, 1);
+            g.fillRect(0, 0, 64, 4);
+            g.lineStyle(1, Palette.groundHighlight, 0.35);
+            for (let x = 0; x < 64; x += 16) {
+                g.lineBetween(x, 6, x, 62);
             }
-            g.lineStyle(1, Palette.black, 0.5);
+            g.fillStyle(0x4a5a6e, 0.25);
+            for (let i = 0; i < 14; i++) {
+                const x = (i * 41) % 58;
+                const y = 8 + ((i * 47) % 48);
+                g.fillRect(x, y, 3, 2);
+            }
+            g.lineStyle(1, Palette.black, 0.35);
             g.strokeRect(0, 0, 64, 64);
+        });
+    }
+
+    /** 不可破坏竖墙 / 边界墙：纯色块，拉伸后无横纹/铆钉 */
+    static tileWall(scene, key) {
+        TextureFactory._bake(scene, key, 64, 64, g => {
+            g.fillStyle(Palette.wallSolid, 1);
+            g.fillRect(0, 0, 64, 64);
+        });
+    }
+
+    /** 可破坏墙：纯色块，与固墙仅色差区分 */
+    static tileDestructible(scene, key) {
+        TextureFactory._bake(scene, key, 64, 64, g => {
+            g.fillStyle(Palette.wallBreakable, 1);
+            g.fillRect(0, 0, 64, 64);
         });
     }
 
@@ -182,9 +209,11 @@ class TextureFactory {
         TextureFactory._bake(scene, key, 96, 20, g => {
             g.fillStyle(Palette.platform, 1);
             g.fillRect(0, 0, 96, 20);
-            g.fillStyle(Palette.groundEdge, 1);
-            g.fillRect(0, 0, 96, 4);
-            g.lineStyle(1, Palette.black, 0.6);
+            g.fillStyle(Palette.platformHighlight, 1);
+            g.fillRect(0, 0, 96, 3);
+            g.fillStyle(0x3a2e52, 1);
+            g.fillRect(0, 17, 96, 3);
+            g.lineStyle(1, Palette.black, 0.5);
             g.strokeRect(0, 0, 96, 20);
         });
     }
