@@ -331,6 +331,7 @@ const SwordReleaseState = {
         }
         player._swordQiSpawned = false;
         player.swordChargeMs = 0;
+        player.swordQiReleaseDir = 'horizontal';
         player.setHeroDisplayScaleMult(1);
     },
     handleInput() {}

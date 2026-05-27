@@ -24,6 +24,7 @@ class InputController {
         return {
             left:  k.A.isDown || c.left.isDown,
             right: k.D.isDown || c.right.isDown,
+            up:    k.W.isDown || c.up.isDown,
             down:  k.S.isDown || c.down.isDown,
             downPressed: Phaser.Input.Keyboard.JustDown(k.S) || Phaser.Input.Keyboard.JustDown(c.down),
             jumpPressed:     Phaser.Input.Keyboard.JustDown(k.SPACE) || Phaser.Input.Keyboard.JustDown(c.up) || Phaser.Input.Keyboard.JustDown(k.W),

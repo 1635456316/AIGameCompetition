@@ -39,6 +39,7 @@ class Player {
         this.swordChargeStartAt = 0;
         this.swordChargeRatio = 0;
         this.swordChargeMs = 0;
+        this.swordQiReleaseDir = 'horizontal';
         this.swordReleaseEndAt = 0;
         this._heroDisplayScaleMult = 1;
         this.hurtEndAt = 0;
@@ -50,7 +51,7 @@ class Player {
         this._landFrames = 0;
 
         this.input = {
-            left: false, right: false, down: false, downPressed: false,
+            left: false, right: false, up: false, down: false, downPressed: false,
             jumpPressed: false, dashPressed: false,
             attackPressed: false, swordChargePressed: false, swordChargeHeld: false,
             ultimatePressed: false
@@ -242,7 +243,13 @@ class Player {
         this.fsm.change('swordCharge');
         return true;
     }
+    resolveSwordQiReleaseDir(input = this.input) {
+        if (input.up && !input.down) return 'up';
+        if (input.down && !input.up) return 'down';
+        return 'horizontal';
+    }
     releaseSwordCharge() {
+        this.swordQiReleaseDir = this.resolveSwordQiReleaseDir(this.input);
         this.swordChargeMs = this.getSwordChargeMs();
         this.swordChargeRatio = this.getSwordChargeRatio();
         const cost = this.getSwordQiEnergyCost(this.swordChargeRatio);
@@ -261,6 +268,7 @@ class Player {
         this.swordChargeStartAt = 0;
         this.swordChargeRatio = 0;
         this.swordChargeMs = 0;
+        this.swordQiReleaseDir = 'horizontal';
         this.setHeroDisplayScaleMult(1);
         this.fsm.change(this.onGround() ? 'idle' : 'fall');
     }
@@ -665,16 +673,31 @@ class Player {
         if (!scene.spawnPlayerSwordQi) return;
         this.playPunchSfx();
         const cfg = PlayerConfig;
+        const dir = this.swordQiReleaseDir || 'horizontal';
+        const spawnOffsetX = Phaser.Math.Linear(cfg.swordQiSpawnOffsetXMin, cfg.swordQiSpawnOffsetXMax, ratio);
+        let x;
+        let y;
+        if (dir === 'up') {
+            x = this.x + this.facing * spawnOffsetX * 0.45;
+            y = this.y - cfg.swordQiOffsetY;
+        } else if (dir === 'down') {
+            x = this.x;
+            y = this.y - (cfg.swordQiDownSpawnOffsetY ?? 28);
+        } else {
+            x = this.x + this.facing * spawnOffsetX;
+            y = this.y - cfg.swordQiOffsetY;
+        }
         scene.spawnPlayerSwordQi(
-            this.x + this.facing * Phaser.Math.Linear(cfg.swordQiSpawnOffsetXMin, cfg.swordQiSpawnOffsetXMax, ratio),
-            this.y - cfg.swordQiOffsetY,
+            x,
+            y,
             this.facing,
             {
                 damage: Phaser.Math.Linear(cfg.swordQiMinDamage, cfg.swordQiMaxDamage, ratio),
                 scale: Phaser.Math.Linear(cfg.swordQiMinScale, cfg.swordQiMaxScale, ratio),
                 speed: Phaser.Math.Linear(cfg.swordQiMinSpeed, cfg.swordQiMaxSpeed, ratio),
                 maxRange: Phaser.Math.Linear(cfg.swordQiMinRange, cfg.swordQiMaxRange, ratio),
-                pierce: (this.swordChargeMs || 0) >= cfg.swordQiPierceChargeMs
+                pierce: (this.swordChargeMs || 0) >= cfg.swordQiPierceChargeMs,
+                releaseDir: dir
             }
         );
     }

@@ -443,13 +443,20 @@ class GameScene extends Phaser.Scene {
         // 清理越界 / 超距剑气
         this.playerBullets.children.iterate(b => {
             if (!b) return;
-            if (b._swordQiMaxRange != null && b._spawnX != null) {
-                if (Math.abs(b.x - b._spawnX) >= b._swordQiMaxRange) {
+            if (b._swordQiMaxRange != null) {
+                if (b._swordQiVertical && b._spawnY != null) {
+                    if (Math.abs(b.y - b._spawnY) >= b._swordQiMaxRange) {
+                        b.destroy();
+                        return;
+                    }
+                } else if (b._spawnX != null && Math.abs(b.x - b._spawnX) >= b._swordQiMaxRange) {
                     b.destroy();
                     return;
                 }
             }
-            if (b.x < this.cameras.main.scrollX - 200 || b.x > this.cameras.main.scrollX + GAME_WIDTH + 200) {
+            const cam = this.cameras.main;
+            if (b.x < cam.scrollX - 200 || b.x > cam.scrollX + GAME_WIDTH + 200
+                || b.y < cam.scrollY - 200 || b.y > cam.scrollY + GAME_HEIGHT + 200) {
                 b.destroy();
             }
         });
@@ -657,6 +664,8 @@ class GameScene extends Phaser.Scene {
         const damage = opts.damage ?? cfg.swordQiMinDamage;
         const maxRange = opts.maxRange ?? cfg.swordQiMinRange;
         const pierce = !!opts.pierce;
+        const releaseDir = opts.releaseDir || 'horizontal';
+        const vertical = releaseDir === 'up' || releaseDir === 'down';
         const displayW = cfg.swordQiDisplayWidth * scale;
         const hitW = displayW * (cfg.swordQiHitWidthMult ?? 0.92);
         const hitH = displayW * (cfg.swordQiHitHeightMult ?? 0.62);
@@ -664,16 +673,27 @@ class GameScene extends Phaser.Scene {
         const b = this.playerBullets.create(x, y, 'fx_sword_qi');
         b.setOrigin(0.5, 0.5);
         b.setPosition(x, y);
-        b.setFlipX(facing < 0);
         b.setDisplaySize(displayW, displayW);
         b.body.allowGravity = false;
         b.body.reset(x, y);
-        this._centerArcadeBody(b, hitW, hitH);
-        b.setVelocityX(facing * speed);
+        if (vertical) {
+            b.setFlipX(false);
+            b.setAngle(releaseDir === 'up' ? -90 : 90);
+            this._centerArcadeBody(b, hitH, hitW);
+            b.setVelocity(0, releaseDir === 'up' ? -speed : speed);
+            b._spawnY = y;
+            b._swordQiVertical = true;
+        } else {
+            b.setFlipX(facing < 0);
+            b.setAngle(0);
+            this._centerArcadeBody(b, hitW, hitH);
+            b.setVelocityX(facing * speed);
+            b._spawnX = x;
+            b._swordQiVertical = false;
+        }
         b.setDepth(24);
         b.setBlendMode(Phaser.BlendModes.ADD);
         b._swordQiDamage = damage;
-        b._spawnX = x;
         b._swordQiMaxRange = maxRange;
         b._swordQiPierce = pierce;
         b._hitSet = pierce ? new Set() : null;
