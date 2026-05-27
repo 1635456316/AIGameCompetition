@@ -111,7 +111,7 @@ const PlayerConfig = {
     swordQiOffsetY: 54,
     swordQiSpawnOffsetXMin: 18,
     swordQiSpawnOffsetXMax: 44,
-    ultimateEnergyCost: 100,
+    ultimateEnergyCost: 50,
     ultimateWindupDuration: 0,   // ms，蓄力前摇（待机准备，无蓄力特效）
     ultimateChargeDuration: 1500,   // ms，蓄力阶段（特效 + 音效）
     ultimateReleaseDuration: 2000, // ms，大招动作 + 光柱

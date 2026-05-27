@@ -385,7 +385,7 @@ const UltimateState = {
         player.setVelocity(0, 0);
         player.body.allowGravity = false;
         player.invulnerableUntil = Math.max(player.invulnerableUntil, player.ultEndAt + 200);
-        player.energy = 0;
+        player.energy = Math.max(0, player.energy - cfg.ultimateEnergyCost);
 
         const beginCharge = () => {
             if (!player.fsm?.is('ultimate')) return;
