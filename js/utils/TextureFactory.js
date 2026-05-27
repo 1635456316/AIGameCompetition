@@ -197,12 +197,55 @@ class TextureFactory {
         });
     }
 
-    /** 可破坏墙：纯色块，与固墙仅色差区分 */
+    /** 可破坏墙：带裂纹的色块，与固墙色差区分 */
     static tileDestructible(scene, key) {
         TextureFactory._bake(scene, key, 64, 64, g => {
             g.fillStyle(Palette.wallBreakable, 1);
             g.fillRect(0, 0, 64, 64);
+            g.fillStyle(Palette.wallBreakableHi, 0.25);
+            g.fillRect(0, 0, 5, 64);
+            g.fillStyle(Palette.wallBreakableDark, 0.3);
+            g.fillRect(59, 0, 5, 64);
+            TextureFactory.drawWallCracks(g, 64, 64, 42, 0.55);
+            g.lineStyle(1, Palette.black, 0.25);
+            g.strokeRect(0, 0, 64, 64);
         });
+    }
+
+    /** 在墙面上绘制裂纹；seed 决定走向，intensity 0–1 控制密度与深浅 */
+    static drawWallCracks(g, w, h, seed, intensity = 1) {
+        const count = Math.max(1, Math.round(2 + intensity * 5));
+        const alpha = 0.35 + intensity * 0.45;
+        const lineW = intensity > 0.6 ? 2 : 1;
+        g.lineStyle(lineW, Palette.wallBreakableDark, alpha);
+
+        const rand = (i) => {
+            const v = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453;
+            return v - Math.floor(v);
+        };
+
+        for (let c = 0; c < count; c++) {
+            let x = 6 + rand(c) * (w - 12);
+            let y = rand(c + 50) * h * 0.15;
+            const segs = 2 + Math.floor(rand(c + 100) * 4);
+            g.beginPath();
+            g.moveTo(x, y);
+            for (let s = 0; s < segs; s++) {
+                x += (rand(c * 11 + s) - 0.5) * (w * 0.28);
+                y += (h / (segs + 1)) * (0.65 + rand(c * 11 + s + 30) * 0.5);
+                x = Phaser.Math.Clamp(x, 3, w - 3);
+                y = Phaser.Math.Clamp(y, 3, h - 3);
+                g.lineTo(x, y);
+                if (rand(c * 11 + s + 60) > 0.72 && intensity > 0.4) {
+                    const bx = Phaser.Math.Clamp(x + (rand(c + s + 70) - 0.5) * 12, 3, w - 3);
+                    const by = Phaser.Math.Clamp(y + rand(c + s + 80) * 18, 3, h - 3);
+                    g.moveTo(x, y);
+                    g.lineTo(bx, by);
+                    g.moveTo(x, y);
+                }
+            }
+            g.strokePath();
+        }
     }
 
     static tilePlatform(scene, key) {

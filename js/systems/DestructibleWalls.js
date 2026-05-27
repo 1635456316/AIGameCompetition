@@ -27,7 +27,9 @@ class DestructibleWall {
         this.sprite.refreshBody();
         this.sprite.setData('isDestructibleWall', true);
         this.sprite.setData('destructibleOwner', this);
-        this._syncTint();
+        this._crackSeed = Math.abs(Math.floor(this.x * 7 + this.y * 13)) % 10000;
+        this.crackGfx = scene.add.graphics().setDepth(1);
+        this._syncVisuals();
     }
 
     getCollisionRect() {
@@ -40,6 +42,11 @@ class DestructibleWall {
         };
     }
 
+    _syncVisuals() {
+        this._syncTint();
+        this._syncCracks();
+    }
+
     _syncTint() {
         if (!this.sprite || this.broken) return;
         const ratio = this.hp / this.maxHp;
@@ -48,10 +55,26 @@ class DestructibleWall {
         else this.sprite.setTint(0xffc878);
     }
 
+    _syncCracks() {
+        if (!this.crackGfx || this.broken) return;
+        const ratio = this.hp / this.maxHp;
+        const damage = 1 - ratio;
+        this.crackGfx.clear();
+        if (damage <= 0.001) return;
+        this.crackGfx.setPosition(this.x - this.w / 2, this.y - this.h / 2);
+        TextureFactory.drawWallCracks(
+            this.crackGfx,
+            this.w,
+            this.h,
+            this._crackSeed + Math.round(damage * 100),
+            0.25 + damage * 0.75
+        );
+    }
+
     takeHit(damage = 1) {
         if (this.broken || !this.sprite?.active) return;
         this.hp = Math.max(0, this.hp - damage);
-        this._syncTint();
+        this._syncVisuals();
         Effects.hitFlash(this.scene, this.x, this.y);
         if (this.hp <= 0) {
             this.breakApart();
@@ -68,6 +91,10 @@ class DestructibleWall {
         if (this.sprite) {
             this.sprite.destroy();
             this.sprite = null;
+        }
+        if (this.crackGfx) {
+            this.crackGfx.destroy();
+            this.crackGfx = null;
         }
     }
 
