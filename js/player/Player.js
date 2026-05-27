@@ -401,21 +401,72 @@ class Player {
         this.hp = Math.min(PlayerConfig.maxHp, this.hp + amount);
     }
 
-    /** 在检查点复活：恢复生命、清除死亡态并短暂无敌 */
+    /** 在检查点复活：脚点 X/Y 对齐复活点，略抬高后靠重力落下 */
     respawnAt(x, y) {
-        if (this.body) {
-            this.body.reset(x, y);
-            this.body.setAllowGravity(true);
-            this.body.setVelocity(0, 0);
-        } else {
-            this.logic.setPosition(x, y);
-        }
+        const lift = PlayerConfig.checkpointRespawnLift;
+        const spawnY = y - lift;
+        const sprite = this.logic.sprite;
+        const body = this.body;
+
+        GameDebug.respawnLog('player.respawnAt.begin', {
+            inputFeet: { x, y },
+            lift,
+            spawnFeet: { x, y: spawnY },
+            before: {
+                logicX: Math.round(this.x),
+                logicY: Math.round(this.y),
+                bodyBottom: body ? Math.round(body.bottom) : null,
+                fsm: this.fsm?.currentName
+            }
+        });
+
+        // 平台落地兜底用的是上一帧 body.bottom；死亡值会干扰复活在半空时的判定
+        this._prevBodyBottom = null;
+        this._leaveGroundFrames = 0;
+        this._landFrames = 0;
+
         this.hp = PlayerConfig.maxHp;
         this.view.clearTint();
         this.resetMeleeCombo();
         this.invulnerableUntil = this.scene.time.now + PlayerConfig.invulnAfterHurt * 3;
-        this.fsm.change(this.onGround() ? 'idle' : 'fall');
+
+        if (this.fsm.is('dead') && this.fsm.current?.exit) {
+            this.fsm.current.exit(this);
+        }
+
+        sprite.setActive(true);
+        sprite.setPosition(x, spawnY);
+        if (body) {
+            body.enable = true;
+            body.setAllowGravity(true);
+            body.setVelocity(0, 0);
+            body.updateFromGameObject();
+        }
+
+        GameDebug.respawnLog('player.respawnAt.afterPosition', {
+            logicX: Math.round(this.x),
+            logicY: Math.round(this.y),
+            bodyTop: body ? Math.round(body.top) : null,
+            bodyBottom: body ? Math.round(body.bottom) : null,
+            bodyLeft: body ? Math.round(body.left) : null,
+            bodyRight: body ? Math.round(body.right) : null
+        });
+
+        this.fsm.change('fall');
+
+        if (this._useSheetVisual && this.scene.textures.exists('tex_hero_idle')) {
+            this.view.showFrame('tex_hero_idle', 'idle_0');
+            this.applySheetHeroBody();
+        }
+
+        sprite.setPosition(x, spawnY);
+        if (body) {
+            body.setVelocity(0, 0);
+            body.updateFromGameObject();
+        }
         this.syncView();
+
+        GameDebug.logPlayerPose(this, 'player.respawnAt.end');
     }
 
     spawnDashTrail() {

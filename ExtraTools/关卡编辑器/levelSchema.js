@@ -106,8 +106,47 @@ const LevelEditorSchema = (() => {
             x: s.x,
             y: s.y != null ? s.y : GROUND_Y - 4
         }));
-        level.hazards = (raw.hazards || []).map(h => ({ ...h }));
+        level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint({ ...h }));
         return level;
+    }
+
+    /** 复活点：x,y = 脚底（与出生点/敌人生成一致）；旧版中心坐标自动迁移 */
+    function normalizeCheckpoint(h) {
+        if (h.type !== 'checkpoint') return h;
+        if (h.feetAnchor) return h;
+        const hh = h.h ?? 120;
+        return {
+            ...h,
+            y: h.y + hh / 2,
+            feetAnchor: true
+        };
+    }
+
+    function checkpointBounds(feetX, feetY, w, h) {
+        return { x: feetX - w / 2, y: feetY - h, w, h };
+    }
+
+    /** 编辑器内：把点击位置吸附到脚下平台顶面（仅编辑器放置辅助） */
+    function resolveStandingFeetY(level, feetX, hintY) {
+        const tops = [];
+        (level.platforms || []).forEach(([px, py, count]) => {
+            for (let i = 0; i < count; i++) {
+                const platX = px + i * PLATFORM_W;
+                if (feetX < platX - PLATFORM_W / 2 - 6 || feetX > platX + PLATFORM_W / 2 + 6) continue;
+                tops.push(py - PLATFORM_H / 2);
+            }
+        });
+        tops.push(GROUND_Y);
+        let best = hintY;
+        let bestScore = Infinity;
+        for (const top of tops) {
+            const score = Math.abs(top - hintY) + (top > hintY + 24 ? 800 : 0);
+            if (score < bestScore) {
+                bestScore = score;
+                best = top;
+            }
+        }
+        return best;
     }
 
     function createFromPalette(kind, x, y) {
@@ -135,7 +174,7 @@ const LevelEditorSchema = (() => {
             case 'hint':
                 return { category: 'hazards', data: { type: 'hint', x: sx, y: sy, w: 180, h: 100, text: '操作提示', once: true } };
             case 'checkpoint':
-                return { category: 'hazards', data: { type: 'checkpoint', x: sx, y: sy, w: 80, h: 120 } };
+                return { category: 'hazards', data: { type: 'checkpoint', x: sx, y: sy, w: 80, h: 60, feetAnchor: true } };
             case 'spawn_melee':
                 return { category: 'spawns', data: { type: 'melee', x: sx, y: sy } };
             case 'spawn_ranged':
@@ -180,7 +219,12 @@ const LevelEditorSchema = (() => {
                 if (data.type === 'crumble') {
                     return { x: data.x - PLATFORM_W / 2, y: data.y - PLATFORM_H / 2, w: PLATFORM_W, h: PLATFORM_H };
                 }
-                if (data.type === 'checkpoint' || data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind') {
+                if (data.type === 'checkpoint') {
+                    const w = data.w ?? 80;
+                    const h = data.h ?? 60;
+                    return checkpointBounds(data.x, data.y, w, h);
+                }
+                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind') {
                     return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
                 }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
@@ -362,7 +406,9 @@ const LevelEditorSchema = (() => {
         isBossLevel,
         bossTriggerX,
         playerY,
-        hazardNumber,
+        checkpointBounds,
+        normalizeCheckpoint,
+        resolveStandingFeetY,
         electricIsActive
     };
 })();

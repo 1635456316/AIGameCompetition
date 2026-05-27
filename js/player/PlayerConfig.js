@@ -1,6 +1,8 @@
 const PlayerConfig = {
     heroFrameHeight: 640,
     heroDisplayHeight: 96,
+    /** 复活时在检查点脚底上方略抬高，再靠重力落下 */
+    checkpointRespawnLift: 28,
     heroSheetBody: { width: 50, height: 80, offsetX: 295, offsetY: 560},
     heroStaticBody: { width: 28, height: 60, offsetX: 10, offsetY: 4 },
 

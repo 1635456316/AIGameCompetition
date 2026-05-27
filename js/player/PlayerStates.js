@@ -360,6 +360,11 @@ const DeadState = {
         player.setVelocityX(0);
         player.playHeroAnim('hero_idle');
         player.view.setTint(0x444444);
+        GameDebug.respawnLog('player.dead', {
+            deathFeet: { x: Math.round(player.x), y: Math.round(player.y) },
+            lastCheckpoint: player.scene.lastCheckpoint,
+            nearbySurfaces: GameDebug.nearbySurfaces(player.scene, player.x)
+        });
         player.scene.onPlayerDead && player.scene.onPlayerDead();
     },
     update() {}

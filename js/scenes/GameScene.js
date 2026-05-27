@@ -180,8 +180,14 @@ class GameScene extends Phaser.Scene {
         };
         this.onPlayerDead = () => {
             if (this.gameOver) return;
+            GameDebug.respawnLog('scene.onPlayerDead', {
+                hasCheckpoint: !!this.lastCheckpoint,
+                lastCheckpoint: this.lastCheckpoint,
+                playerBefore: GameDebug.logPlayerPose(this.player, 'scene.onPlayerDead.player')
+            });
             if (this.lastCheckpoint) {
-                this._respawnAtCheckpoint();
+                // 延迟到下一帧：避免在 update/DeadState.enter 中途改坐标导致 body 与 sprite 脱节
+                this.time.delayedCall(0, () => this._respawnAtCheckpoint());
                 return;
             }
             this.gameOver = true;
@@ -520,7 +526,7 @@ class GameScene extends Phaser.Scene {
 
         const endVideoUrl = this.levelConfig.endVideoUrl;
         const endPVKey = `level${this.levelId}-end`;
-        const shouldPlayEndPV = endVideoUrl && !SaveSystem.hasPVWatched(endPVKey);
+        const shouldPlayEndPV = !!endVideoUrl;
         const delayMs = shouldPlayEndPV ? 1000 : 2200;
         this.time.delayedCall(delayMs, () => {
             if (shouldPlayEndPV) {
@@ -1095,9 +1101,46 @@ class GameScene extends Phaser.Scene {
         const cp = this.lastCheckpoint;
         if (!cp || !this.player) return;
 
+        GameDebug.respawnLog('scene.respawn.begin', {
+            checkpoint: cp,
+            lift: PlayerConfig.checkpointRespawnLift,
+            expectedSpawn: { x: cp.x, y: cp.y - PlayerConfig.checkpointRespawnLift },
+            nearbySurfaces: GameDebug.nearbySurfaces(this, cp.x),
+            playerBefore: {
+                logicX: Math.round(this.player.x),
+                logicY: Math.round(this.player.y),
+                fsm: this.player.fsm?.currentName
+            }
+        });
+
         Effects.shake(this, 280, 0.015);
         this.player.respawnAt(cp.x, cp.y);
-        this.cameras.main.centerOn(this.player.viewSprite.x, this.player.viewSprite.y);
+
+        GameDebug.logPlayerPose(this.player, 'scene.respawn.afterRespawnAt');
+
+        // 目标瞬移后必须立刻重置镜头；否则 startFollow 的 lerp 会从死亡位置慢慢追，
+        // 离复活点越远，画面与角色世界坐标看起来偏差越大。
+        const cam = this.cameras.main;
+        const target = this.player.viewSprite;
+        cam.stopFollow();
+        cam.centerOn(target.x, target.y);
+        cam.startFollow(target, true, 0.12, 0.12);
+
+        GameDebug.respawnLog('scene.respawn.camera', {
+            camScroll: { x: Math.round(cam.scrollX), y: Math.round(cam.scrollY) },
+            targetView: { x: Math.round(target.x), y: Math.round(target.y) }
+        });
+
+        this.time.delayedCall(100, () => {
+            GameDebug.logPlayerPose(this.player, 'scene.respawn.t+100ms');
+        });
+        this.time.delayedCall(500, () => {
+            GameDebug.logPlayerPose(this.player, 'scene.respawn.t+500ms');
+            GameDebug.respawnLog('scene.respawn.t+500ms.surfaces', {
+                nearbySurfaces: GameDebug.nearbySurfaces(this, this.player.x)
+            });
+        });
+
         Effects.bigText(this, '复 活', PaletteHex.warning);
     }
 

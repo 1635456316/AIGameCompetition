@@ -374,11 +374,20 @@
                 ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
             } else if (h.type === 'checkpoint') {
+                const b = S.checkpointBounds(h.x, h.y, h.w ?? 80, h.h ?? 60);
                 ctx.fillStyle = '#66ffaa';
                 ctx.font = 'bold 22px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('⛳', h.x, h.y + 8);
+                ctx.textBaseline = 'bottom';
+                ctx.fillText('⛳', h.x, h.y);
+                ctx.textBaseline = 'alphabetic';
                 ctx.textAlign = 'left';
+                if (sel) {
+                    ctx.strokeStyle = 'rgba(102,255,170,0.55)';
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeRect(b.x, b.y, b.w, b.h);
+                    ctx.setLineDash([]);
+                }
             } else if (h.type === 'death') {
                 ctx.fillStyle = sel ? 'rgba(255,34,68,0.45)' : 'rgba(255,34,68,0.28)';
                 ctx.strokeStyle = sel ? '#ff6688' : '#ff2244';
@@ -625,6 +634,15 @@
             refreshAll();
             return;
         }
+        if (kind === 'checkpoint') {
+            pushUndo();
+            const sx = S.snap(wx);
+            const sy = S.snap(wy);
+            level.hazards.push({ type: 'checkpoint', x: sx, y: sy, w: 80, h: 60, feetAnchor: true });
+            selection = { category: 'hazards', index: level.hazards.length - 1 };
+            refreshAll();
+            return;
+        }
         const created = S.createFromPalette(kind, wx, wy);
         if (!created) return;
         pushUndo();
@@ -694,6 +712,13 @@
                 const h = { ...level.hazards[selection.index] };
                 h[key] = S.snap(v);
                 level.hazards[selection.index] = h;
+            } else if (selection.category === 'hazards' && level.hazards[selection.index].type === 'checkpoint') {
+                const item = { ...level.hazards[selection.index], feetAnchor: true };
+                if (key === 'x') item[key] = S.snap(v);
+                else if (key === 'w' || key === 'h' || key === 'id') {
+                    item[key] = Number.isNaN(v) ? undefined : v;
+                } else item[key] = v;
+                level.hazards[selection.index] = item;
             } else {
                 const item = { ...getSelectionData() };
                 if (key === 'dir') item[key] = parseInt(v, 10);
@@ -747,11 +772,15 @@
                 addField('激活时长 activeDuration (ms)', 'activeDuration', 'number', { value: data.activeDuration ?? 1000 });
                 addField('伤害 damage', 'damage', 'number', { value: data.damage ?? 6 });
             } else if (data.type === 'checkpoint') {
-                addField('X', 'x', 'number', { value: data.x });
-                addField('Y', 'y', 'number', { value: data.y });
+                addField('X（脚底）', 'x', 'number', { value: data.x });
+                addField('Y（脚底）', 'y', 'number', { value: data.y });
                 addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
-                addField('高 h', 'h', 'number', { value: data.h ?? 120 });
+                addField('高 h（向上）', 'h', 'number', { value: data.h ?? 60 });
                 addField('ID（可选，区分多个复活点）', 'id', 'number', { value: data.id ?? '' });
+                const cpHint = document.createElement('p');
+                cpHint.className = 'field-hint';
+                cpHint.textContent = '点击放置 = 脚底落点（与敌人生成点相同）。⛳ 即复活位置，虚线框为触发区。';
+                form.appendChild(cpHint);
             } else if (data.type === 'death') {
                 addField('X', 'x', 'number', { value: data.x });
                 addField('Y', 'y', 'number', { value: data.y });
@@ -1092,6 +1121,9 @@
                 y: worldY - (data.y ?? (S.GROUND_Y - 4))
             };
         }
+        if (category === 'hazards' && data.type === 'checkpoint') {
+            return { x: worldX - data.x, y: worldY - data.y };
+        }
         if (typeof data === 'object') {
             return {
                 x: data.x !== undefined ? worldX - data.x : 0,
@@ -1132,6 +1164,11 @@
             item.x = worldX - ox;
             item.y = worldY - oy;
             setSelectionData(item);
+        } else if (selection.category === 'hazards' && data.type === 'checkpoint') {
+            const item = { ...data, feetAnchor: true };
+            item.x = worldX - ox;
+            item.y = worldY - oy;
+            level.hazards[selection.index] = item;
         } else if (typeof data === 'object') {
             const item = { ...data };
             if (item.x !== undefined) item.x = worldX - ox;
@@ -1195,9 +1232,12 @@
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = S.snap(item.x);
-            // Y 不吸附网格，避免松手时与拖动位置上下错位（平台/飞行高度）
             item.y = item.y ?? (S.GROUND_Y - 4);
             setSelectionData(item);
+        } else if (selection.category === 'hazards' && data.type === 'checkpoint') {
+            const item = { ...data, feetAnchor: true };
+            item.x = S.snap(item.x);
+            level.hazards[selection.index] = item;
         } else if (typeof data === 'object') {
             const item = { ...data };
             if (item.x !== undefined) item.x = S.snap(item.x);
@@ -1248,6 +1288,21 @@
         }
         const item = { ...data };
         const b = S.getItemBounds(selection.category, data, level);
+
+        if (selection.category === 'hazards' && item.type === 'checkpoint') {
+            const feetX = item.x;
+            const feetY = item.y;
+            if (handle === 'e' || handle === 'se') {
+                item.w = Math.max(16, S.snap(wx) - b.x);
+            }
+            if (handle === 's' || handle === 'se') {
+                item.h = Math.max(16, feetY - S.snap(wy));
+            }
+            item.feetAnchor = true;
+            level.hazards[selection.index] = item;
+            return;
+        }
+
         if (handle === 'e' || handle === 'se') {
             const newW = Math.max(16, S.snap(wx) - b.x);
             item.w = newW;

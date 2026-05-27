@@ -10,6 +10,21 @@ function playerOverlapsRect(player, x, y, w, h) {
     return Phaser.Geom.Rectangle.Overlaps(pRect, zRect);
 }
 
+/** 矩形区域（中心坐标）的底边中心 = 玩家脚底落点 */
+function zoneFeetPoint(x, y, w, h) {
+    return { x, y: y + h / 2 };
+}
+
+/** 复活点：x,y 为脚底；触发区向上延伸 h */
+function checkpointTriggerFromFeet(feetX, feetY, w, h) {
+    return { cx: feetX, cy: feetY - h / 2, w, h };
+}
+
+function playerOverlapsFeetZone(player, feetX, feetY, w, h) {
+    const t = checkpointTriggerFromFeet(feetX, feetY, w, h);
+    return playerOverlapsRect(player, t.cx, t.cy, t.w, t.h);
+}
+
 /** period <= 0 表示常开；否则按周期与激活时长切换 */
 function electricIsActive(time, period, activeDuration) {
     if (period <= 0) return true;
@@ -83,31 +98,64 @@ class CheckpointZone {
     constructor(scene, cfg, index) {
         this.scene = scene;
         this.index = index;
-        this.x = cfg.x;
-        this.y = cfg.y;
+        if (cfg.feetAnchor) {
+            this.feetX = cfg.x;
+            this.feetY = cfg.y;
+        } else {
+            // 旧 JSON：y 为区域中心 → 转为脚底
+            this.feetX = cfg.x;
+            this.feetY = cfg.y + (cfg.h || 120) / 2;
+        }
         this.w = cfg.w || 80;
-        this.h = cfg.h || 120;
+        this.h = cfg.h || 60;
         this.id = cfg.id != null ? cfg.id : index;
         this.activated = false;
 
-        this.marker = scene.add.text(this.x, this.y, '⛳', {
+        this.marker = scene.add.text(this.feetX, this.feetY, '⛳', {
             font: '24px Arial'
-        }).setOrigin(0.5).setDepth(46);
+        }).setOrigin(0.5, 1).setDepth(46);
+
+        GameDebug.respawnLog('checkpoint.init', {
+            index,
+            id: this.id,
+            cfg: { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h, feetAnchor: cfg.feetAnchor },
+            resolvedFeet: { x: this.feetX, y: this.feetY },
+            marker: { x: this.feetX, y: this.feetY },
+            trigger: checkpointTriggerFromFeet(this.feetX, this.feetY, this.w, this.h),
+            nearbySurfaces: GameDebug.nearbySurfaces(scene, this.feetX)
+        });
+    }
+
+    _spawnPoint() {
+        return { x: this.feetX, y: this.feetY, id: this.id };
     }
 
     update(time, delta, player) {
         if (player.fsm.is('dead')) return;
-        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
+        if (!playerOverlapsFeetZone(player, this.feetX, this.feetY, this.w, this.h)) return;
 
-        const cp = { x: player.x, y: player.y, id: this.id };
+        const cp = this._spawnPoint();
         const prev = this.scene.lastCheckpoint;
         if (prev && prev.id === cp.id) return;
 
         this.scene.lastCheckpoint = cp;
+        GameDebug.respawnLog('checkpoint.save', {
+            cp,
+            prev,
+            playerFeet: { x: Math.round(player.x), y: Math.round(player.y) },
+            playerBody: player.body ? {
+                top: Math.round(player.body.top),
+                bottom: Math.round(player.body.bottom),
+                left: Math.round(player.body.left),
+                right: Math.round(player.body.right)
+            } : null,
+            checkpointFeet: { x: this.feetX, y: this.feetY },
+            deltaFeetY: Math.round(player.y - this.feetY),
+            nearbySurfaces: GameDebug.nearbySurfaces(this.scene, this.feetX)
+        });
         if (!this.activated) {
             this.activated = true;
             this.marker.setScale(1.25);
-            this.marker.setAlpha(1);
             Effects.checkpointFlash(this.scene);
         }
     }
