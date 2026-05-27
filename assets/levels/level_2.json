@@ -7,11 +7,15 @@
     "x": 160,
     "yOffset": 120
   },
+  "energyStartPercent": 100,
+  "energyRegenRate": 100,
+  "hpStartPercent": 100,
+  "enemyKillEnergy": 10,
   "bossTriggerOffset": 600,
   "boss": {
     "type": "mechanicalDino",
-    "xOffset": 220,
-    "yOffset": 64
+    "xOffset": 448,
+    "yOffset": 112
   },
   "startVideoUrl": "assets/video/最终Boss出场.mp4",
   "endVideoUrl": "assets/video/PV-结束.mp4",
@@ -68,6 +72,7 @@
   ],
   "walls": [],
   "destructibleWalls": [],
+  "systemWalls": [],
   "pickups": [],
   "spawns": [
     {

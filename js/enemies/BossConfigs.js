@@ -1,20 +1,35 @@
 const BossConfigs = {
     // 第 1 关 Boss：钢甲要塞的开场教学 Boss。
-    // 设计参考策划案：电磁三角主炮（tri）+ 重装冲撞（contact）；二阶段召唤磁暴电流地板（slam）。
-    // HP / 伤害比第 2 关最终 Boss 略低，承担教学职责。
+    // 仅使用近战招式：跳跃砸地 + 冲撞；无碰撞伤害，便于玩家学习走位与闪避。
     steelTriceratops: {
         name: '钢甲三角龙',
         title: '钢甲三角龙 · 钢甲要塞主宰',
         hp: 260,
         tint: 0x4a6fb0,        // 工业钢蓝
         phase2Tint: 0x9a4cff,  // 二阶段磁暴紫电
-        contactDamage: 12,
+        contactDamage: 0,
         speed: 80,
         stopDistance: 130,
-        phase1Cooldown: 1750,
-        phase2Cooldown: 1100,
-        phase1Skills: ['tri', 'spread'],
-        phase2Skills: ['tri', 'slam', 'spread'],
+        phase1Cooldown: 2200,
+        phase2Cooldown: 1600,
+        phase1Skills: ['jumpSlam', 'charge'],
+        phase2Skills: ['jumpSlam', 'charge'],
+        skills: {
+            jumpSlam: {
+                windupMs: 420,
+                arcHeight: 300,
+                airDurationMs: 950,
+                maxDurationMs: 2600,
+                damage: 18,
+                radius: 210
+            },
+            charge: {
+                windupMs: 480,
+                speed: 440,
+                durationMs: 680,
+                damage: 16
+            }
+        },
         logic: {
             origin: { x: 0.5, y: 1 },
             referenceFrameWidth: 1024,

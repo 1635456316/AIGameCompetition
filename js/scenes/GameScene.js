@@ -623,7 +623,9 @@ class GameScene extends Phaser.Scene {
         });
         this.physics.add.overlap(this.boss.sprite, this.player.sprite, () => {
             if (this._playerIsPhasing()) return;
-            if (this.boss && this.boss.alive) this._damagePlayer(this.boss.contactDamage, this.boss.x);
+            if (this.boss?.alive && this.boss.contactDamage) {
+                this._damagePlayer(this.boss.contactDamage, this.boss.x);
+            }
         });
 
         Effects.bigText(this, '⚠ BOSS 来 袭 ⚠', PaletteHex.danger);
@@ -1050,7 +1052,15 @@ class GameScene extends Phaser.Scene {
         if (this.enemies) {
             this.enemies.forEach(e => e.alive && e.syncView());
         }
-        if (this.boss?.alive) this.boss.syncView();
+        if (this.boss?.alive) {
+            if (this.boss.syncJumpSlamFrame) {
+                this.boss.syncJumpSlamFrame(this.time.now, this.player);
+            }
+            const inJumpSlamAir = this.boss.skillState === 'jumpSlam' && this.boss._jumpSlamPhase === 'air';
+            if (!inJumpSlamAir) {
+                this.boss.syncView();
+            }
+        }
 
         if (this.entityDebug?.enabled) {
             this.entityDebug.beginFrame();

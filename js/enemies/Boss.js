@@ -27,7 +27,8 @@ class Boss {
         this.phase = 1;
         this.facing = -1;
         this.nextSkillAt = scene.time.now + 1500;
-        this.contactDamage = this.config.contactDamage || 14;
+        this.contactDamage = this.config.contactDamage ?? 14;
+        this.skillState = null;
 
         const barY = 80;
         this.bossBarBg = scene.add.rectangle(GAME_WIDTH / 2, barY, 800, 22, 0x000000, 0.7)
@@ -86,11 +87,20 @@ class Boss {
         if (!this.alive) return;
         const dx = player.x - this.x;
         this.facing = dx >= 0 ? 1 : -1;
-        this.view.setFlipX(this.facing < 0);
 
         if (this.phase === 1 && this.hp <= this.maxHp * 0.5) {
             this.enterPhase2();
         }
+
+        if (this._updateSkill(time, player)) {
+            if (!(this.skillState === 'jumpSlam' && this._jumpSlamPhase === 'air')) {
+                this.syncView();
+            }
+            this._syncBossBar();
+            return;
+        }
+
+        this.view.setFlipX(this.facing < 0);
 
         const dist = Math.abs(dx);
         const stopDistance = this.config.stopDistance || 220;
@@ -107,7 +117,153 @@ class Boss {
                 : (this.config.phase2Cooldown || 1100));
         }
 
+        this.syncView();
         this._syncBossBar();
+    }
+
+    _skillCfg(name) {
+        return this.config.skills?.[name] || {};
+    }
+
+    _endSkill(opts = {}) {
+        Effects.stopBossChargeFx(this, opts);
+        if (this.skillState === 'jumpSlam') {
+            this._setJumpSlamAirMode(false);
+        }
+        this._clearJumpSlamMarker();
+        this._restoreJumpSlamPhysics();
+        this.skillState = null;
+        this._jumpSlamPhase = null;
+        this._jumpSlamLeftGround = false;
+        this._jumpSlamTargetX = null;
+        this._jumpSlamTargetY = null;
+        this._jumpSlamGroundY = null;
+        this._jumpSlamMarkerPlayer = null;
+        this._chargePhase = null;
+        this.logic.setVelocityX(0);
+    }
+
+    _restoreJumpSlamPhysics() {
+        this._setJumpSlamAirMode(false);
+        if (this.logic?.body) {
+            this.logic.body.setAllowGravity(true);
+            this.logic.body.setVelocity(0, 0);
+        }
+    }
+
+    /** 跳跃砸地空中：关闭物理体，避免与脚本轨迹冲突 */
+    _setJumpSlamAirMode(active) {
+        const body = this.logic?.body;
+        if (!body) return;
+
+        if (active) {
+            if (this._jumpSlamSavedBody) return;
+            this._jumpSlamSavedBody = {
+                enable: body.enable,
+                allowGravity: body.allowGravity
+            };
+            body.setAllowGravity(false);
+            body.setVelocity(0, 0);
+            body.enable = false;
+            return;
+        }
+
+        const saved = this._jumpSlamSavedBody;
+        if (!saved) return;
+        body.enable = true;
+        body.setAllowGravity(saved.allowGravity);
+        body.reset(this.logic.sprite.x, this.logic.sprite.y);
+        body.updateFromGameObject();
+        this._jumpSlamSavedBody = null;
+    }
+
+    /** 查询 x 处可站立的地面高度（逻辑锚点 y，即脚底） */
+    _findGroundFeetYAt(x, refFeetY) {
+        const scene = this.scene;
+        const defaultY = scene.levelHeight - 64;
+        const refY = refFeetY ?? this.y;
+        let bestTop = null;
+        let bestScore = Infinity;
+
+        const visit = (group) => {
+            group?.children?.iterate((block) => {
+                const body = block?.body;
+                if (!body) return;
+                const pad = 40;
+                if (x < body.left - pad || x > body.right + pad) return;
+                const top = body.top;
+                if (top > refY + 56) return;
+                const score = Math.abs(top - refY);
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestTop = top;
+                }
+            });
+        };
+
+        visit(scene.groundSolids);
+        visit(scene.platforms);
+        return bestTop ?? defaultY;
+    }
+
+    _clampJumpSlamTargetX(x) {
+        const scene = this.scene;
+        const margin = 100;
+        const maxX = (scene.levelWidth || GAME_WIDTH) - margin;
+        return Phaser.Math.Clamp(x, margin, maxX);
+    }
+
+    _clearJumpSlamMarker() {
+        if (this._jumpSlamMarker) {
+            this._jumpSlamMarker.destroy();
+            this._jumpSlamMarker = null;
+        }
+    }
+
+    _updateJumpSlamMarker(time) {
+        if (this._jumpSlamTargetX == null) return;
+        const scene = this.scene;
+        const markerY = this._jumpSlamTargetY ?? this._jumpSlamGroundY ?? (scene.levelHeight - 64);
+        const cfg = this._skillCfg('jumpSlam');
+        const radius = cfg.radius || 210;
+        const pulse = 0.5 + 0.5 * Math.sin(time * 0.013);
+
+        if (!this._jumpSlamMarker) {
+            this._jumpSlamMarker = scene.add.graphics().setDepth(12);
+        }
+        const g = this._jumpSlamMarker;
+        g.clear();
+        g.fillStyle(Palette.danger, 0.1 + pulse * 0.14);
+        g.fillEllipse(this._jumpSlamTargetX, markerY - 6, radius * 1.05, radius * 0.42);
+        g.lineStyle(3, Palette.warning, 0.32 + pulse * 0.42);
+        g.strokeEllipse(this._jumpSlamTargetX, markerY - 6, radius * 1.05, radius * 0.42);
+        g.lineStyle(2, Palette.danger, 0.45 + pulse * 0.35);
+        g.strokeEllipse(this._jumpSlamTargetX, markerY - 6, radius * 0.62, radius * 0.26);
+    }
+
+    _launchJumpSlam(cfg, player) {
+        const scene = this.scene;
+        this._jumpSlamStartX = this.x;
+        this._jumpSlamStartY = this.y;
+        this._jumpSlamTargetY = this._findGroundFeetYAt(this._jumpSlamTargetX, player?.y ?? this.y);
+        this._jumpSlamArcHeight = cfg.arcHeight || 300;
+        this._jumpSlamAirDuration = cfg.airDurationMs || 950;
+        this._jumpSlamAirStart = scene.time.now;
+        this._jumpSlamPhase = 'air';
+        this._jumpSlamLeftGround = false;
+
+        const dx = this._jumpSlamTargetX - this.x;
+        this.facing = dx >= 0 ? 1 : -1;
+        this.view.setFlipX(this.facing < 0);
+        this._setJumpSlamAirMode(true);
+    }
+
+    _updateSkill(time, player) {
+        if (!this.skillState) return false;
+        if (this.skillState === 'jumpSlam') return this._updateJumpSlam(time, player);
+        if (this.skillState === 'charge') return this._updateCharge(time, player);
+        this._endSkill();
+        return false;
     }
 
     _syncBossBar() {
@@ -124,6 +280,7 @@ class Boss {
     }
 
     castSkill(player) {
+        if (this.skillState) return;
         const pool = this.phase === 1
             ? (this.config.phase1Skills || ['spread', 'tri'])
             : (this.config.phase2Skills || ['spread', 'tri', 'slam']);
@@ -132,6 +289,159 @@ class Boss {
         else if (choice === 'tri') this.skillTri();
         else if (choice === 'slam') this.skillSlam(player);
         else if (choice === 'rain') this.skillRain(player);
+        else if (choice === 'jumpSlam') this.skillJumpSlam(player);
+        else if (choice === 'charge') this.skillCharge(player);
+    }
+
+    skillJumpSlam(player) {
+        if (this.skillState) return;
+        const cfg = this._skillCfg('jumpSlam');
+        const scene = this.scene;
+        this.skillState = 'jumpSlam';
+        this._jumpSlamPhase = 'windup';
+        this._jumpSlamPhaseEnd = scene.time.now + (cfg.windupMs || 420);
+        this._skillTimeout = scene.time.now + (cfg.maxDurationMs || 2600);
+        this._jumpSlamGroundY = this.y;
+        this._jumpSlamTargetX = this._clampJumpSlamTargetX(player.x);
+        this._jumpSlamTargetY = this._findGroundFeetYAt(this._jumpSlamTargetX, player.y);
+        this.facing = player.x >= this.x ? 1 : -1;
+        this.view.setFlipX(this.facing < 0);
+        this.logic.setVelocity(0, 0);
+    }
+
+    _updateJumpSlam(time, player) {
+        const cfg = this._skillCfg('jumpSlam');
+
+        if (this._jumpSlamPhase === 'windup') {
+            this.logic.setVelocity(0, 0);
+            this._jumpSlamTargetX = this._clampJumpSlamTargetX(player.x);
+            this._jumpSlamTargetY = this._findGroundFeetYAt(this._jumpSlamTargetX, player.y);
+            this._updateJumpSlamMarker(time);
+            if (time >= this._jumpSlamPhaseEnd) {
+                this._launchJumpSlam(cfg, player);
+            }
+            return true;
+        }
+
+        this._jumpSlamMarkerPlayer = player;
+        this._updateJumpSlamMarker(time);
+        return true;
+    }
+
+    /** 物理步结束后应用跳跃轨迹（避免 update → physics → syncView 链路造成上下抖动） */
+    syncJumpSlamFrame(time, player) {
+        if (this.skillState !== 'jumpSlam' || this._jumpSlamPhase !== 'air') return;
+
+        const cfg = this._skillCfg('jumpSlam');
+        const refPlayer = player || this._jumpSlamMarkerPlayer;
+
+        const elapsed = time - this._jumpSlamAirStart;
+        const t = Phaser.Math.Clamp(elapsed / this._jumpSlamAirDuration, 0, 1);
+        const x = Phaser.Math.Linear(this._jumpSlamStartX, this._jumpSlamTargetX, t);
+        const linearY = Phaser.Math.Linear(this._jumpSlamStartY, this._jumpSlamTargetY, t);
+        const y = linearY - this._jumpSlamArcHeight * 4 * t * (1 - t);
+
+        this.logic.setPosition(x, y);
+        this.syncView();
+
+        if (t > 0.04) {
+            this._jumpSlamLeftGround = true;
+        }
+
+        if (t >= 1) {
+            this._setJumpSlamAirMode(false);
+            this.snapFeetToGroundY(this._jumpSlamTargetY);
+            this._jumpSlamImpact(refPlayer, cfg);
+            this._endSkill();
+            return;
+        }
+
+        if (time >= this._skillTimeout) {
+            this._setJumpSlamAirMode(false);
+            this.snapFeetToGroundY(this._jumpSlamTargetY ?? this._jumpSlamGroundY);
+            this._jumpSlamImpact(refPlayer, cfg);
+            this._endSkill();
+        }
+    }
+
+    _jumpSlamImpact(player, cfg) {
+        const scene = this.scene;
+        const radius = cfg.radius || 210;
+        const damage = cfg.damage || 18;
+        Effects.shake(scene, 320, 0.022);
+        Effects.explosion(scene, this.x, this.y - 20, 1.35, true);
+
+        if (scene._playerIsPhasing?.() || !player?.body) return;
+        const dx = player.x - this.x;
+        const dy = (player.y - 28) - (this.y - 40);
+        if (Math.abs(dx) <= radius && Math.abs(dy) <= radius * 0.65) {
+            scene._damagePlayer(damage, this.x);
+            Effects.hitFlash(scene, player.x, player.y - 24);
+        }
+    }
+
+    skillCharge(player) {
+        if (this.skillState) return;
+        const cfg = this._skillCfg('charge');
+        const scene = this.scene;
+        this.skillState = 'charge';
+        this._chargePhase = 'windup';
+        this._chargeDir = player.x >= this.x ? 1 : -1;
+        this._chargeHitPlayer = false;
+        this.facing = this._chargeDir;
+        this.view.setFlipX(this.facing < 0);
+        this._chargePhaseEnd = scene.time.now + (cfg.windupMs || 480);
+        this._chargeEndAt = 0;
+        this.logic.setVelocity(0, 0);
+        Effects.startBossChargeFx(this, this._chargeDir);
+    }
+
+    _updateCharge(time, player) {
+        const cfg = this._skillCfg('charge');
+        const scene = this.scene;
+        const body = this.logic.body;
+
+        Effects.updateBossChargeFx(this, time);
+
+        if (this._chargePhase === 'windup') {
+            this.logic.setVelocity(0, 0);
+            if (time >= this._chargePhaseEnd) {
+                this._chargePhase = 'dash';
+                this._chargeEndAt = time + (cfg.durationMs || 680);
+                this.logic.setVelocityX(this._chargeDir * (cfg.speed || 440));
+                Effects.beginBossChargeDash(this);
+            }
+            return true;
+        }
+
+        if (this._chargePhase === 'dash') {
+            if (!this._chargeHitPlayer && player?.body && body) {
+                const bossRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
+                const playerRect = new Phaser.Geom.Rectangle(
+                    player.body.x, player.body.y, player.body.width, player.body.height
+                );
+                if (Phaser.Geom.Intersects.RectangleToRectangle(bossRect, playerRect)) {
+                    if (!scene._playerIsPhasing?.()) {
+                        scene._damagePlayer(cfg.damage || 16, this.x);
+                        Effects.hitFlash(scene, player.x, player.y - 24);
+                    }
+                    this._chargeHitPlayer = true;
+                }
+            }
+
+            if (body && (body.blocked.left || body.blocked.right)) {
+                this._endSkill({ wallImpact: true });
+                return true;
+            }
+
+            if (time >= this._chargeEndAt) {
+                this._endSkill();
+            }
+            return true;
+        }
+
+        this._endSkill();
+        return false;
     }
 
     skillSpread() {
@@ -192,6 +502,9 @@ class Boss {
 
     die() {
         this.alive = false;
+        Effects.stopBossChargeFx(this);
+        this._clearJumpSlamMarker();
+        this._restoreJumpSlamPhysics();
         this.hp = 0;
         this._syncBossBar();
         const scene = this.scene;

@@ -708,4 +708,241 @@ class Effects {
             onComplete: () => ring.destroy()
         });
     }
+
+    static playDashSfx(scene, volumeScale = 0.85) {
+        if (!scene) return;
+        const sound = scene.game?.sound || scene?.sound;
+        const cache = scene.game?.cache?.audio || scene?.cache?.audio;
+        if (!sound || !cache?.exists('sfx_dash')) return;
+
+        const baseVolume = typeof SaveSystem !== 'undefined' ? SaveSystem.getVolume() : 1;
+        const volume = baseVolume * volumeScale;
+        if (volume <= 0) return;
+
+        try {
+            if (typeof sound.play === 'function') {
+                sound.play('sfx_dash', { volume, loop: false });
+                return;
+            }
+            const sfx = sound.add('sfx_dash', { volume, loop: false, destroy: true });
+            sfx.play();
+        } catch (e) {
+            console.warn('[Effects] 播放 sfx_dash 失败', e);
+        }
+    }
+
+    /** Boss 冲撞：前摇预警 + 冲刺拖尾 */
+    static startBossChargeFx(boss, dir) {
+        if (!boss?.scene) return;
+        Effects.stopBossChargeFx(boss);
+
+        const scene = boss.scene;
+        const fx = {
+            dir: dir >= 0 ? 1 : -1,
+            phase: 'windup',
+            warningGfx: scene.add.graphics().setDepth(13),
+            glowGfx: scene.add.graphics().setDepth(14).setBlendMode(Phaser.BlendModes.ADD),
+            lastTrailAt: 0
+        };
+        boss._chargeFx = fx;
+    }
+
+    static updateBossChargeFx(boss, time) {
+        const fx = boss?._chargeFx;
+        if (!fx || !boss.alive) return;
+
+        const scene = boss.scene;
+        const dir = fx.dir;
+        const feetY = boss.y - 6;
+        const pulse = 0.5 + 0.5 * Math.sin(time * 0.014);
+
+        if (fx.phase === 'windup') {
+            const startX = boss.x + dir * 36;
+            const endX = startX + dir * 300;
+            const warnAlpha = 0.28 + pulse * 0.5;
+
+            fx.warningGfx.clear();
+            fx.warningGfx.fillStyle(Palette.danger, 0.08 + pulse * 0.1);
+            fx.warningGfx.fillRect(
+                Math.min(startX, endX),
+                feetY - 10,
+                Math.abs(endX - startX),
+                18
+            );
+            fx.warningGfx.lineStyle(3, Palette.warning, warnAlpha);
+            fx.warningGfx.lineBetween(startX, feetY, endX, feetY);
+
+            for (let i = 1; i <= 4; i++) {
+                const cx = startX + dir * i * 62;
+                Effects._drawChargeChevron(fx.warningGfx, cx, feetY, dir, 14, Palette.warning, warnAlpha);
+            }
+
+            fx.glowGfx.clear();
+            fx.glowGfx.lineStyle(7, Palette.danger, 0.14 + pulse * 0.28);
+            fx.glowGfx.strokeCircle(0, 0, 48 + pulse * 16);
+            fx.glowGfx.lineStyle(3, Palette.warning, 0.22 + pulse * 0.35);
+            fx.glowGfx.strokeCircle(0, 0, 28 + pulse * 8);
+            fx.glowGfx.setPosition(boss.x, boss.y - 52);
+
+            const tintPulse = pulse > 0.55 ? 0xff6633 : 0xffaa44;
+            boss.view.setTint(tintPulse);
+            return;
+        }
+
+        if (fx.phase === 'dash') {
+            if (fx.streak?.active) {
+                fx.streak.setPosition(boss.x - dir * 90, boss.y - 78);
+                fx.streak.setAlpha(0.55 + pulse * 0.25);
+            }
+            if (fx.emitter?.active) {
+                fx.emitter.setPosition(boss.x - dir * 55, boss.y - 42);
+            }
+
+            if (time - fx.lastTrailAt >= 42) {
+                fx.lastTrailAt = time;
+                Effects._spawnBossChargeTrail(scene, boss.x - dir * 35, feetY, dir);
+            }
+        }
+    }
+
+    static beginBossChargeDash(boss) {
+        const fx = boss?._chargeFx;
+        if (!fx || !boss.alive) return;
+
+        const scene = boss.scene;
+        const dir = fx.dir;
+        fx.phase = 'dash';
+        fx.warningGfx?.clear();
+
+        Effects.shake(scene, 160, 0.012);
+        Effects.playDashSfx(scene, 0.9);
+        boss.view.setTint(0xff5522);
+
+        if (scene.textures.exists('fx_punch_wind')) {
+            fx.streak = scene.add.image(boss.x - dir * 90, boss.y - 78, 'fx_punch_wind')
+                .setOrigin(0.5, 0.5)
+                .setFlipX(dir < 0)
+                .setScale(2.8, 1.35)
+                .setAlpha(0.75)
+                .setTint(Palette.warning)
+                .setBlendMode(Phaser.BlendModes.ADD)
+                .setDepth(12);
+        }
+
+        fx.emitter = scene.add.particles(0, 0, 'particle_fire', {
+            speed: { min: 80, max: 220 },
+            angle: dir > 0
+                ? { min: 150, max: 210 }
+                : { min: -30, max: 30 },
+            scale: { start: 0.9, end: 0 },
+            alpha: { start: 0.85, end: 0 },
+            lifespan: { min: 120, max: 280 },
+            frequency: 28,
+            quantity: 2,
+            blendMode: 'ADD',
+            tint: [Palette.warning, Palette.danger, 0xff6600]
+        });
+        fx.emitter.setDepth(14);
+        Effects.updateBossChargeFx(boss, scene.time.now);
+    }
+
+    static bossChargeWallImpact(scene, x, y, dir) {
+        if (!scene) return;
+        Effects.shake(scene, 320, 0.022);
+        Effects.explosion(scene, x + dir * 28, y - 36, 1.15, true);
+
+        if (scene.textures.exists('fx_shockwave')) {
+            const sw = scene.add.image(x + dir * 40, y - 28, 'fx_shockwave')
+                .setOrigin(0.5, 0.5)
+                .setFlipX(dir < 0)
+                .setScale(0.55)
+                .setAlpha(0.9)
+                .setTint(Palette.warning)
+                .setBlendMode(Phaser.BlendModes.ADD)
+                .setDepth(16);
+            scene.tweens.add({
+                targets: sw,
+                scaleX: 2.1,
+                scaleY: 1.6,
+                alpha: 0,
+                duration: 300,
+                ease: 'Cubic.easeOut',
+                onComplete: () => sw.destroy()
+            });
+        }
+
+        const debris = scene.add.particles(x + dir * 20, y - 16, 'hit_spark', {
+            speed: { min: 140, max: 420 },
+            angle: dir > 0
+                ? { min: -70, max: 70 }
+                : { min: 110, max: 250 },
+            scale: { start: 1, end: 0 },
+            alpha: { start: 1, end: 0 },
+            lifespan: { min: 100, max: 260 },
+            blendMode: 'ADD',
+            tint: [Palette.white, Palette.warning, Palette.danger]
+        });
+        debris.explode(12);
+        scene.time.delayedCall(320, () => debris.destroy());
+    }
+
+    static stopBossChargeFx(boss, opts = {}) {
+        const fx = boss?._chargeFx;
+        if (!fx) return;
+
+        if (opts.wallImpact && boss?.alive) {
+            Effects.bossChargeWallImpact(boss.scene, boss.x, boss.y, fx.dir);
+        }
+
+        fx.warningGfx?.destroy();
+        fx.glowGfx?.destroy();
+        if (fx.emitter) {
+            fx.emitter.stop();
+            fx.emitter.destroy();
+        }
+        fx.streak?.destroy();
+        boss._chargeFx = null;
+        if (boss.alive) boss._restoreBossTint();
+    }
+
+    static _drawChargeChevron(g, x, y, dir, size, color, alpha) {
+        const tipX = x + dir * size;
+        const backX = x - dir * size * 0.55;
+        g.fillStyle(color, alpha);
+        g.fillTriangle(tipX, y, backX, y - size * 0.55, backX, y + size * 0.55);
+    }
+
+    static _spawnBossChargeTrail(scene, x, y, dir) {
+        const dust = scene.add.particles(x, y, 'hit_spark', {
+            speed: { min: 40, max: 160 },
+            angle: dir > 0
+                ? { min: 160, max: 200 }
+                : { min: -20, max: 20 },
+            scale: { start: 0.7, end: 0 },
+            alpha: { start: 0.8, end: 0 },
+            lifespan: { min: 80, max: 180 },
+            blendMode: 'ADD',
+            tint: [0xcccccc, Palette.warning, 0x888888]
+        });
+        dust.explode(3);
+        scene.time.delayedCall(220, () => dust.destroy());
+
+        if (scene.textures.exists('fx_shockwave')) {
+            const mark = scene.add.image(x, y, 'fx_shockwave')
+                .setOrigin(0.5, 0.5)
+                .setFlipX(dir < 0)
+                .setScale(0.12)
+                .setAlpha(0.35)
+                .setTint(Palette.warning)
+                .setBlendMode(Phaser.BlendModes.ADD)
+                .setDepth(11);
+            scene.tweens.add({
+                targets: mark,
+                scale: 0.28,
+                alpha: 0,
+                duration: 180,
+                onComplete: () => mark.destroy()
+            });
+        }
+    }
 }
