@@ -46,12 +46,11 @@ class Player {
         this.ultEndAt = 0;
         this.invulnerableUntil = 0;
         this.platformDropUntil = 0;
-        this._lastDownTapAt = 0;
         this._leaveGroundFrames = 0;
         this._landFrames = 0;
 
         this.input = {
-            left: false, right: false, up: false, down: false, downPressed: false,
+            left: false, right: false, up: false, down: false, dropPressed: false,
             jumpPressed: false, dashPressed: false,
             attackPressed: false, swordChargePressed: false, swordChargeHeld: false,
             ultimatePressed: false
@@ -297,20 +296,11 @@ class Player {
     }
 
     _handlePlatformDropInput(input) {
-        if (!this.scene.isStandingOnPlatform?.(this)) {
-            this._lastDownTapAt = 0;
-            if (!input.downPressed) return;
-            return;
-        }
-        if (!input.downPressed) return;
+        if (!input.dropPressed) return;
+        if (!this.scene.isStandingOnPlatform?.(this)) return;
         const now = this.scene.time.now;
-        if (this._lastDownTapAt && now - this._lastDownTapAt <= PlayerConfig.platformDropTapWindow) {
-            this.platformDropUntil = now + PlayerConfig.platformDropDuration;
-            this._lastDownTapAt = 0;
-            this.setVelocityY(Math.max(this.body.velocity.y, 120));
-        } else {
-            this._lastDownTapAt = now;
-        }
+        this.platformDropUntil = now + PlayerConfig.platformDropDuration;
+        this.setVelocityY(Math.max(this.body.velocity.y, 120));
     }
 
     handleJumpInput(input) {

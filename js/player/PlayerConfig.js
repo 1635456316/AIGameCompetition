@@ -137,6 +137,5 @@ const PlayerConfig = {
     invulnAfterHurt: 600,     // ms
     hurtDuration: 200,        // ms
     platformDropDuration: 400,   // ms，穿落期间忽略单向平台碰撞
-    platformDropTapWindow: 350,  // ms，连续两次按下「下」的有效间隔
     bulletSpeed: 700
 };
