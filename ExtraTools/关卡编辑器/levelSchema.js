@@ -699,6 +699,79 @@ const LevelEditorSchema = (() => {
     }
 
     /**
+     * 自 atY 起（含）将所有世界坐标 Y 下移 amount；可选调整距底边锚点（playerStart / Boss）。
+     */
+    function shiftWorldYFromY(level, atY, amount, opts = {}) {
+        const P = snap(atY);
+        const L = amount;
+        if (L === 0) return level;
+
+        level.platforms = level.platforms.map(p => {
+            if (p[1] >= P) {
+                const out = [p[0], p[1] + L, p[2]];
+                if (p[3] != null) out[3] = p[3];
+                return out;
+            }
+            return p;
+        });
+        level.walls = level.walls.map(w => (w.y >= P ? { ...w, y: w.y + L } : w));
+        level.destructibleWalls = level.destructibleWalls.map(w => (w.y >= P ? { ...w, y: w.y + L } : w));
+        level.systemWalls = level.systemWalls.map(w => (w.y >= P ? { ...w, y: w.y + L } : w));
+        level.pickups = level.pickups.map(p => (typeof p.y === 'number' && p.y >= P ? { ...p, y: p.y + L } : p));
+        level.spawns = level.spawns.map(s => (typeof s.y === 'number' && s.y >= P ? { ...s, y: s.y + L } : s));
+        level.hazards = level.hazards.map(h => {
+            if (h.type === 'missile') {
+                const m = normalizeMissile(h, level);
+                if (m.y - m.h / 2 >= P) return { ...m, y: m.y + L };
+                return m;
+            }
+            if (typeof h.y === 'number' && h.y >= P) return { ...h, y: h.y + L };
+            return h;
+        });
+
+        if (level.finish && typeof level.finish.y === 'number' && level.finish.y >= P) {
+            level.finish = { ...level.finish, y: level.finish.y + L };
+        }
+
+        if (opts.adjustBottomAnchored) {
+            const H = opts.levelHeightBefore ?? levelHeight(level);
+            const py = H - (level.playerStart?.yOffset ?? 120);
+            if (py < P) {
+                level.playerStart = {
+                    ...level.playerStart,
+                    yOffset: (level.playerStart?.yOffset ?? 120) + L
+                };
+            }
+            if (isBossLevel(level) && level.boss) {
+                const by = H - (level.boss.yOffset ?? 80);
+                if (by < P) {
+                    level.boss = {
+                        ...level.boss,
+                        yOffset: (level.boss.yOffset ?? 80) + L
+                    };
+                }
+            }
+        }
+
+        return level;
+    }
+
+    /**
+     * 修改关卡高度，保留所有元素相对左下角的位置。
+     * 世界坐标 Y 整体偏移；playerStart / Boss 的 yOffset（距底边）不变。
+     */
+    function setLevelHeight(level, newHeight) {
+        const oldH = levelHeight(level);
+        const newH = Math.max(MIN_LEVEL_HEIGHT, hazardNumber(newHeight, GAME_HEIGHT));
+        const delta = newH - oldH;
+        if (delta !== 0) {
+            shiftWorldYFromY(level, 0, delta);
+        }
+        level.height = newH;
+        return level;
+    }
+
+    /**
      * 在 atX 处插入空白段：关卡宽度 +length，所有锚点 x >= atX 的元素右移 length。
      * Boss 以 xOffset 存于右缘；仅当插入点在 Boss 左侧时才随宽度右移。
      */
@@ -724,7 +797,7 @@ const LevelEditorSchema = (() => {
         level.spawns = level.spawns.map(s => (s.x >= P ? { ...s, x: s.x + L } : s));
         level.hazards = level.hazards.map(h => {
             if (h.type === 'missile') {
-                const m = normalizeMissile(h);
+                const m = normalizeMissile(h, level);
                 if (m.x - m.w / 2 >= P) return { ...m, x: m.x + L };
                 return m;
             }
@@ -748,6 +821,21 @@ const LevelEditorSchema = (() => {
         }
 
         level.width = (level.width || 2400) + L;
+        return level;
+    }
+
+    /**
+     * 在 atY 处插入竖向空白段：关卡高度 +length，该位置及上方（Y >= atY）所有元素整体下移。
+     * playerStart / Boss 以 yOffset 存于底边；仅当插入点在其下方时才增大 yOffset 以保持世界坐标。
+     */
+    function insertBlankSpaceVertical(level, atY, length) {
+        const P = snap(atY);
+        const L = Math.max(snap(length), getGridSize());
+        if (L <= 0) return level;
+
+        const H = levelHeight(level);
+        shiftWorldYFromY(level, P, L, { adjustBottomAnchored: true, levelHeightBefore: H });
+        level.height = H + L;
         return level;
     }
 
@@ -793,6 +881,8 @@ const LevelEditorSchema = (() => {
         PLAYER_CONFIG_DEFAULTS,
         PLAYER_CONFIG_FIELDS,
         clearLevelContent,
-        insertBlankSpace
+        insertBlankSpace,
+        insertBlankSpaceVertical,
+        setLevelHeight
     };
 })();

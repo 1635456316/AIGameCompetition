@@ -599,6 +599,28 @@ h2 {
     color: #8893a3;
 }
 
+.scene-tools-dim {
+    margin-bottom: 14px;
+    color: #8893a3;
+}
+
+.scene-tools-dim span {
+    color: #6cc6ff;
+    font-weight: 600;
+}
+
+.scene-tools-section-title {
+    margin: 16px 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #b8c4d4;
+    letter-spacing: 0.02em;
+}
+
+.scene-tools-section-title:first-of-type {
+    margin-top: 0;
+}
+
 .scene-tools-width span {
     color: #6cc6ff;
     font-weight: 600;

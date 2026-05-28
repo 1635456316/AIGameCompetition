@@ -1399,11 +1399,17 @@
                     if (type === 'number') v = parseFloat(v);
                     if (Number.isNaN(v)) return;
                     if (k === 'enemyKillEnergy') v = Math.max(0, v);
-                    if (k === 'height') v = Math.max(S.MIN_LEVEL_HEIGHT, v);
+                    if (k === 'height') {
+                        v = Math.max(S.MIN_LEVEL_HEIGHT, v);
+                        S.setLevelHeight(level, v);
+                        resizeCanvas();
+                        refreshAll(false);
+                        return;
+                    }
                     if (v === '' && k.includes('Url')) level[k] = null;
                     else level[k] = v;
                     if (k === 'bgUrl') loadBgForLevel();
-                    if (k === 'width' || k === 'height') resizeCanvas();
+                    if (k === 'width') resizeCanvas();
                     refreshAll(false);
                 });
             });
@@ -1414,9 +1420,11 @@
     function setupSceneToolsModal() {
         const modal = document.getElementById('scene-tools-modal');
         const widthLabel = document.getElementById('scene-tools-level-width');
+        const heightLabel = document.getElementById('scene-tools-level-height');
 
         function openSceneToolsModal() {
             if (widthLabel) widthLabel.textContent = `${level.width}px`;
+            if (heightLabel) heightLabel.textContent = `${getLevelH()}px`;
             modal.hidden = false;
         }
 
@@ -1446,7 +1454,7 @@
         });
         document.getElementById('btn-insert-blank').addEventListener('click', () => {
             const atX = parseFloat(document.getElementById('insert-at-x').value);
-            const len = parseFloat(document.getElementById('insert-length').value);
+            const len = parseFloat(document.getElementById('insert-length-h').value);
             if (Number.isNaN(atX) || Number.isNaN(len)) {
                 alert('请填写有效的插入位置与长度');
                 return;
@@ -1460,6 +1468,38 @@
             }
             pushUndo();
             S.insertBlankSpace(level, atX, len);
+            selection = null;
+            refreshAll();
+            closeSceneToolsModal();
+        });
+
+        document.getElementById('btn-insert-cursor-y').addEventListener('click', () => {
+            document.getElementById('insert-at-y').value = S.snap(lastCursorY);
+        });
+        document.getElementById('btn-insert-sel-y').addEventListener('click', () => {
+            const y = getSelectionWorldY();
+            if (y == null) {
+                alert('请先在地图上选中一个元素');
+                return;
+            }
+            document.getElementById('insert-at-y').value = S.snap(y);
+        });
+        document.getElementById('btn-insert-blank-v').addEventListener('click', () => {
+            const atY = parseFloat(document.getElementById('insert-at-y').value);
+            const len = parseFloat(document.getElementById('insert-length-v').value);
+            if (Number.isNaN(atY) || Number.isNaN(len)) {
+                alert('请填写有效的插入位置与长度');
+                return;
+            }
+            if (len <= 0) {
+                alert('插入长度须大于 0');
+                return;
+            }
+            if (atY < 0 || atY > getLevelH()) {
+                if (!confirm(`插入位置 Y=${atY} 在关卡高度 ${getLevelH()}px 之外，仍要继续？`)) return;
+            }
+            pushUndo();
+            S.insertBlankSpaceVertical(level, atY, len);
             selection = null;
             refreshAll();
             closeSceneToolsModal();
@@ -1478,6 +1518,14 @@
         if (selection.category === 'finish') return data.x;
         if (typeof data.x === 'number') return data.x;
         return null;
+    }
+
+    function getSelectionWorldY() {
+        if (!selection) return null;
+        const data = getSelectionData();
+        if (!data) return null;
+        const anchor = getDataAnchor(selection.category, data);
+        return typeof anchor.y === 'number' ? anchor.y : null;
     }
 
     function buildHierarchy() {

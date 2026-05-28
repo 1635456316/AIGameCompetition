@@ -101,8 +101,10 @@
                 <button type="button" class="btn modal-close" id="btn-scene-tools-close" title="关闭">×</button>
             </div>
             <div class="modal-body scene-tools-body">
+                <p class="field-hint scene-tools-dim">当前关卡：<span id="scene-tools-level-width">—</span> 宽 × <span id="scene-tools-level-height">—</span> 高</p>
+
+                <div class="scene-tools-section-title">横向插入空白</div>
                 <p class="field-hint">在指定 X 处插入空白：关卡变宽，该位置及右侧所有元素整体右移。</p>
-                <p class="field-hint scene-tools-width">当前关卡宽度：<span id="scene-tools-level-width">—</span></p>
                 <div class="field-row">
                     <label for="insert-at-x">插入位置 X (px)</label>
                     <input id="insert-at-x" type="number" step="8" value="800">
@@ -112,10 +114,26 @@
                     <button type="button" class="btn btn-sm" id="btn-insert-sel-x" title="将当前选中元素的 X 填入">使用选中元素 X</button>
                 </div>
                 <div class="field-row">
-                    <label for="insert-length">插入长度 (px)</label>
-                    <input id="insert-length" type="number" step="8" value="100">
+                    <label for="insert-length-h">插入长度 (px)</label>
+                    <input id="insert-length-h" type="number" step="8" value="100">
                 </div>
-                <button type="button" class="btn primary insert-blank-btn" id="btn-insert-blank">插入空白段</button>
+                <button type="button" class="btn primary insert-blank-btn" id="btn-insert-blank">横向插入空白段</button>
+
+                <div class="scene-tools-section-title">竖向插入空白</div>
+                <p class="field-hint">在指定 Y 处插入空白：关卡变高，该位置及下方（Y 更大）所有元素整体下移。</p>
+                <div class="field-row">
+                    <label for="insert-at-y">插入位置 Y (px)</label>
+                    <input id="insert-at-y" type="number" step="8" value="360">
+                </div>
+                <div class="insert-pick-row">
+                    <button type="button" class="btn btn-sm" id="btn-insert-cursor-y" title="将画布上鼠标位置的 Y 填入">使用光标 Y</button>
+                    <button type="button" class="btn btn-sm" id="btn-insert-sel-y" title="将当前选中元素的 Y 填入">使用选中元素 Y</button>
+                </div>
+                <div class="field-row">
+                    <label for="insert-length-v">插入长度 (px)</label>
+                    <input id="insert-length-v" type="number" step="8" value="100">
+                </div>
+                <button type="button" class="btn primary insert-blank-btn" id="btn-insert-blank-v">竖向插入空白段</button>
             </div>
         </div>
     </div>
