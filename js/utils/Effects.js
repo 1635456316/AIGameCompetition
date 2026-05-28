@@ -78,7 +78,7 @@ class Effects {
 
     static bigText(scene, text, color = PaletteHex.warning) {
         const cam = scene.cameras.main;
-        const t = scene.add.text(cam.scrollX + cam.width / 2, cam.scrollY + cam.height / 2 - 80, text, {
+        const t = scene.add.text(cam.width / 2, cam.height / 2 - 80, text, {
             font: 'bold 64px Arial',
             color: color,
             stroke: '#000000',
