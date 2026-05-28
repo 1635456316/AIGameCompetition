@@ -20,7 +20,8 @@ export async function authRoutes(fastify) {
         return {
             loggedIn: true,
             userId: user.userId,
-            userName: user.userName
+            userName: user.userName,
+            avatarUrl: user.avatarUrl || ''
         };
     });
 

@@ -37,6 +37,7 @@ export async function listLevels() {
                 description: meta.description || '',
                 authorId: meta.authorId || '',
                 authorName: meta.authorName || '未知作者',
+                authorAvatar: meta.authorAvatar || '',
                 createdAt: meta.createdAt || 0,
                 updatedAt: meta.updatedAt || 0
             });
@@ -101,7 +102,7 @@ export function verifyTestPass(levelData, testPass) {
     return { ok: true };
 }
 
-export async function createLevel({ authorId, authorName, title, description, levelData, testPass }) {
+export async function createLevel({ authorId, authorName, authorAvatar, title, description, levelData, testPass }) {
     const errors = validateLevel(levelData);
     if (errors.length) {
         return { ok: false, error: errors.join('；') };
@@ -127,6 +128,7 @@ export async function createLevel({ authorId, authorName, title, description, le
         description: String(description || '').trim(),
         authorId,
         authorName,
+        authorAvatar: typeof authorAvatar === 'string' ? authorAvatar : '',
         createdAt: now,
         updatedAt: now
     };

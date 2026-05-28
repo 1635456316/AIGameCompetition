@@ -10,7 +10,8 @@ export function signSession(user) {
     return jwt.sign(
         {
             userId: user.userId,
-            userName: user.userName
+            userName: user.userName,
+            avatarUrl: user.avatarUrl || ''
         },
         config.jwtSecret,
         { expiresIn: '7d' }
@@ -160,6 +161,7 @@ export async function exchangeCodeForUser(code) {
     const data = userJson.data || {};
     return {
         userId: data.user_id || data.open_id || data.union_id || '',
-        userName: data.name || data.en_name || '飞书用户'
+        userName: data.name || data.en_name || '飞书用户',
+        avatarUrl: data.avatar_thumb || data.avatar_url || data.avatar_middle || ''
     };
 }

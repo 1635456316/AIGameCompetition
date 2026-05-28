@@ -1,0 +1,68 @@
+{
+  "id": 1,
+  "title": "测试2222",
+  "subtitle": "教学关：电磁机关与钢甲三角龙",
+  "width": 2000,
+  "playerStart": {
+    "x": 160,
+    "yOffset": 120
+  },
+  "energyStartPercent": 0,
+  "energyRegenRate": 0,
+  "hpStartPercent": 10,
+  "enemyKillEnergy": 10,
+  "bossTriggerOffset": 900,
+  "finish": {
+    "w": 80,
+    "h": 80,
+    "x": 824,
+    "y": 600
+  },
+  "startVideoUrl": null,
+  "endVideoUrl": null,
+  "normalBgmUrl": null,
+  "bossBgmUrl": null,
+  "bgUrl": null,
+  "resultBgUrl": null,
+  "platforms": [
+    [
+      328,
+      472,
+      1
+    ],
+    [
+      520,
+      416,
+      1
+    ]
+  ],
+  "walls": [
+    {
+      "x": 496,
+      "y": 160,
+      "w": 160,
+      "h": 132
+    }
+  ],
+  "destructibleWalls": [],
+  "systemWalls": [],
+  "pickups": [
+    {
+      "type": "health",
+      "amount": 30,
+      "x": 480,
+      "y": 592
+    }
+  ],
+  "spawns": [],
+  "hazards": [
+    {
+      "type": "energy_drain",
+      "x": 600,
+      "y": 544,
+      "w": 140,
+      "h": 80,
+      "drainRate": 104
+    }
+  ]
+}

@@ -135,18 +135,9 @@ class WorkshopScene extends Phaser.Scene {
 
         const avatarX = 22;
         const avatarY = panelH / 2;
-        this.authAvatar = this.add.graphics();
-        this.authAvatar.fillStyle(0x0c2a4a, 1);
-        this.authAvatar.fillCircle(avatarX, avatarY, 12);
-        this.authAvatar.lineStyle(1.5, 0x5feaff, 0.85);
-        this.authAvatar.strokeCircle(avatarX, avatarY, 12);
-        this.authBar.add(this.authAvatar);
-
-        this.authAvatarText = this._addText(avatarX, avatarY, '?', {
-            font: 'bold 13px Microsoft YaHei, Arial',
-            color: '#5feaff'
-        }).setOrigin(0.5);
-        this.authBar.add(this.authAvatarText);
+        this.authAvatarSlot = this.add.container(avatarX, avatarY);
+        this.authBar.add(this.authAvatarSlot);
+        this._renderAvatarInto(this.authAvatarSlot, 12, null, null, '?', false);
 
         this.authUserText = this._addText(42, panelH / 2, '检测登录…', {
             font: '13px Microsoft YaHei, Arial',
@@ -264,9 +255,9 @@ class WorkshopScene extends Phaser.Scene {
             const arrow = this.add.graphics();
             arrow.fillStyle(0x5feaff, 1);
             if (dir === -1) {
-                arrow.fillTriangle(4, 0, -3, -6, -3, 6);
-            } else {
                 arrow.fillTriangle(-4, 0, 3, -6, 3, 6);
+            } else {
+                arrow.fillTriangle(4, 0, -3, -6, -3, 6);
             }
             c.add([bg, arrow]);
             bg.setInteractive({ useHandCursor: true });
@@ -350,26 +341,14 @@ class WorkshopScene extends Phaser.Scene {
             const name = auth.userName || '已登录';
             this.authUserText.setText(this._truncate(name, 10));
             this.authUserText.setColor('#cfe6f5');
-            this.authAvatarText.setText(name.slice(0, 1));
-            this.authAvatarText.setColor('#ffffff');
-            this.authAvatar.clear();
-            this.authAvatar.fillStyle(0x0d6b96, 1);
-            this.authAvatar.fillCircle(22, 21, 12);
-            this.authAvatar.lineStyle(1.5, 0x5feaff, 1);
-            this.authAvatar.strokeCircle(22, 21, 12);
+            this._renderAvatarInto(this.authAvatarSlot, 12, auth.userId, auth.avatarUrl, name, true);
             this.authActionText.setText('登出');
             this.authActionText.setColor('#ff8fbf');
             this.authActionBg.setStrokeStyle(1, 0xff5fb9, 0.7);
         } else {
             this.authUserText.setText('未登录');
             this.authUserText.setColor('#9fb0c8');
-            this.authAvatarText.setText('?');
-            this.authAvatarText.setColor('#5feaff');
-            this.authAvatar.clear();
-            this.authAvatar.fillStyle(0x0c2a4a, 1);
-            this.authAvatar.fillCircle(22, 21, 12);
-            this.authAvatar.lineStyle(1.5, 0x5feaff, 0.85);
-            this.authAvatar.strokeCircle(22, 21, 12);
+            this._renderAvatarInto(this.authAvatarSlot, 12, null, null, '?', false);
             this.authActionText.setText('登录');
             this.authActionText.setColor('#5feaff');
             this.authActionBg.setStrokeStyle(1, 0x5feaff, 0.7);
@@ -575,12 +554,30 @@ class WorkshopScene extends Phaser.Scene {
         }).setOrigin(0.5, 0);
         container.add(title);
 
-        const metaY = titleY + 24;
-        const metaText = this._addText(0, metaY, `${this._truncate(level.authorName || '未知作者', 10)}  ·  ${this._formatDate(level.createdAt)}`, {
+        const metaY = titleY + 26;
+        const metaStr = `${this._truncate(level.authorName || '未知作者', 10)}  ·  ${this._formatDate(level.createdAt)}`;
+        const metaText = this._addText(0, metaY, metaStr, {
             font: '11px Microsoft YaHei, Arial',
             color: '#8fbfd6'
-        }).setOrigin(0.5, 0);
+        }).setOrigin(0, 0.5);
         container.add(metaText);
+
+        const avatarR = 9;
+        const gap = 6;
+        const totalW = avatarR * 2 + gap + metaText.width;
+        const startX = -Math.round(totalW / 2);
+        const avatarSlot = this.add.container(startX + avatarR, metaY);
+        container.add(avatarSlot);
+        metaText.setPosition(startX + avatarR * 2 + gap, metaY);
+
+        this._renderAvatarInto(
+            avatarSlot,
+            avatarR,
+            level.authorId || '',
+            level.authorAvatar || '',
+            level.authorName || '?',
+            true
+        );
 
         const statY = halfH - 12;
         const statText = this._addText(0, statY, '— 关卡详情加载中 —', {
@@ -821,6 +818,45 @@ class WorkshopScene extends Phaser.Scene {
     }
 
     // ============ 通用 UI 组件 ============
+
+    /**
+     * 在容器内渲染圆形头像槽位：圆形底 + 首字母 + 异步加载真实头像覆盖
+     * 调用前确保 slot 是空的（内部会 removeAll）
+     */
+    _renderAvatarInto(slot, radius, userId, url, name, loggedIn) {
+        slot.removeAll(true);
+
+        const baseColor = loggedIn ? 0x0d6b96 : 0x0c2a4a;
+        const strokeAlpha = loggedIn ? 1 : 0.85;
+
+        const gfx = this.add.graphics();
+        gfx.fillStyle(baseColor, 1);
+        gfx.fillCircle(0, 0, radius);
+        gfx.lineStyle(1.5, 0x5feaff, strokeAlpha);
+        gfx.strokeCircle(0, 0, radius);
+        slot.add(gfx);
+
+        const fallbackChar = ((name || '?').trim().charAt(0) || '?').toUpperCase();
+        const fontSize = Math.max(8, Math.round(radius * 1.1));
+        const letter = this._addText(0, 0, fallbackChar, {
+            font: `bold ${fontSize}px Microsoft YaHei, Arial`,
+            color: loggedIn ? '#ffffff' : '#5feaff'
+        }).setOrigin(0.5);
+        slot.add(letter);
+
+        if (loggedIn && url) {
+            AvatarCache.ensure(this, userId, url).then(key => {
+                if (!slot.scene) return;
+                if (!key || !this.textures.exists(key)) return;
+                const img = this.add.image(0, 0, key);
+                img.setDisplaySize(radius * 2, radius * 2);
+                img.setAlpha(0);
+                slot.add(img);
+                letter.setVisible(false);
+                this.tweens.add({ targets: img, alpha: 1, duration: 220, ease: 'Sine.easeOut' });
+            }).catch(() => {});
+        }
+    }
 
     _drawGlassRect(x, y, w, h, opts = {}) {
         const {

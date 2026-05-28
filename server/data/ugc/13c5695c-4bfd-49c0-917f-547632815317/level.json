@@ -1,0 +1,68 @@
+{
+  "id": 1,
+  "title": "测试",
+  "subtitle": "11111",
+  "width": 1000,
+  "playerStart": {
+    "x": 160,
+    "yOffset": 120
+  },
+  "energyStartPercent": 0,
+  "energyRegenRate": 0,
+  "hpStartPercent": 10,
+  "enemyKillEnergy": 10,
+  "bossTriggerOffset": 900,
+  "finish": {
+    "w": 80,
+    "h": 80,
+    "x": 888,
+    "y": 600
+  },
+  "startVideoUrl": null,
+  "endVideoUrl": null,
+  "normalBgmUrl": null,
+  "bossBgmUrl": null,
+  "bgUrl": null,
+  "resultBgUrl": null,
+  "platforms": [
+    [
+      224,
+      472,
+      1
+    ],
+    [
+      432,
+      440,
+      1
+    ]
+  ],
+  "walls": [
+    {
+      "x": 264,
+      "y": 176,
+      "w": 304,
+      "h": 200
+    }
+  ],
+  "destructibleWalls": [
+    {
+      "hp": 3,
+      "x": 352,
+      "y": 544,
+      "w": 32,
+      "h": 200
+    }
+  ],
+  "systemWalls": [],
+  "pickups": [],
+  "spawns": [],
+  "hazards": [
+    {
+      "type": "death",
+      "x": 560,
+      "y": 632,
+      "w": 96,
+      "h": 24
+    }
+  ]
+}

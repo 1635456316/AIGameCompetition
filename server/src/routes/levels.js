@@ -49,6 +49,7 @@ export async function levelsRoutes(fastify) {
         const result = await createLevel({
             authorId: request.user.userId,
             authorName: request.user.userName,
+            authorAvatar: request.user.avatarUrl || '',
             title,
             description,
             levelData,
