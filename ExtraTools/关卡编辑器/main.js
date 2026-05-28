@@ -22,6 +22,9 @@
     let lastCursorX = 0;
     let undoStack = [];
     let redoStack = [];
+    let clipboard = null;
+    let pasteGeneration = 0;
+    let stackClickState = null;
     const MAX_UNDO = 40;
 
     const MANIFEST_URL = '../../assets/levels/manifest.json';
@@ -179,15 +182,98 @@
         level[category][index] = data;
     }
 
-    function hitTest(worldX, worldY) {
+    function hitTestAll(worldX, worldY) {
+        const hits = [];
         const items = S.listAllItems(level).reverse();
         for (const item of items) {
             const b = S.getItemBounds(item.category, item.data, level);
             if (worldX >= b.x && worldX <= b.x + b.w && worldY >= b.y && worldY <= b.y + b.h) {
-                return { category: item.category, index: item.index };
+                hits.push({ category: item.category, index: item.index });
             }
         }
-        return null;
+        return hits;
+    }
+
+    function pickSelectionFromHits(hits, preferCurrent) {
+        if (!hits.length) return null;
+        if (hits.length === 1) return hits[0];
+        if (preferCurrent && selection) {
+            const current = hits.find(h => h.category === selection.category && h.index === selection.index);
+            if (current) return current;
+        }
+        return hits[0];
+    }
+
+    function hitTest(worldX, worldY) {
+        const hits = hitTestAll(worldX, worldY);
+        return hits[0] ?? null;
+    }
+
+    function cloneSelectionData(data, category) {
+        if (category === 'platforms') return [...data];
+        return JSON.parse(JSON.stringify(data));
+    }
+
+    function applyOffsetToData(data, category, dx, dy) {
+        const d = cloneSelectionData(data, category);
+        if (category === 'platforms') {
+            d[0] += dx;
+            d[1] += dy;
+            return d;
+        }
+        if (category === 'playerStart') {
+            d.x = (d.x ?? 0) + dx;
+            d.yOffset = (d.yOffset ?? 120) - dy;
+            return d;
+        }
+        if (category === 'boss') {
+            d.xOffset = (d.xOffset ?? 240) - dx;
+            d.yOffset = (d.yOffset ?? 80) - dy;
+            return d;
+        }
+        if (typeof d === 'object' && d !== null) {
+            if (typeof d.x === 'number') d.x += dx;
+            if (typeof d.y === 'number') d.y += dy;
+        }
+        return d;
+    }
+
+    function copySelection() {
+        if (!selection) return false;
+        const data = getSelectionData();
+        if (!data) return false;
+        clipboard = {
+            category: selection.category,
+            data: cloneSelectionData(data, selection.category)
+        };
+        pasteGeneration = 0;
+        return true;
+    }
+
+    function duplicateSelection(offsetX, offsetY) {
+        if (!clipboard) return false;
+        pushUndo();
+        pasteGeneration += 1;
+        const dx = offsetX ?? S.getGridSize() * pasteGeneration;
+        const dy = offsetY ?? 0;
+        const { category, data } = clipboard;
+        const copy = applyOffsetToData(data, category, dx, dy);
+
+        if (category === 'playerStart') {
+            level.playerStart = copy;
+            selection = { category, index: 0 };
+        } else if (category === 'boss') {
+            level.boss = copy;
+            selection = { category, index: 0 };
+        } else if (category === 'finish') {
+            level.finish = copy;
+            selection = { category, index: 0 };
+        } else {
+            level[category].push(copy);
+            selection = { category, index: level[category].length - 1 };
+        }
+        refreshAll();
+        return true;
     }
 
     function getResizeHandle(worldX, worldY) {
@@ -475,10 +561,11 @@
                 ctx.font = '14px sans-serif';
                 ctx.fillText('⚠', h.x - 7, h.y + 5);
             } else if (h.type === 'crumble') {
+                const b = S.getItemBounds('hazards', h, level);
                 ctx.fillStyle = sel ? '#ffaa44' : '#ff8800';
-                ctx.fillRect(h.x - S.PLATFORM_W / 2, h.y - S.PLATFORM_H / 2, S.PLATFORM_W, S.PLATFORM_H);
+                ctx.fillRect(b.x, b.y, b.w, b.h);
                 ctx.strokeStyle = '#cc6600';
-                ctx.strokeRect(h.x - S.PLATFORM_W / 2, h.y - S.PLATFORM_H / 2, S.PLATFORM_W, S.PLATFORM_H);
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
             }
             if (sel) {
                 ctx.strokeStyle = '#fff';
@@ -951,6 +1038,8 @@
             } else if (data.type === 'crumble') {
                 addField('X', 'x', 'number', { value: data.x });
                 addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? S.PLATFORM_W });
+                addField('高 h', 'h', 'number', { value: data.h ?? S.PLATFORM_H });
                 addField('延迟 delay (ms)', 'delay', 'number', { value: data.delay });
                 addField('重生 respawn (ms)', 'respawn', 'number', { value: data.respawn });
             }
@@ -977,6 +1066,18 @@
             addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
             addField('高 h', 'h', 'number', { value: data.h ?? 80 });
         }
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'btn copy-btn';
+        copyBtn.textContent = selection.category === 'playerStart' || selection.category === 'boss'
+            ? '复制并偏移'
+            : '复制到旁边';
+        copyBtn.addEventListener('click', () => {
+            if (!copySelection()) return;
+            duplicateSelection(S.getGridSize(), 0);
+        });
+        form.appendChild(copyBtn);
 
         if (selection.category !== 'playerStart' && selection.category !== 'boss') {
             const del = document.createElement('button');
@@ -1420,7 +1521,10 @@
         const data = getSelectionData();
         if (!data || !selection) return;
         if (selection.category === 'platforms') {
-            level.platforms[selection.index] = [S.snap(data[0]), S.snap(data[1]), data[2]];
+            const h = S.platformHeight(data);
+            level.platforms[selection.index] = h > S.PLATFORM_H
+                ? [S.snap(data[0]), S.snap(data[1]), data[2], h]
+                : [S.snap(data[0]), S.snap(data[1]), data[2]];
         } else if (selection.category === 'playerStart') {
             level.playerStart.x = S.snap(level.playerStart.x);
             level.playerStart.yOffset = S.GAME_HEIGHT - S.snap(S.playerY(level));
@@ -1465,11 +1569,21 @@
             render();
             buildPropsForm();
             buildHierarchy();
+        } else if (stackClickState && selection && !dragState?.moved) {
+            const { hits } = stackClickState;
+            const idx = hits.findIndex(h => h.category === selection.category && h.index === selection.index);
+            if (idx >= 0) {
+                selection = hits[(idx + 1) % hits.length];
+                render();
+                buildPropsForm();
+                buildHierarchy();
+            }
         } else if (resizeState) {
             render();
             buildPropsForm();
         }
 
+        stackClickState = null;
         panning = false;
         panStart = null;
         dragState = null;
@@ -1548,17 +1662,24 @@
             return;
         }
 
-        const hit = hitTest(w.x, w.y);
-        if (hit) {
-            selection = hit;
-            const hitData = hit.category === 'playerStart'
+        const hits = hitTestAll(w.x, w.y);
+        if (hits.length) {
+            stackClickState = null;
+            if (selection && hits.length > 1) {
+                const idx = hits.findIndex(h => h.category === selection.category && h.index === selection.index);
+                if (idx >= 0) {
+                    stackClickState = { hits };
+                }
+            }
+            selection = pickSelectionFromHits(hits, !!stackClickState);
+            const hitData = selection.category === 'playerStart'
                 ? level.playerStart
-                : hit.category === 'boss'
+                : selection.category === 'boss'
                     ? level.boss
-                    : hit.category === 'finish'
+                    : selection.category === 'finish'
                         ? level.finish
-                    : level[hit.category]?.[hit.index];
-            const grab = getDragGrabOffset(hit.category, hitData, w.x, w.y);
+                    : level[selection.category]?.[selection.index];
+            const grab = getDragGrabOffset(selection.category, hitData, w.x, w.y);
             dragState = {
                 startX: w.x,
                 startY: w.y,
@@ -1579,6 +1700,7 @@
         }
 
         selection = null;
+        stackClickState = null;
         refreshAll(false);
         buildPropsForm();
         buildHierarchy();
@@ -1723,6 +1845,8 @@
     window.addEventListener('keydown', e => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
         if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveLevel(); return; }
+        if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); copySelection(); return; }
+        if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); duplicateSelection(); return; }
         if (e.key === 'Delete' || e.key === 'Backspace') {
             if (selection && selection.category === 'finish') {
                 pushUndo();
@@ -1740,7 +1864,7 @@
         }
         if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
         if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
-        if (e.key === 'v' || e.key === 'V') document.querySelector('[data-tool="select"]').click();
+        if (!e.ctrlKey && (e.key === 'v' || e.key === 'V')) document.querySelector('[data-tool="select"]').click();
         if (e.key === 'h' || e.key === 'H') document.querySelector('[data-tool="pan"]').click();
     });
 

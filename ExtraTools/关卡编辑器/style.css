@@ -368,6 +368,18 @@ h2 {
     border-top: none;
 }
 
+.copy-btn {
+    margin-top: 12px;
+    width: 100%;
+    background: #1e2a38;
+    border-color: #3a5570;
+    color: #88ccff;
+}
+
+.copy-btn:hover {
+    background: #253448;
+}
+
 .delete-btn {
     margin-top: 12px;
     width: 100%;

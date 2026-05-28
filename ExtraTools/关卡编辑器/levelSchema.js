@@ -145,8 +145,22 @@ const LevelEditorSchema = (() => {
             if (s.id != null && s.id !== '') out.id = String(s.id);
             return out;
         });
-        level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint(normalizeMissile({ ...h })));
+        level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint(normalizeMissile(normalizeCrumble({ ...h }))));
         return level;
+    }
+
+    /** 坍塌平台：x,y 为中心，w/h 可调整 */
+    function normalizeCrumble(h) {
+        if (h.type !== 'crumble') return h;
+        return {
+            type: 'crumble',
+            x: h.x,
+            y: h.y,
+            w: Math.max(16, h.w ?? PLATFORM_W),
+            h: Math.max(16, h.h ?? PLATFORM_H),
+            delay: hazardNumber(h.delay, 800),
+            respawn: hazardNumber(h.respawn, 4000)
+        };
     }
 
     /** 导弹打击：x,y 为区域中心，w/h 为随机落点范围；兼容旧版 xMin/xMax */
@@ -249,7 +263,7 @@ const LevelEditorSchema = (() => {
             case 'missile':
                 return { category: 'hazards', data: { type: 'missile', x: sx, y: sy, w: 160, h: 60, interval: 3000, startDelay: 0, damage: 12 } };
             case 'crumble':
-                return { category: 'hazards', data: { type: 'crumble', x: sx, y: sy, delay: 800, respawn: 4000 } };
+                return { category: 'hazards', data: { type: 'crumble', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, delay: 800, respawn: 4000 } };
             case 'death':
                 return { category: 'hazards', data: { type: 'death', x: sx, y: sy, w: 96, h: 24 } };
             case 'hint':
@@ -300,7 +314,9 @@ const LevelEditorSchema = (() => {
                     return { x: m.x - m.w / 2, y: m.y - m.h / 2, w: m.w, h: m.h };
                 }
                 if (data.type === 'crumble') {
-                    return { x: data.x - PLATFORM_W / 2, y: data.y - PLATFORM_H / 2, w: PLATFORM_W, h: PLATFORM_H };
+                    const w = data.w ?? PLATFORM_W;
+                    const h = data.h ?? PLATFORM_H;
+                    return { x: data.x - w / 2, y: data.y - h / 2, w, h };
                 }
                 if (data.type === 'checkpoint') {
                     const w = data.w ?? 80;
@@ -645,6 +661,7 @@ const LevelEditorSchema = (() => {
         checkpointBounds,
         normalizeCheckpoint,
         normalizeMissile,
+        normalizeCrumble,
         resolveStandingFeetY,
         electricIsActive,
         spawnDefaultHp,

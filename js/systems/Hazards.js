@@ -451,6 +451,8 @@ class CrumblePlatform {
         this.scene = scene;
         this.x = cfg.x;
         this.y = cfg.y;
+        this.w = Math.max(16, cfg.w || 96);
+        this.h = Math.max(16, cfg.h || 20);
         this.delay = cfg.delay || 800;
         this.respawn = cfg.respawn || 4000;
         this.triggered = false;
@@ -458,10 +460,26 @@ class CrumblePlatform {
 
         this.platform = scene.platforms.create(this.x, this.y, 'tile_platform');
         this.platform.setOrigin(0.5, 0.5);
-        this.platform.refreshBody();
+        this._syncPlatformBody();
         this.platform.setTint(0xff8800);
         this.platform.setData('isCrumble', true);
         this.platform.setData('crumbleOwner', this);
+    }
+
+    _syncPlatformBody() {
+        const w = this.w;
+        const h = this.h;
+        this.platform.setDisplaySize(w, h);
+        this.platform.setData('platHeight', h);
+        if (h > 20) {
+            this.platform.setData('isWall', true);
+        } else {
+            this.platform.setData('isWall', false);
+        }
+        if (this.platform.body) {
+            this.platform.body.setSize(w, h);
+            this.platform.refreshBody();
+        }
     }
 
     /** 由 GameScene 在碰撞/贴地/overlap 后回调，避免仅靠 update 轮询漏判 */
@@ -511,7 +529,7 @@ class CrumblePlatform {
                 this.platform.body.checkCollision.all = true;
             }
             this.platform.enableBody(true, this.x, this.y, true, true);
-            this.platform.refreshBody();
+            this._syncPlatformBody();
             this.platform.setAlpha(1);
             this.platform.setTint(0xff8800);
             this.triggered = false;

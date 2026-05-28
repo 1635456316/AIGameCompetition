@@ -1085,11 +1085,12 @@ class GameScene extends Phaser.Scene {
         if (this.time.now < this.player.platformDropUntil) return false;
 
         const platH = platform.getData('platHeight') ?? 20;
+        const isCrumble = platform.getData('isCrumble') === true;
         const overlapX = pb.right > plat.left + 2 && pb.left < plat.right - 2;
         if (!overlapX) return false;
 
-        // 纵向加高：全向实体墙（仅冲刺可穿）
-        if (platH > 20) {
+        // 纵向加高：全向实体墙（仅冲刺可穿）；坍塌台始终按单向平台处理
+        if (platH > 20 && !isCrumble) {
             return pb.bottom > plat.top + 2 && pb.top < plat.bottom - 2;
         }
 
@@ -1153,7 +1154,8 @@ class GameScene extends Phaser.Scene {
 
         this.platforms.children.iterate((plat) => {
             if (!plat?.body || !this._platformColliderActive(plat)) return;
-            if ((plat.getData('platHeight') ?? 20) > 20) return;
+            const platH = plat.getData('platHeight') ?? 20;
+            if (platH > 20 && !plat.getData('isCrumble')) return;
             const platBody = plat.body;
             if (pb.right < platBody.left + 2 || pb.left > platBody.right - 2) return;
 
