@@ -7,7 +7,7 @@
     1. 停止目标目录上正在运行的旧服务（按 PID 文件或端口）
     2. 从当前仓库拷贝代码到目标目录（保留 .env 与 server/data）
     3. npm install --omit=dev
-    4. 启动 Server（默认端口 8080，与开发 3000 区分）
+    4. 启动 Server（默认端口 8081，与开发 3000 区分）
 
 .USAGE
     .\server.ps1 deploy

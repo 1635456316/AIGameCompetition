@@ -3,7 +3,7 @@
 $Script:SourceRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $Script:DevRoot = $Script:SourceRoot
 $Script:DeployedRoot = 'F:\GameServer\AIGameCompetition'
-$Script:DefaultDeployedPort = 8080
+$Script:DefaultDeployedPort = 8081
 $Script:DefaultDevPort = 3000
 
 function Write-ServerStep([string]$Message) {
