@@ -79,7 +79,7 @@ class LevelThumbnail {
         const W = this.WIDTH;
         const H = this.HEIGHT;
         const levelW = Math.max(800, level.width || 2400);
-        const levelH = GAME_HEIGHT;
+        const levelH = level.height || GAME_HEIGHT;
         const sx = W / levelW;
         const sy = H / levelH;
 
@@ -152,13 +152,13 @@ class LevelThumbnail {
         gfx.fillStyle(0xff2b2b, 1);
         (level.spawns || []).forEach(s => {
             const ex = (s.x || 0) * sx;
-            const ey = (s.y != null ? s.y : GAME_HEIGHT - 80) * sy;
+            const ey = (s.y != null ? s.y : levelH - 80) * sy;
             gfx.fillCircle(ex, ey, 2.2);
         });
 
         const ps = level.playerStart || { x: 160, yOffset: 120 };
         const psx = ps.x * sx;
-        const psy = (GAME_HEIGHT - 64 - (ps.yOffset || 120)) * sy;
+        const psy = (levelH - 64 - (ps.yOffset || 120)) * sy;
         gfx.fillStyle(0x00e5ff, 1);
         gfx.fillCircle(psx, psy, 3);
         gfx.lineStyle(1, 0xffffff, 0.9);
@@ -168,7 +168,7 @@ class LevelThumbnail {
             const bossX = (level.boss.x != null
                 ? level.boss.x
                 : (levelW - (level.boss.xOffset != null ? level.boss.xOffset : 240))) * sx;
-            const bossY = (GAME_HEIGHT - 64 - (level.boss.yOffset != null ? level.boss.yOffset : 80)) * sy;
+            const bossY = (levelH - 64 - (level.boss.yOffset != null ? level.boss.yOffset : 80)) * sy;
             gfx.fillStyle(0xff00aa, 1);
             gfx.fillRect(bossX - 6, bossY - 9, 12, 18);
             gfx.lineStyle(1, 0xffffff, 0.95);
@@ -177,7 +177,7 @@ class LevelThumbnail {
             const fx = (level.finish.x != null ? level.finish.x : levelW - 100) * sx;
             const fyVal = (level.finish.y != null
                 ? level.finish.y
-                : GAME_HEIGHT - 64 - (level.finish.yOffset || 80));
+                : levelH - 64 - (level.finish.yOffset || 80));
             const fy = fyVal * sy;
             gfx.fillStyle(0xffd400, 1);
             gfx.fillTriangle(fx, fy - 6, fx - 5, fy + 5, fx + 5, fy + 5);

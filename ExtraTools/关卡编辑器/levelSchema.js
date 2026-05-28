@@ -5,6 +5,15 @@ const LevelEditorSchema = (() => {
     const GAME_HEIGHT = 720;
     const GROUND_TILE = 64;
     const GROUND_Y = GAME_HEIGHT - GROUND_TILE;
+    const MIN_LEVEL_HEIGHT = 480;
+
+    function levelHeight(level) {
+        return level?.height || GAME_HEIGHT;
+    }
+
+    function groundY(level) {
+        return levelHeight(level) - GROUND_TILE;
+    }
     const PLATFORM_W = 96;
     const PLATFORM_H = 20;
 
@@ -135,6 +144,7 @@ const LevelEditorSchema = (() => {
             title: `第 ${id} 关 · 新关卡`,
             subtitle: '',
             width: 2400,
+            height: GAME_HEIGHT,
             playerStart: { x: 160, yOffset: 120 },
             energyStartPercent: 0,
             energyRegenRate: 0,
@@ -161,6 +171,7 @@ const LevelEditorSchema = (() => {
 
     function normalizeLevel(raw) {
         const level = { ...createEmptyLevel(raw.id || 1), ...raw };
+        level.height = hazardNumber(raw.height, GAME_HEIGHT);
         level.playerStart = { x: 160, yOffset: 120, ...(raw.playerStart || {}) };
         level.energyStartPercent = hazardNumber(raw.energyStartPercent, 0);
         level.energyRegenRate = hazardNumber(raw.energyRegenRate, 0);
@@ -200,7 +211,7 @@ const LevelEditorSchema = (() => {
             const out = {
                 type,
                 x: s.x,
-                y: s.y != null ? s.y : GROUND_Y - 4
+                y: s.y != null ? s.y : groundY(level) - 4
             };
             if (s.hp != null && !Number.isNaN(s.hp)) out.hp = Math.max(1, s.hp);
             if (s.killEnergy != null && !Number.isNaN(s.killEnergy)) {
@@ -209,7 +220,7 @@ const LevelEditorSchema = (() => {
             if (s.id != null && s.id !== '') out.id = String(s.id);
             return out;
         });
-        level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint(normalizeMissile(normalizeCrumble({ ...h }))));
+        level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint(normalizeMissile(normalizeCrumble({ ...h }), level)));
         return level;
     }
 
@@ -228,13 +239,14 @@ const LevelEditorSchema = (() => {
     }
 
     /** 导弹打击：x,y 为区域中心，w/h 为随机落点范围；兼容旧版 xMin/xMax */
-    function normalizeMissile(h) {
+    function normalizeMissile(h, level) {
         if (h.type !== 'missile') return h;
+        const gy = level ? groundY(level) : GROUND_Y;
         if (typeof h.x === 'number' && typeof h.w === 'number') {
             return {
                 type: 'missile',
                 x: h.x,
-                y: h.y ?? (GROUND_Y - 4),
+                y: h.y ?? (gy - 4),
                 w: Math.max(16, h.w),
                 h: Math.max(16, h.h ?? 60),
                 interval: hazardNumber(h.interval, 3000),
@@ -244,7 +256,7 @@ const LevelEditorSchema = (() => {
         }
         const xMin = hazardNumber(h.xMin, 0);
         const xMax = hazardNumber(h.xMax, xMin + 160);
-        const y = h.y ?? (GROUND_Y - 4);
+        const y = h.y ?? (gy - 4);
         return {
             type: 'missile',
             x: (xMin + xMax) / 2,
@@ -289,7 +301,7 @@ const LevelEditorSchema = (() => {
                 tops.push(py - h / 2);
             }
         });
-        tops.push(GROUND_Y);
+        tops.push(groundY(level));
         let best = hintY;
         let bestScore = Infinity;
         for (const top of tops) {
@@ -369,7 +381,7 @@ const LevelEditorSchema = (() => {
             case 'systemWalls':
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
             case 'pickups': {
-                const y = data.y ?? (GROUND_Y - 4);
+                const y = data.y ?? (groundY(level) - 4);
                 return { x: data.x - PICKUP_SIZE / 2, y: y - PICKUP_SIZE / 2, w: PICKUP_SIZE, h: PICKUP_SIZE };
             }
             case 'hazards':
@@ -392,18 +404,18 @@ const LevelEditorSchema = (() => {
                 }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
             case 'spawns': {
-                const y = data.y ?? (GROUND_Y - 4);
+                const y = data.y ?? (groundY(level) - 4);
                 // y 为脚底坐标，与画布圆点底边对齐
                 return { x: data.x - 16, y: y - 28, w: 32, h: 28 };
             }
             case 'playerStart': {
                 const px = level.playerStart.x;
-                const py = GAME_HEIGHT - level.playerStart.yOffset;
+                const py = levelHeight(level) - level.playerStart.yOffset;
                 return { x: px - 16, y: py - 24, w: 32, h: 32 };
             }
             case 'boss': {
                 const bx = level.width - (level.boss.xOffset || 240);
-                const by = GAME_HEIGHT - (level.boss.yOffset || 80);
+                const by = levelHeight(level) - (level.boss.yOffset || 80);
                 return { x: bx - 24, y: by - 24, w: 48, h: 48 };
             }
             case 'finish': {
@@ -529,6 +541,9 @@ const LevelEditorSchema = (() => {
 
         if (!normalized.id) errors.push('缺少关卡 id');
         if (!normalized.width || normalized.width < 800) errors.push('关卡宽度 width 应 >= 800');
+        if (!normalized.height || normalized.height < MIN_LEVEL_HEIGHT) {
+            errors.push(`关卡高度 height 应 >= ${MIN_LEVEL_HEIGHT}`);
+        }
         if (!normalized.playerStart) {
             errors.push('缺少玩家出生点');
         } else {
@@ -666,7 +681,7 @@ const LevelEditorSchema = (() => {
     }
 
     function playerY(level) {
-        return GAME_HEIGHT - (level.playerStart?.yOffset || 120);
+        return levelHeight(level) - (level.playerStart?.yOffset || 120);
     }
 
     /** 清空地图元素，保留关卡 ID、宽度、Boss/媒体等元数据 */
@@ -738,6 +753,9 @@ const LevelEditorSchema = (() => {
 
     return {
         GAME_HEIGHT,
+        MIN_LEVEL_HEIGHT,
+        levelHeight,
+        groundY,
         GROUND_TILE,
         GROUND_Y,
         PLATFORM_W,

@@ -30,9 +30,11 @@ class GameScene extends Phaser.Scene {
             PVScene.cleanupDomArtifacts();
         }
         const W = GAME_WIDTH;
-        const H = GAME_HEIGHT;
         this.levelWidth = this.levelConfig.width || 3200;
-        this.levelHeight = H;
+        this.levelHeight = typeof this.levelConfig.height === 'number'
+            ? this.levelConfig.height
+            : GAME_HEIGHT;
+        const H = this.levelHeight;
 
         this.physics.world.setBounds(0, 0, this.levelWidth, this.levelHeight);
         this.physics.world.resume();

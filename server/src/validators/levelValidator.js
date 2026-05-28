@@ -9,6 +9,8 @@ const MEDIA_KEYS = [
     'resultBgUrl'
 ];
 
+const MIN_LEVEL_HEIGHT = 480;
+
 function hazardNumber(value, fallback) {
     return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
 }
@@ -40,6 +42,7 @@ function normalizeLevel(raw) {
         title: raw.title || '',
         subtitle: raw.subtitle || '',
         width: raw.width || 2400,
+        height: hazardNumber(raw.height, 720),
         playerStart: { x: 160, yOffset: 120, ...(raw.playerStart || {}) },
         energyStartPercent: hazardNumber(raw.energyStartPercent, 0),
         energyRegenRate: hazardNumber(raw.energyRegenRate, 0),
@@ -104,6 +107,9 @@ export function validateLevel(level) {
 
     if (!normalized.id) errors.push('缺少关卡 id');
     if (!normalized.width || normalized.width < 800) errors.push('关卡宽度 width 应 >= 800');
+    if (!normalized.height || normalized.height < MIN_LEVEL_HEIGHT) {
+        errors.push(`关卡高度 height 应 >= ${MIN_LEVEL_HEIGHT}`);
+    }
     if (!normalized.playerStart) {
         errors.push('缺少玩家出生点');
     } else {

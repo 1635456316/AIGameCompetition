@@ -45,6 +45,10 @@
         return `level_${levelId}.json`;
     }
 
+    function getLevelH() {
+        return S.levelHeight(level);
+    }
+
     function setSaveStatus(text, isError = false) {
         const el = document.getElementById('save-status');
         if (!el) return;
@@ -246,12 +250,12 @@
         if (category === 'boss') {
             return {
                 x: level.width - (data.xOffset ?? 240),
-                y: S.GAME_HEIGHT - (data.yOffset ?? 80)
+                y: getLevelH() - (data.yOffset ?? 80)
             };
         }
         if (category === 'finish') return { x: data.x, y: data.y };
         if (category === 'spawns' || category === 'pickups') {
-            return { x: data.x, y: data.y ?? (S.GROUND_Y - 4) };
+            return { x: data.x, y: data.y ?? (S.groundY(level) - 4) };
         }
         if (typeof data === 'object') {
             return {
@@ -372,24 +376,26 @@
     }
 
     function resizeCanvas() {
+        const h = getLevelH();
         const w = Math.max(level.width, 1280);
         canvas.width = w;
-        canvas.height = S.GAME_HEIGHT;
+        canvas.height = h;
         canvas.style.width = `${w * zoom}px`;
-        canvas.style.height = `${S.GAME_HEIGHT * zoom}px`;
+        canvas.style.height = `${h * zoom}px`;
     }
 
     function drawGrid() {
         const gs = S.getGridSize();
+        const h = getLevelH();
         ctx.strokeStyle = 'rgba(255,255,255,0.04)';
         ctx.lineWidth = 1;
         for (let x = 0; x <= level.width; x += gs) {
             ctx.beginPath();
             ctx.moveTo(x + 0.5, 0);
-            ctx.lineTo(x + 0.5, S.GAME_HEIGHT);
+            ctx.lineTo(x + 0.5, h);
             ctx.stroke();
         }
-        for (let y = 0; y <= S.GAME_HEIGHT; y += gs) {
+        for (let y = 0; y <= h; y += gs) {
             ctx.beginPath();
             ctx.moveTo(0, y + 0.5);
             ctx.lineTo(level.width, y + 0.5);
@@ -399,7 +405,7 @@
 
     function drawGround() {
         const tile = S.GROUND_TILE;
-        const groundY = S.GROUND_Y;
+        const groundY = S.groundY(level);
         for (let i = 0; i < Math.ceil(level.width / tile); i++) {
             const gx = i * tile;
             ctx.fillStyle = '#3d4a5c';
@@ -412,35 +418,37 @@
     }
 
     function drawBackground() {
+        const h = getLevelH();
         if (bgImage && bgImage.complete) {
             ctx.globalAlpha = 0.45;
             const imgW = bgImage.naturalWidth || bgImage.width;
             const imgH = bgImage.naturalHeight || bgImage.height;
             // 与 GameScene._createParallaxBackground 一致：按高度等比缩放，水平平铺
-            const tileScale = imgH > 0 ? S.GAME_HEIGHT / imgH : 1;
+            const tileScale = imgH > 0 ? h / imgH : 1;
             const tileW = imgW * tileScale;
             for (let x = 0; x < level.width; x += tileW) {
-                ctx.drawImage(bgImage, x, 0, tileW, S.GAME_HEIGHT);
+                ctx.drawImage(bgImage, x, 0, tileW, h);
             }
             ctx.globalAlpha = 1;
         } else {
-            const grd = ctx.createLinearGradient(0, 0, 0, S.GAME_HEIGHT);
+            const grd = ctx.createLinearGradient(0, 0, 0, h);
             grd.addColorStop(0, '#1a1520');
             grd.addColorStop(1, '#0d0a12');
             ctx.fillStyle = grd;
-            ctx.fillRect(0, 0, level.width, S.GAME_HEIGHT);
+            ctx.fillRect(0, 0, level.width, h);
         }
     }
 
     function drawBossTrigger() {
         if (!S.isBossLevel(level)) return;
+        const h = getLevelH();
         const tx = S.bossTriggerX(level);
         ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
         ctx.setLineDash([8, 6]);
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(tx, 0);
-        ctx.lineTo(tx, S.GAME_HEIGHT);
+        ctx.lineTo(tx, h);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = 'rgba(255,100,100,0.7)';
@@ -529,7 +537,7 @@
     function drawPickups() {
         level.pickups.forEach((p, i) => {
             const sel = selection?.category === 'pickups' && selection.index === i;
-            const y = p.y ?? (S.GROUND_Y - 4);
+            const y = p.y ?? (S.groundY(level) - 4);
             const half = S.PICKUP_SIZE / 2;
             const isEnergy = p.type === 'energy';
             ctx.fillStyle = sel ? (isEnergy ? '#88ccff' : '#66ffaa') : (isEnergy ? '#44aaff' : '#44dd88');
@@ -665,7 +673,7 @@
     function drawSpawns() {
         level.spawns.forEach((s, i) => {
             const sel = selection?.category === 'spawns' && selection.index === i;
-            const y = s.y ?? (S.GROUND_Y - 4);
+            const y = s.y ?? (S.groundY(level) - 4);
             const r = 14;
             ctx.fillStyle = spawnColor(s.type, sel);
             ctx.beginPath();
@@ -702,7 +710,7 @@
 
         if (S.isBossLevel(level)) {
             const bx = level.width - (level.boss.xOffset || 240);
-            const by = S.GAME_HEIGHT - (level.boss.yOffset || 80);
+            const by = getLevelH() - (level.boss.yOffset || 80);
             const bSel = selection?.category === 'boss';
             ctx.fillStyle = bSel ? '#dd66ff' : '#cc44ff';
             ctx.fillRect(bx - 20, by - 20, 40, 40);
@@ -819,7 +827,7 @@
         if (kind === 'player_start') {
             pushUndo();
             level.playerStart.x = S.snap(wx);
-            level.playerStart.yOffset = S.GAME_HEIGHT - S.snap(wy);
+            level.playerStart.yOffset = getLevelH() - S.snap(wy);
             selection = { category: 'playerStart', index: 0 };
             refreshAll();
             return;
@@ -831,7 +839,7 @@
                 level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80 };
             }
             level.boss.xOffset = level.width - S.snap(wx);
-            level.boss.yOffset = S.GAME_HEIGHT - S.snap(wy);
+            level.boss.yOffset = getLevelH() - S.snap(wy);
             selection = { category: 'boss', index: 0 };
             refreshAll();
             return;
@@ -1028,13 +1036,13 @@
                 ]
             });
             addField('X', 'x', 'number', { value: data.x });
-            addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
+            addField('Y', 'y', 'number', { value: data.y ?? (S.groundY(level) - 4) });
             const amountLabel = data.type === 'energy' ? '回能量 amount' : '回血量 amount';
             const amountDefault = data.type === 'energy' ? 25 : 30;
             addField(amountLabel, 'amount', 'number', { value: data.amount ?? amountDefault });
         } else if (selection.category === 'spawns') {
             addField('X', 'x', 'number', { value: data.x });
-            addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
+            addField('Y', 'y', 'number', { value: data.y ?? (S.groundY(level) - 4) });
             addField('类型', 'type', 'select', {
                 value: data.type,
                 options: [
@@ -1334,7 +1342,8 @@
                 ['id', '关卡 ID', 'number'],
                 ['title', '标题', 'text'],
                 ['subtitle', '副标题', 'text'],
-                ['width', '关卡宽度 (px)', 'number']
+                ['width', '关卡宽度 (px)', 'number'],
+                ['height', '关卡高度 (px)', 'number']
             ]},
             { section: 'Boss', items: [
                 ['bossTriggerOffset', 'Boss 触发距右边缘 (px)', 'number']
@@ -1390,9 +1399,11 @@
                     if (type === 'number') v = parseFloat(v);
                     if (Number.isNaN(v)) return;
                     if (k === 'enemyKillEnergy') v = Math.max(0, v);
+                    if (k === 'height') v = Math.max(S.MIN_LEVEL_HEIGHT, v);
                     if (v === '' && k.includes('Url')) level[k] = null;
                     else level[k] = v;
                     if (k === 'bgUrl') loadBgForLevel();
+                    if (k === 'width' || k === 'height') resizeCanvas();
                     refreshAll(false);
                 });
             });
@@ -1495,7 +1506,7 @@
 
     function updateInfo() {
         document.getElementById('level-info').textContent =
-            `${level.title} · 宽 ${level.width}px · 平台 ${level.platforms.length} · 墙 ${level.walls.length} · 可破坏 ${level.destructibleWalls.length} · 系统墙 ${level.systemWalls.length} · 道具 ${level.pickups.length} · 机关 ${level.hazards.length}`;
+            `${level.title} · 宽 ${level.width}px · 高 ${getLevelH()}px · 平台 ${level.platforms.length} · 墙 ${level.walls.length} · 可破坏 ${level.destructibleWalls.length} · 系统墙 ${level.systemWalls.length} · 道具 ${level.pickups.length} · 机关 ${level.hazards.length}`;
     }
 
     function loadBgForLevel() {
@@ -1651,7 +1662,7 @@
         }
         if (category === 'boss') {
             const bx = level.width - (level.boss.xOffset || 240);
-            const by = S.GAME_HEIGHT - (level.boss.yOffset || 80);
+            const by = getLevelH() - (level.boss.yOffset || 80);
             return { x: worldX - bx, y: worldY - by };
         }
         if (category === 'finish') {
@@ -1660,7 +1671,7 @@
         if (category === 'spawns' || category === 'pickups') {
             return {
                 x: worldX - data.x,
-                y: worldY - (data.y ?? (S.GROUND_Y - 4))
+                y: worldY - (data.y ?? (S.groundY(level) - 4))
             };
         }
         if (category === 'hazards' && data.type === 'checkpoint') {
@@ -1688,10 +1699,10 @@
                 : [worldX - ox, worldY - oy, data[2]];
         } else if (selection.category === 'playerStart') {
             level.playerStart.x = worldX - ox;
-            level.playerStart.yOffset = S.GAME_HEIGHT - (worldY - oy);
+            level.playerStart.yOffset = getLevelH() - (worldY - oy);
         } else if (selection.category === 'boss') {
             level.boss.xOffset = level.width - (worldX - ox);
-            level.boss.yOffset = S.GAME_HEIGHT - (worldY - oy);
+            level.boss.yOffset = getLevelH() - (worldY - oy);
         } else if (selection.category === 'finish') {
             level.finish.x = worldX - ox;
             level.finish.y = worldY - oy;
@@ -1733,7 +1744,7 @@
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = item.x + dx;
-            item.y = (item.y ?? (S.GROUND_Y - 4)) + dy;
+            item.y = (item.y ?? (S.groundY(level) - 4)) + dy;
             setSelectionData(item);
         } else if (typeof data === 'object') {
             const item = { ...data };
@@ -1753,16 +1764,16 @@
                 : [S.snap(data[0]), S.snap(data[1]), data[2]];
         } else if (selection.category === 'playerStart') {
             level.playerStart.x = S.snap(level.playerStart.x);
-            level.playerStart.yOffset = S.GAME_HEIGHT - S.snap(S.playerY(level));
+            level.playerStart.yOffset = getLevelH() - S.snap(S.playerY(level));
         } else if (selection.category === 'boss') {
             const bx = level.width - level.boss.xOffset;
-            const by = S.GAME_HEIGHT - level.boss.yOffset;
+            const by = getLevelH() - level.boss.yOffset;
             level.boss.xOffset = level.width - S.snap(bx);
-            level.boss.yOffset = S.GAME_HEIGHT - S.snap(by);
+            level.boss.yOffset = getLevelH() - S.snap(by);
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = S.snap(item.x);
-            item.y = item.y ?? (S.GROUND_Y - 4);
+            item.y = item.y ?? (S.groundY(level) - 4);
             setSelectionData(item);
         } else if (selection.category === 'hazards' && data.type === 'checkpoint') {
             const item = { ...data, feetAnchor: true };
@@ -2021,13 +2032,13 @@
         render();
     });
     document.getElementById('btn-zoom-fit').addEventListener('click', () => {
-        zoom = Math.min(1, viewport.clientWidth / level.width);
+        zoom = Math.min(1, viewport.clientWidth / level.width, viewport.clientHeight / getLevelH());
         document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
         render();
     });
 
     document.getElementById('btn-clear-scene').addEventListener('click', () => {
-        if (!confirm('清空场景？\n将删除所有平台、墙、敌人、道具、机关等。\n关卡 ID、宽度、Boss 与媒体设置会保留。')) return;
+        if (!confirm('清空场景？\n将删除所有平台、墙、敌人、道具、机关等。\n关卡 ID、宽度、高度、Boss 与媒体设置会保留。')) return;
         pushUndo();
         S.clearLevelContent(level);
         selection = null;
