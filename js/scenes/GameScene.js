@@ -36,6 +36,10 @@ class GameScene extends Phaser.Scene {
 
         this.physics.world.setBounds(0, 0, this.levelWidth, this.levelHeight);
         this.physics.world.resume();
+        const levelGravity = typeof this.levelConfig.gravity === 'number'
+            ? Math.max(0, this.levelConfig.gravity)
+            : PlayerConfig.gravity;
+        this.physics.world.gravity.y = levelGravity;
         this.cameras.main.setBounds(0, 0, this.levelWidth, this.levelHeight);
 
         // 视差背景
@@ -57,7 +61,7 @@ class GameScene extends Phaser.Scene {
         this.levelEnergyRegenRate = typeof this.levelConfig.energyRegenRate === 'number'
             ? Math.max(0, this.levelConfig.energyRegenRate)
             : PlayerConfig.energyRegenRate;
-        this.player = new Player(this, start.x, H - start.yOffset);
+        this.player = new Player(this, start.x, H - start.yOffset, this.levelConfig);
         const hpPct = typeof this.levelConfig.hpStartPercent === 'number'
             ? Phaser.Math.Clamp(this.levelConfig.hpStartPercent, 0, 100)
             : 100;

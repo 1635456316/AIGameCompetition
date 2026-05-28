@@ -2,7 +2,7 @@
  * 玩家类：逻辑体（碰撞/坐标）与表现层（动画/贴图）分离，数值与状态机仍在此类。
  */
 class Player {
-    constructor(scene, x, y) {
+    constructor(scene, x, y, levelConfig) {
         this.scene = scene;
         const entityCfg = PlayerConfig.buildEntityConfig(scene);
         this._useSheetVisual = entityCfg.useSheet;
@@ -17,10 +17,20 @@ class Player {
             this.view.playAnim('hero_idle', true);
         }
 
+        this.moveSpeed = levelConfig?.moveSpeed ?? PlayerConfig.moveSpeed;
+        this.jumpVelocity = levelConfig?.jumpVelocity ?? PlayerConfig.jumpVelocity;
+        this.secondJumpVelocity = levelConfig?.secondJumpVelocity ?? PlayerConfig.secondJumpVelocity;
+        this.maxJumps = levelConfig?.maxJumps ?? PlayerConfig.maxJumps;
+        this.maxFallVelocity = levelConfig?.maxFallVelocity ?? PlayerConfig.maxFallVelocity;
+        if (this.body) {
+            this.body.setMaxVelocity(PlayerConfig.maxVelocityX, this.maxFallVelocity);
+        }
+
         this.facing = 1;
         this.hp = PlayerConfig.maxHp;
         this.energy = 0;
-        this.jumpsRemaining = PlayerConfig.maxJumps;
+        this._jumpsUsedThisAirborne = 0;
+        this.jumpsRemaining = this.hasUnlimitedJumps() ? -1 : this.maxJumps;
         this.damageTakenCount = 0;
 
         this.lastDashAt = -99999;
@@ -153,6 +163,14 @@ class Player {
     setVelocityY(v) { this.logic.setVelocityY(v); }
     setVelocity(x, y) { this.logic.setVelocity(x, y); }
 
+    hasUnlimitedJumps() {
+        return this.maxJumps < 0;
+    }
+
+    canJump() {
+        return this.hasUnlimitedJumps() || this.jumpsRemaining > 0;
+    }
+
     onGround() {
         const body = this.body;
         if (!body) return false;
@@ -163,7 +181,8 @@ class Player {
             grounded = true;
         }
         if (grounded) {
-            this.jumpsRemaining = PlayerConfig.maxJumps;
+            this._jumpsUsedThisAirborne = 0;
+            this.jumpsRemaining = this.hasUnlimitedJumps() ? -1 : this.maxJumps;
             this._leaveGroundFrames = 0;
         }
         return grounded;
@@ -304,7 +323,7 @@ class Player {
     }
 
     handleJumpInput(input) {
-        if (!input.jumpPressed || this.jumpsRemaining <= 0) return false;
+        if (!input.jumpPressed || !this.canJump()) return false;
         this.fsm.change('jump');
         return true;
     }
@@ -349,9 +368,15 @@ class Player {
     }
 
     performJump() {
-        this.jumpsRemaining--;
-        const isSecondJump = this.jumpsRemaining < PlayerConfig.maxJumps - 1;
-        this.setVelocityY(isSecondJump ? PlayerConfig.secondJumpVelocity : PlayerConfig.jumpVelocity);
+        let isSecondJump;
+        if (this.hasUnlimitedJumps()) {
+            this._jumpsUsedThisAirborne++;
+            isSecondJump = this._jumpsUsedThisAirborne > 1;
+        } else {
+            this.jumpsRemaining--;
+            isSecondJump = this.jumpsRemaining < this.maxJumps - 1;
+        }
+        this.setVelocityY(isSecondJump ? this.secondJumpVelocity : this.jumpVelocity);
         if (isSecondJump) {
             const emitter = this.scene.add.particles(this.x, this.y - 4, 'particle_energy', {
                 speed: { min: 40, max: 100 },
@@ -430,6 +455,8 @@ class Player {
         this._prevBodyBottom = null;
         this._leaveGroundFrames = 0;
         this._landFrames = 0;
+        this._jumpsUsedThisAirborne = 0;
+        this.jumpsRemaining = this.hasUnlimitedJumps() ? -1 : this.maxJumps;
 
         const hpPct = typeof respawnHpPercent === 'number'
             ? Phaser.Math.Clamp(respawnHpPercent, 0, 100)

@@ -54,7 +54,7 @@ const RunState = {
             return;
         }
         player.facing = dir;
-        player.setVelocityX(dir * PlayerConfig.moveSpeed);
+        player.setVelocityX(dir * player.moveSpeed);
         if (player.isAirborne()) {
             player.fsm.change('fall');
         }
@@ -72,13 +72,13 @@ const JumpState = {
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
         if (dir !== 0) player.facing = dir;
-        player.setVelocityX(dir * PlayerConfig.moveSpeed);
+        player.setVelocityX(dir * player.moveSpeed);
         if (player.body.velocity.y > 0) {
             player.fsm.change('fall');
         }
     },
     handleInput(player, input) {
-        if (input.jumpPressed && player.jumpsRemaining > 0) {
+        if (input.jumpPressed && player.canJump()) {
             player.performJump();
             player.playHeroAnim('hero_idle');
         } else if (input.dashPressed && player.canDash()) {
@@ -100,7 +100,7 @@ const FallState = {
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
         if (dir !== 0) player.facing = dir;
-        player.setVelocityX(dir * PlayerConfig.moveSpeed);
+        player.setVelocityX(dir * player.moveSpeed);
         if (player.isLanded()) {
             player.fsm.change(dir === 0 ? 'idle' : 'run');
         }
@@ -170,9 +170,9 @@ const AttackState = {
         // 攻击时仍可空中漂移
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
         if (player.onGround()) {
-            player.setVelocityX(dir * PlayerConfig.moveSpeed * 0.4);
+            player.setVelocityX(dir * player.moveSpeed * 0.4);
         } else {
-            player.setVelocityX(dir * PlayerConfig.moveSpeed * 0.8);
+            player.setVelocityX(dir * player.moveSpeed * 0.8);
         }
         if (time >= player.attackEndAt) {
             player.fsm.change(player.onGround() ? 'idle' : 'fall');
@@ -252,7 +252,7 @@ const SwordChargeState = {
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
         if (dir !== 0) player.facing = dir;
-        player.setVelocityX(dir * PlayerConfig.moveSpeed * PlayerConfig.swordChargeMoveSpeedMult);
+        player.setVelocityX(dir * player.moveSpeed * PlayerConfig.swordChargeMoveSpeedMult);
         Effects.syncSwordChargeFx(player);
         Effects.updateSwordChargeBar(player);
 
@@ -285,7 +285,7 @@ const SwordReleaseState = {
         player._swordQiSpawned = false;
         player._heroDisplayScaleMult = PlayerConfig.swordReleaseDisplayScaleMult;
         player.playHeroAnim(slashKey, true);
-        player.setVelocityX(player.facing * PlayerConfig.moveSpeed * 0.15);
+        player.setVelocityX(player.facing * player.moveSpeed * 0.15);
 
         const animMs = _animDurationMs(scene, slashKey, PlayerConfig.swordReleaseDuration);
         const frame2StartMs = _animFrameStartMs(scene, slashKey, 1);
@@ -311,9 +311,9 @@ const SwordReleaseState = {
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
         if (player.onGround()) {
-            player.setVelocityX(dir * PlayerConfig.moveSpeed * 0.25);
+            player.setVelocityX(dir * player.moveSpeed * 0.25);
         } else {
-            player.setVelocityX(dir * PlayerConfig.moveSpeed * 0.45);
+            player.setVelocityX(dir * player.moveSpeed * 0.45);
         }
     },
     exit(player) {

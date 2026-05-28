@@ -16,7 +16,7 @@ const PlayerConfig = {
             body: useSheet ? this.heroSheetBody : this.heroStaticBody,
             depth: 19,
             collideWorldBounds: true,
-            maxVelocity: { x: 800, y: 1400 }
+            maxVelocity: { x: PlayerConfig.maxVelocityX, y: PlayerConfig.maxFallVelocity }
         };
         const visual = useSheet ? {
             idleTexture: 'tex_hero_idle',
@@ -36,6 +36,9 @@ const PlayerConfig = {
     jumpVelocity: -720,
     secondJumpVelocity: -560,
     maxJumps: 2,
+    gravity: 1800,
+    maxVelocityX: 800,
+    maxFallVelocity: 1400,
     dashSpeed: 760,
     dashDuration: 200,        // ms
     dashCooldown: 250,        // ms

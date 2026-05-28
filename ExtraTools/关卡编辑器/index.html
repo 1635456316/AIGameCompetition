@@ -81,6 +81,19 @@
         </aside>
     </div>
 
+    <div id="player-settings-modal" class="modal-overlay" hidden>
+        <div class="modal-panel player-settings-panel" role="dialog" aria-labelledby="player-settings-title">
+            <div class="modal-header">
+                <h2 id="player-settings-title">角色数值</h2>
+                <button type="button" class="btn modal-close" id="btn-player-settings-close" title="关闭">×</button>
+            </div>
+            <div class="modal-body player-settings-body">
+                <p class="field-hint">留空则使用默认值；跳跃速度向上为负数；重力越大落得越快。</p>
+                <form id="player-settings-form" class="player-settings-form"></form>
+            </div>
+        </div>
+    </div>
+
     <div id="scene-tools-modal" class="modal-overlay" hidden>
         <div class="modal-panel scene-tools-panel" role="dialog" aria-labelledby="scene-tools-title">
             <div class="modal-header">

@@ -1111,6 +1111,126 @@
         }
     }
 
+    function formatPlayerConfigDefault(field) {
+        const def = S.PLAYER_CONFIG_DEFAULTS[field.key];
+        const unit = field.unit ? ` ${field.unit}` : '';
+        return `默认 ${def}${unit}`;
+    }
+
+    function normalizePlayerFieldValue(key, raw, field) {
+        if (field.optional && (raw === '' || raw == null)) return null;
+        let v = typeof raw === 'number' ? raw : parseFloat(raw);
+        if (Number.isNaN(v)) return undefined;
+        if (field.integer) v = Math.round(v);
+        if (field.clamp) v = Math.max(field.clamp[0], Math.min(field.clamp[1], v));
+        if (field.min != null) v = Math.max(field.min, v);
+        if (field.max != null) v = Math.min(field.max, v);
+        if (key === 'maxJumps') {
+            v = Math.round(v);
+            if (v >= 0) v = Math.max(0, Math.min(10, v));
+        }
+        if (key === 'jumpVelocity' || key === 'secondJumpVelocity') v = Math.min(0, v);
+        if (key === 'moveSpeed') v = Math.max(0, v);
+        if (key === 'gravity' || key === 'maxFallVelocity') v = Math.max(0, v);
+        if (key === 'energyStartPercent' || key === 'hpStartPercent') v = Math.max(0, Math.min(100, v));
+        if (key === 'energyRegenRate') v = Math.max(0, v);
+        return v;
+    }
+
+    function getPlayerConfigSummaryText() {
+        const parts = [];
+        S.PLAYER_CONFIG_FIELDS.forEach(field => {
+            if (!field.key) return;
+            const def = S.PLAYER_CONFIG_DEFAULTS[field.key];
+            const val = level[field.key];
+            if (field.optional) {
+                if (val != null) {
+                    if (field.key === 'maxJumps' && val < 0) parts.push('跳跃次数 无限');
+                    else parts.push(`${field.label} ${val}`);
+                }
+                return;
+            }
+            const effective = val ?? def;
+            if (effective !== def) parts.push(`${field.label} ${effective}${field.unit || ''}`);
+        });
+        return parts.length ? parts.join(' · ') : '全部使用默认值';
+    }
+
+    function updatePlayerConfigSummary() {
+        const el = document.getElementById('player-config-summary');
+        if (el) el.textContent = getPlayerConfigSummaryText();
+    }
+
+    function buildPlayerSettingsForm() {
+        const form = document.getElementById('player-settings-form');
+        if (!form) return;
+        form.innerHTML = '';
+
+        S.PLAYER_CONFIG_FIELDS.forEach(field => {
+            if (field.section) {
+                const title = document.createElement('div');
+                title.className = 'section-title';
+                title.textContent = field.section;
+                form.appendChild(title);
+                return;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'player-settings-field';
+            const val = level[field.key];
+            const display = val === null || val === undefined ? '' : val;
+            const placeholder = field.optional ? '留空=默认' : String(S.PLAYER_CONFIG_DEFAULTS[field.key]);
+            row.innerHTML = `
+                <div class="player-settings-field-head">
+                    <span class="player-settings-field-name">${field.label}${field.unit ? ` (${field.unit})` : ''}${field.hint ? ` · ${field.hint}` : ''}</span>
+                    <span class="player-settings-field-default">${formatPlayerConfigDefault(field)}</span>
+                </div>
+                <input type="number" data-key="${field.key}" value="${display}" placeholder="${placeholder}">
+            `;
+            form.appendChild(row);
+
+            row.querySelector('input').addEventListener('change', e => {
+                pushUndo();
+                const k = e.target.dataset.key;
+                const meta = S.PLAYER_CONFIG_FIELDS.find(item => item.key === k);
+                const next = normalizePlayerFieldValue(k, e.target.value.trim(), meta || {});
+                if (next === undefined) return;
+                level[k] = next;
+                if (next === null) e.target.value = '';
+                else e.target.value = next;
+                updatePlayerConfigSummary();
+            });
+        });
+    }
+
+    function openPlayerSettingsModal() {
+        const modal = document.getElementById('player-settings-modal');
+        if (!modal) return;
+        buildPlayerSettingsForm();
+        modal.hidden = false;
+    }
+
+    function closePlayerSettingsModal() {
+        const modal = document.getElementById('player-settings-modal');
+        if (modal) modal.hidden = true;
+    }
+
+    function setupPlayerSettingsModal() {
+        const modal = document.getElementById('player-settings-modal');
+        if (!modal) return;
+
+        document.getElementById('tab-level').addEventListener('click', e => {
+            if (e.target.id === 'btn-open-player-settings') openPlayerSettingsModal();
+        });
+        document.getElementById('btn-player-settings-close').addEventListener('click', closePlayerSettingsModal);
+        modal.addEventListener('click', e => {
+            if (e.target === modal) closePlayerSettingsModal();
+        });
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && !modal.hidden) closePlayerSettingsModal();
+        });
+    }
+
     function buildLevelForm() {
         const form = document.getElementById('level-form');
         const fields = [
@@ -1123,11 +1243,7 @@
             { section: 'Boss', items: [
                 ['bossTriggerOffset', 'Boss 触发距右边缘 (px)', 'number']
             ]},
-            { section: '玩家属性', items: [
-                ['hpStartPercent', '初始血量 (%)', 'number'],
-                ['energyStartPercent', '初始能量 (%)', 'number'],
-                ['energyRegenRate', '回能量速度 (/秒)', 'number']
-            ]},
+            { isPlayerSection: true },
             { section: '小怪', items: [
                 ['enemyKillEnergy', '击杀回能（默认）', 'number']
             ]},
@@ -1143,6 +1259,23 @@
 
         form.innerHTML = '';
         fields.forEach(sec => {
+            if (sec.isPlayerSection) {
+                const title = document.createElement('div');
+                title.className = 'section-title';
+                title.textContent = '角色数值';
+                form.appendChild(title);
+
+                const wrap = document.createElement('div');
+                wrap.className = 'level-player-section';
+                wrap.innerHTML = `
+                    <p class="field-hint" id="player-config-summary">—</p>
+                    <button type="button" class="btn player-settings-open-btn" id="btn-open-player-settings">编辑角色数值…</button>
+                `;
+                form.appendChild(wrap);
+                updatePlayerConfigSummary();
+                return;
+            }
+
             const title = document.createElement('div');
             title.className = 'section-title';
             title.textContent = sec.section;
@@ -1160,9 +1293,6 @@
                     let v = e.target.value;
                     if (type === 'number') v = parseFloat(v);
                     if (Number.isNaN(v)) return;
-                    if (k === 'energyStartPercent') v = Math.max(0, Math.min(100, v));
-                    if (k === 'hpStartPercent') v = Math.max(0, Math.min(100, v));
-                    if (k === 'energyRegenRate') v = Math.max(0, v);
                     if (k === 'enemyKillEnergy') v = Math.max(0, v);
                     if (v === '' && k.includes('Url')) level[k] = null;
                     else level[k] = v;
@@ -1878,6 +2008,7 @@
         buildPalette();
         buildLevelForm();
         setupSceneToolsModal();
+        setupPlayerSettingsModal();
         S.setGridSize(parseInt(document.getElementById('grid-size').value, 10));
 
         if (LevelEditorPlayerMode.isEnabled()) {

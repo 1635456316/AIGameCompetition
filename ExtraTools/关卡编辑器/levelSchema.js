@@ -68,6 +68,34 @@ const LevelEditorSchema = (() => {
 
     const ENEMY_DEFAULT_HP = { melee: 50, ranged: 35, flying: 30 };
 
+    /** 与 js/player/PlayerConfig.js 保持一致的角色默认值 */
+    const PLAYER_CONFIG_DEFAULTS = {
+        hpStartPercent: 100,
+        energyStartPercent: 0,
+        energyRegenRate: 0,
+        moveSpeed: 320,
+        maxJumps: 2,
+        jumpVelocity: -720,
+        secondJumpVelocity: -560,
+        gravity: 1800,
+        maxFallVelocity: 1400
+    };
+
+    const PLAYER_CONFIG_FIELDS = [
+        { section: '生存与能量' },
+        { key: 'hpStartPercent', label: '初始血量', unit: '%', clamp: [0, 100] },
+        { key: 'energyStartPercent', label: '初始能量', unit: '%', clamp: [0, 100] },
+        { key: 'energyRegenRate', label: '回能量速度', unit: '/秒', min: 0 },
+        { section: '移动与跳跃' },
+        { key: 'moveSpeed', label: '移动速度', unit: 'px/s', optional: true, min: 0 },
+        { key: 'maxJumps', label: '跳跃次数', unit: '次', optional: true, integer: true, hint: '负数=无限' },
+        { key: 'jumpVelocity', label: '一段跳速度', unit: 'px/s', optional: true, max: 0 },
+        { key: 'secondJumpVelocity', label: '二段跳速度', unit: 'px/s', optional: true, max: 0 },
+        { section: '物理' },
+        { key: 'gravity', label: '重力加速度', unit: 'px/s²', optional: true, min: 0 },
+        { key: 'maxFallVelocity', label: '最大下落速度', unit: 'px/s', optional: true, min: 0 }
+    ];
+
     function spawnDefaultHp(type) {
         return ENEMY_DEFAULT_HP[type] ?? ENEMY_DEFAULT_HP.melee;
     }
@@ -110,6 +138,13 @@ const LevelEditorSchema = (() => {
         level.hpStartPercent = hazardNumber(raw.hpStartPercent, 100);
         level.enemyKillEnergy = hazardNumber(raw.enemyKillEnergy, 10);
         if (level.enemyKillEnergy < 0) level.enemyKillEnergy = 0;
+
+        level.maxJumps = raw.maxJumps != null ? hazardNumber(raw.maxJumps, null) : null;
+        level.jumpVelocity = raw.jumpVelocity != null ? hazardNumber(raw.jumpVelocity, null) : null;
+        level.secondJumpVelocity = raw.secondJumpVelocity != null ? hazardNumber(raw.secondJumpVelocity, null) : null;
+        level.moveSpeed = raw.moveSpeed != null ? hazardNumber(raw.moveSpeed, null) : null;
+        level.gravity = raw.gravity != null ? hazardNumber(raw.gravity, null) : null;
+        level.maxFallVelocity = raw.maxFallVelocity != null ? hazardNumber(raw.maxFallVelocity, null) : null;
         if (isFinishLevel(raw)) {
             level.finish = { w: 80, h: 80, ...(raw.finish || {}) };
             level.boss = null;
@@ -508,6 +543,39 @@ const LevelEditorSchema = (() => {
             errors.push('小怪击杀回能 enemyKillEnergy 不能为负');
         }
 
+        if (normalized.maxJumps != null) {
+            if (!Number.isInteger(normalized.maxJumps)) {
+                errors.push('跳跃次数 maxJumps 应为整数');
+            } else if (normalized.maxJumps >= 0 && normalized.maxJumps > 10) {
+                errors.push('跳跃次数 maxJumps 应为负数（无限）或 0–10 的整数');
+            }
+        }
+        if (normalized.jumpVelocity != null) {
+            if (typeof normalized.jumpVelocity !== 'number' || normalized.jumpVelocity > 0) {
+                errors.push('一段跳速度 jumpVelocity 应为 <= 0 的数值（负数表示向上）');
+            }
+        }
+        if (normalized.secondJumpVelocity != null) {
+            if (typeof normalized.secondJumpVelocity !== 'number' || normalized.secondJumpVelocity > 0) {
+                errors.push('二段跳速度 secondJumpVelocity 应为 <= 0 的数值（负数表示向上）');
+            }
+        }
+        if (normalized.moveSpeed != null) {
+            if (typeof normalized.moveSpeed !== 'number' || normalized.moveSpeed < 0) {
+                errors.push('移动速度 moveSpeed 应为 >= 0 的数值');
+            }
+        }
+        if (normalized.gravity != null) {
+            if (typeof normalized.gravity !== 'number' || normalized.gravity < 0) {
+                errors.push('重力加速度 gravity 应为 >= 0 的数值');
+            }
+        }
+        if (normalized.maxFallVelocity != null) {
+            if (typeof normalized.maxFallVelocity !== 'number' || normalized.maxFallVelocity < 0) {
+                errors.push('最大下落速度 maxFallVelocity 应为 >= 0 的数值');
+            }
+        }
+
         const spawnIds = new Set(
             (normalized.spawns || [])
                 .map(s => s.id)
@@ -666,6 +734,8 @@ const LevelEditorSchema = (() => {
         electricIsActive,
         spawnDefaultHp,
         ENEMY_DEFAULT_HP,
+        PLAYER_CONFIG_DEFAULTS,
+        PLAYER_CONFIG_FIELDS,
         clearLevelContent,
         insertBlankSpace
     };

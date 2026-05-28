@@ -448,6 +448,83 @@ h2 {
     width: 100%;
 }
 
+.level-player-section {
+    margin-bottom: 4px;
+}
+
+.level-player-section .field-hint {
+    margin: 0 0 10px;
+    line-height: 1.45;
+}
+
+.player-settings-open-btn {
+    width: 100%;
+}
+
+.player-settings-panel {
+    width: min(480px, calc(100vw - 32px));
+}
+
+.player-settings-body {
+    padding: 14px 16px 18px;
+    max-height: min(72vh, 640px);
+    overflow-y: auto;
+}
+
+.player-settings-form .section-title {
+    font-size: 11px;
+    color: #6a7380;
+    text-transform: uppercase;
+    margin: 16px 0 10px;
+    padding-top: 10px;
+    border-top: 1px solid #262c35;
+}
+
+.player-settings-form .section-title:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.player-settings-field {
+    margin-bottom: 12px;
+}
+
+.player-settings-field-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.player-settings-field-name {
+    font-size: 13px;
+    color: #c8cdd4;
+}
+
+.player-settings-field-default {
+    font-size: 11px;
+    color: #6cc6ff;
+    white-space: nowrap;
+}
+
+.player-settings-field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: #e6e8eb;
+    background: #12161c;
+    border: 1px solid #303844;
+    border-radius: 6px;
+}
+
+.player-settings-field input:focus {
+    outline: none;
+    border-color: #4a90c8;
+}
+
 .insert-pick-row {
     display: flex;
     gap: 8px;

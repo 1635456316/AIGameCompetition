@@ -34,6 +34,12 @@ function normalizeLevel(raw) {
         hpStartPercent: hazardNumber(raw.hpStartPercent, 100),
         enemyKillEnergy: hazardNumber(raw.enemyKillEnergy, 10),
         bossTriggerOffset: raw.bossTriggerOffset ?? 600,
+        maxJumps: raw.maxJumps != null ? hazardNumber(raw.maxJumps, null) : null,
+        jumpVelocity: raw.jumpVelocity != null ? hazardNumber(raw.jumpVelocity, null) : null,
+        secondJumpVelocity: raw.secondJumpVelocity != null ? hazardNumber(raw.secondJumpVelocity, null) : null,
+        moveSpeed: raw.moveSpeed != null ? hazardNumber(raw.moveSpeed, null) : null,
+        gravity: raw.gravity != null ? hazardNumber(raw.gravity, null) : null,
+        maxFallVelocity: raw.maxFallVelocity != null ? hazardNumber(raw.maxFallVelocity, null) : null,
         boss: null,
         finish: null,
         startVideoUrl: raw.startVideoUrl ?? null,
@@ -124,6 +130,39 @@ export function validateLevel(level) {
     }
     if (normalized.energyRegenRate < 0) errors.push('energyRegenRate 不能为负');
     if (normalized.enemyKillEnergy < 0) errors.push('enemyKillEnergy 不能为负');
+
+    if (normalized.maxJumps != null) {
+        if (!Number.isInteger(normalized.maxJumps)) {
+            errors.push('maxJumps 应为整数');
+        } else if (normalized.maxJumps >= 0 && normalized.maxJumps > 10) {
+            errors.push('maxJumps 应为负数（无限）或 0–10 的整数');
+        }
+    }
+    if (normalized.jumpVelocity != null) {
+        if (typeof normalized.jumpVelocity !== 'number' || normalized.jumpVelocity > 0) {
+            errors.push('jumpVelocity 应为 <= 0 的数值');
+        }
+    }
+    if (normalized.secondJumpVelocity != null) {
+        if (typeof normalized.secondJumpVelocity !== 'number' || normalized.secondJumpVelocity > 0) {
+            errors.push('secondJumpVelocity 应为 <= 0 的数值');
+        }
+    }
+    if (normalized.moveSpeed != null) {
+        if (typeof normalized.moveSpeed !== 'number' || normalized.moveSpeed < 0) {
+            errors.push('moveSpeed 应为 >= 0 的数值');
+        }
+    }
+    if (normalized.gravity != null) {
+        if (typeof normalized.gravity !== 'number' || normalized.gravity < 0) {
+            errors.push('gravity 应为 >= 0 的数值');
+        }
+    }
+    if (normalized.maxFallVelocity != null) {
+        if (typeof normalized.maxFallVelocity !== 'number' || normalized.maxFallVelocity < 0) {
+            errors.push('maxFallVelocity 应为 >= 0 的数值');
+        }
+    }
 
     const spawnIds = new Set(
         (normalized.spawns || [])
