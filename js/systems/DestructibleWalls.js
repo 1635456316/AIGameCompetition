@@ -26,6 +26,7 @@ class DestructibleWall {
         this.sprite.clearTint();
         this.sprite.refreshBody();
         this.sprite.setData('isDestructibleWall', true);
+        this.sprite.setData('isWall', true);
         this.sprite.setData('destructibleOwner', this);
         this._crackSeed = Math.abs(Math.floor(this.x * 7 + this.y * 13)) % 10000;
         this.crackGfx = scene.add.graphics().setDepth(1);

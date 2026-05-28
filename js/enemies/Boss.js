@@ -121,6 +121,67 @@ class Boss {
         this._syncBossBar();
     }
 
+    _aimsAtPlayer() {
+        return this.config.skillAim === 'player';
+    }
+
+    _bulletSpawnPoint(cfg = {}) {
+        return {
+            x: this.x + (cfg.spawnOffsetX ?? this.facing * 60),
+            y: this.y + (cfg.spawnOffsetY ?? -90)
+        };
+    }
+
+    _playerAimTarget(player) {
+        return {
+            x: player?.x ?? this.x + this.facing * 120,
+            y: (player?.y ?? this.y) - 40
+        };
+    }
+
+    _aimVelocityAt(fromX, fromY, targetX, targetY, speed) {
+        const dx = targetX - fromX;
+        const dy = targetY - fromY;
+        const len = Math.hypot(dx, dy) || 1;
+        return { vx: (dx / len) * speed, vy: (dy / len) * speed };
+    }
+
+    _baseAimAngle(fromX, fromY, targetX, targetY) {
+        return Phaser.Math.RadToDeg(Math.atan2(targetY - fromY, targetX - fromX));
+    }
+
+    _spreadOffsets(cfg) {
+        const count = this.phase === 2
+            ? (cfg.phase2Count ?? cfg.count ?? 5)
+            : (cfg.count ?? 5);
+        const spreadDeg = this.phase === 2
+            ? (cfg.phase2SpreadDeg ?? cfg.spreadDeg ?? 30)
+            : (cfg.spreadDeg ?? 30);
+        if (count <= 1) return [0];
+        const step = spreadDeg / (count - 1);
+        return Array.from({ length: count }, (_, i) => -spreadDeg / 2 + step * i);
+    }
+
+    _rainSkillParams(cfg) {
+        const base = {
+            count: cfg.count ?? 6,
+            intervalMs: cfg.intervalMs ?? 120,
+            xSpread: cfg.xSpread ?? 260,
+            speed: cfg.speed ?? 430,
+            vxJitter: cfg.vxJitter ?? 40
+        };
+        if (this.phase === 2) {
+            return {
+                count: cfg.phase2Count ?? base.count + 2,
+                intervalMs: cfg.phase2IntervalMs ?? Math.max(70, base.intervalMs - 20),
+                xSpread: cfg.phase2XSpread ?? base.xSpread + 40,
+                speed: cfg.phase2Speed ?? base.speed + 40,
+                vxJitter: cfg.phase2VxJitter ?? base.vxJitter
+            };
+        }
+        return base;
+    }
+
     _skillCfg(name) {
         return this.config.skills?.[name] || {};
     }
@@ -285,8 +346,8 @@ class Boss {
             ? (this.config.phase1Skills || ['spread', 'tri'])
             : (this.config.phase2Skills || ['spread', 'tri', 'slam']);
         const choice = Phaser.Utils.Array.GetRandom(pool);
-        if (choice === 'spread') this.skillSpread();
-        else if (choice === 'tri') this.skillTri();
+        if (choice === 'spread') this.skillSpread(player);
+        else if (choice === 'tri') this.skillTri(player);
         else if (choice === 'slam') this.skillSlam(player);
         else if (choice === 'rain') this.skillRain(player);
         else if (choice === 'jumpSlam') this.skillJumpSlam(player);
@@ -444,22 +505,53 @@ class Boss {
         return false;
     }
 
-    skillSpread() {
+    skillSpread(player) {
         const scene = this.scene;
-        const angles = [-30, -15, 0, 15, 30];
-        angles.forEach(a => {
-            const rad = Phaser.Math.DegToRad(a);
-            const vx = Math.cos(rad) * this.facing * 360;
-            const vy = Math.sin(rad) * 360;
-            scene.spawnEnemyBullet(this.x + this.facing * 60, this.y - 90, vx, vy);
+        const cfg = this._skillCfg('spread');
+        const speed = cfg.speed ?? 360;
+        const { x, y } = this._bulletSpawnPoint(cfg);
+
+        if (this._aimsAtPlayer()) {
+            const target = this._playerAimTarget(player);
+            const baseAngle = this._baseAimAngle(x, y, target.x, target.y);
+            this._spreadOffsets(cfg).forEach((offset) => {
+                const rad = Phaser.Math.DegToRad(baseAngle + offset);
+                scene.spawnEnemyBullet(x, y, Math.cos(rad) * speed, Math.sin(rad) * speed);
+            });
+            return;
+        }
+
+        [-30, -15, 0, 15, 30].forEach((angle) => {
+            const rad = Phaser.Math.DegToRad(angle);
+            scene.spawnEnemyBullet(
+                x, y,
+                Math.cos(rad) * this.facing * speed,
+                Math.sin(rad) * speed
+            );
         });
     }
 
-    skillTri() {
+    skillTri(player) {
         const scene = this.scene;
-        for (let i = 0; i < 3; i++) {
-            scene.time.delayedCall(i * 180, () => {
-                scene.spawnEnemyBullet(this.x + this.facing * 60, this.y - 90, this.facing * 440, 0);
+        const cfg = this._skillCfg('tri');
+        const count = this.phase === 2
+            ? (cfg.phase2Count ?? cfg.count ?? 3)
+            : (cfg.count ?? 3);
+        const interval = this.phase === 2
+            ? (cfg.phase2IntervalMs ?? cfg.intervalMs ?? 180)
+            : (cfg.intervalMs ?? 180);
+        const speed = cfg.speed ?? 440;
+        for (let i = 0; i < count; i++) {
+            scene.time.delayedCall(i * interval, () => {
+                if (!this.alive) return;
+                const { x, y } = this._bulletSpawnPoint(cfg);
+                if (this._aimsAtPlayer()) {
+                    const target = this._playerAimTarget(player);
+                    const v = this._aimVelocityAt(x, y, target.x, target.y, speed);
+                    scene.spawnEnemyBullet(x, y, v.vx, v.vy);
+                } else {
+                    scene.spawnEnemyBullet(x, y, this.facing * speed, 0);
+                }
             });
         }
     }
@@ -478,11 +570,27 @@ class Boss {
 
     skillRain(player) {
         const scene = this.scene;
-        for (let i = 0; i < 6; i++) {
-            scene.time.delayedCall(i * 120, () => {
+        const cfg = this._skillCfg('rain');
+        const params = this._rainSkillParams(cfg);
+        for (let i = 0; i < params.count; i++) {
+            scene.time.delayedCall(i * params.intervalMs, () => {
                 if (!this.alive) return;
-                const x = player.x + Phaser.Math.Between(-260, 260);
-                scene.spawnEnemyBullet(x, 80, Phaser.Math.Between(-40, 40), 430);
+                if (this._aimsAtPlayer()) {
+                    const { x, y } = this._bulletSpawnPoint(cfg);
+                    const target = this._playerAimTarget(player);
+                    const aimX = target.x + Phaser.Math.Between(-params.xSpread, params.xSpread);
+                    const aimY = target.y + Phaser.Math.Between(-24, 24);
+                    const v = this._aimVelocityAt(x, y, aimX, aimY, params.speed);
+                    scene.spawnEnemyBullet(x, y, v.vx, v.vy);
+                } else {
+                    const x = player.x + Phaser.Math.Between(-params.xSpread, params.xSpread);
+                    scene.spawnEnemyBullet(
+                        x,
+                        80,
+                        Phaser.Math.Between(-params.vxJitter, params.vxJitter),
+                        params.speed
+                    );
+                }
             });
         }
     }

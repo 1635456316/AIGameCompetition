@@ -28,6 +28,7 @@ class SystemWall {
         this.sprite.setTint(0x8899bb);
         this.sprite.refreshBody();
         this.sprite.setData('isSystemWall', true);
+        this.sprite.setData('isWall', true);
         this.sprite.setData('systemWallOwner', this);
 
         const label = this.bindEnemyId ? `⛨${this.bindEnemyId}` : '⛨?';

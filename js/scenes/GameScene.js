@@ -134,10 +134,10 @@ class GameScene extends Phaser.Scene {
         });
         this.physics.add.collider(this.enemyBullets, this.groundSolids, (bullet) => {
             if (bullet?.active) bullet.destroy();
-        });
+        }, (_bullet, solid) => !this._isWallSolid(solid));
         this.physics.add.collider(this.enemyBullets, this.platforms, (bullet) => {
             if (bullet?.active) bullet.destroy();
-        });
+        }, (_bullet, solid) => !this._isWallSolid(solid));
 
         this._bindDestructibleWallHits();
         this.pickups = Pickups.spawn(this, this.levelConfig);
@@ -368,6 +368,7 @@ class GameScene extends Phaser.Scene {
                 p.setOrigin(0.5, 0.5);
                 if (h !== 20) p.setDisplaySize(96, h);
                 p.setData('platHeight', h);
+                if (h > 20) p.setData('isWall', true);
                 p.refreshBody();
             }
         });
@@ -387,9 +388,21 @@ class GameScene extends Phaser.Scene {
         const leftWall = this.groundSolids.create(-16, this.levelHeight / 2, 'tile_wall');
         leftWall.displayWidth = 32; leftWall.displayHeight = this.levelHeight;
         leftWall.refreshBody();
+        leftWall.setData('isWall', true);
         const rightWall = this.groundSolids.create(this.levelWidth + 16, this.levelHeight / 2, 'tile_wall');
         rightWall.displayWidth = 32; rightWall.displayHeight = this.levelHeight;
         rightWall.refreshBody();
+        rightWall.setData('isWall', true);
+    }
+
+    /** 竖墙 / 系统墙 / 可破坏墙 / 加高平台（当墙用）——子弹可穿过 */
+    _isWallSolid(solid) {
+        if (!solid?.getData) return false;
+        if (solid.getData('isWall')) return true;
+        if (solid.getData('isSystemWall')) return true;
+        if (solid.getData('isDestructibleWall')) return true;
+        const platH = solid.getData('platHeight');
+        return typeof platH === 'number' && platH > 20;
     }
 
     _spawnEnemies() {
@@ -592,21 +605,30 @@ class GameScene extends Phaser.Scene {
         Effects.bigText(this, '先 清 理 残 敌', PaletteHex.warning);
     }
 
+    _resolveBossSpawnY(bossInfo, groundY) {
+        if (typeof bossInfo.y === 'number' && !Number.isNaN(bossInfo.y)) {
+            return bossInfo.y;
+        }
+        if (typeof bossInfo.yOffset === 'number' && !Number.isNaN(bossInfo.yOffset)) {
+            return this.levelHeight - bossInfo.yOffset;
+        }
+        return groundY;
+    }
+
     _spawnBoss() {
         const bossInfo = this.levelConfig.boss || { type: 'mechanicalDino', xOffset: 220 };
         const x = this.levelWidth - (bossInfo.xOffset || 220);
         const groundY = this.levelHeight - 64;
-        // 默认生成在地面上（与 player / 小怪一致）；关卡 JSON 可显式指定 boss.y
-        const y = typeof bossInfo.y === 'number' ? bossInfo.y : groundY;
+        const y = this._resolveBossSpawnY(bossInfo, groundY);
         const bossConfig = BossConfigs[bossInfo.type] || BossConfigs.mechanicalDino;
         this._playLevelBGM('boss');
         this.boss = new Boss(this, x, y, bossConfig);
-        this.boss.snapFeetToGroundY(groundY);
+        this.boss.snapFeetToGroundY(y);
         this.physics.add.collider(this.boss.sprite, this.groundSolids);
         this.physics.add.collider(this.boss.sprite, this.platforms);
-        // 首帧物理刷新后再贴地一次，避免构造时 body 未就绪导致下沉
+        // 首帧物理刷新后再对齐一次，避免构造时 body 未就绪导致偏移
         this.time.delayedCall(0, () => {
-            if (this.boss?.alive) this.boss.snapFeetToGroundY(groundY);
+            if (this.boss?.alive) this.boss.snapFeetToGroundY(y);
         });
         this.physics.add.overlap(this.playerBullets, this.boss.sprite, (a, b) => {
             const bullet = this._pickPlayerBullet(a, b);
@@ -937,12 +959,6 @@ class GameScene extends Phaser.Scene {
         if (!this.destructibleWalls?.length) return;
         this.destructibleWalls.forEach(wall => {
             if (!wall.sprite) return;
-            this.physics.add.overlap(this.playerBullets, wall.sprite, (a, b) => {
-                const bullet = this._pickPlayerBullet(a, b);
-                if (!bullet?.active || wall.broken) return;
-                wall.takeHit(1);
-                if (!bullet._swordQiPierce) bullet.destroy();
-            });
             this.physics.add.overlap(this.playerMelees, wall.sprite, (a, b) => {
                 const melee = this._pickPlayerMelee(a, b);
                 if (!melee?.active || wall.broken) return;

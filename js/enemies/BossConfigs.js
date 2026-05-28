@@ -50,6 +50,7 @@ const BossConfigs = {
         }
     },
     // 第 2 关（最终关）Boss：废弃城区的钢铁咆哮压轴。
+    // 仅弹幕攻击，弹幕朝玩家方向发射；移动与重力行为与其他 Boss 一致。
     mechanicalDino: {
         name: '机械暴龙',
         title: '机械暴龙 · 钢铁咆哮',
@@ -59,10 +60,19 @@ const BossConfigs = {
         contactDamage: 14,
         speed: 95,
         stopDistance: 110,
+        skillAim: 'player',
         phase1Cooldown: 1700,
         phase2Cooldown: 1050,
-        phase1Skills: ['tri', 'spread'],
-        phase2Skills: ['tri', 'spread', 'slam'],
+        phase1Skills: ['tri', 'spread', 'rain'],
+        phase2Skills: ['tri', 'spread', 'rain'],
+        skills: {
+            spread: { speed: 340, count: 5, spreadDeg: 36, phase2Count: 7, phase2SpreadDeg: 48 },
+            tri: { speed: 420, count: 3, intervalMs: 160, phase2Count: 5, phase2IntervalMs: 110 },
+            rain: {
+                count: 6, intervalMs: 120, xSpread: 180, speed: 400,
+                phase2Count: 9, phase2IntervalMs: 90, phase2XSpread: 240, phase2Speed: 440
+            }
+        },
         logic: {
             origin: { x: 0.5, y: 1 },
             referenceFrameWidth: 1024,
