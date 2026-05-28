@@ -7,6 +7,7 @@ class EntityDebugRenderer {
         this.graphics = scene.add.graphics().setDepth(10000).setScrollFactor(1);
         this.enabled = GameDebug.showHitboxes;
         this._hintText = null;
+        this._minionText = null;
         this._labels = [];
         this._labelIndex = 0;
     }
@@ -16,6 +17,7 @@ class EntityDebugRenderer {
         if (!this.enabled) {
             this.graphics.clear();
             if (this._hintText) this._hintText.setVisible(false);
+            if (this._minionText) this._minionText.setVisible(false);
             this._hideAllLabels();
         }
     }
@@ -43,11 +45,39 @@ class EntityDebugRenderer {
         this._hintText.setVisible(this.enabled);
     }
 
+    _updateMinionCount() {
+        const enemies = this.scene?.enemies;
+        const total = enemies?.length ?? 0;
+        if (!this.enabled || total === 0) {
+            if (this._minionText) this._minionText.setVisible(false);
+            return;
+        }
+        const remaining = enemies.reduce((n, e) => n + (e?.alive ? 1 : 0), 0);
+        const label = `剩余小怪 ${remaining} / ${total}`;
+        if (!this._minionText) {
+            this._minionText = this.scene.add.text(12, 68, label, {
+                font: 'bold 14px Arial',
+                color: '#ffaa44',
+                backgroundColor: '#000000aa',
+                padding: { x: 6, y: 4 }
+            }).setScrollFactor(0).setDepth(10001);
+        } else {
+            this._minionText.setText(label);
+        }
+        this._minionText.setVisible(true);
+        if (remaining === 0) {
+            this._minionText.setColor('#88ff88');
+        } else {
+            this._minionText.setColor('#ffaa44');
+        }
+    }
+
     beginFrame() {
         if (!this.enabled) return;
         this.graphics.clear();
         this._labelIndex = 0;
         this._updateHint();
+        this._updateMinionCount();
     }
 
     endFrame() {

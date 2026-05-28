@@ -421,8 +421,15 @@ class GameScene extends Phaser.Scene {
 
     _spawnEnemies() {
         const groundY = this.levelHeight - 64;
-        (this.levelConfig.spawns || []).forEach(s => {
-            const e = new Enemy(this, s.x, s.y || groundY - 4, s.type, {
+        (this.levelConfig.spawns || []).forEach((s, i) => {
+            const y = s.y || groundY - 4;
+            if (!this._isSpawnInsideMap(s.x, y)) {
+                console.warn(
+                    `[GameScene] 跳过地图外小怪 #${i + 1}${s.id ? ` "${s.id}"` : ''}: (${s.x}, ${y})`
+                );
+                return;
+            }
+            const e = new Enemy(this, s.x, y, s.type, {
                 hp: s.hp,
                 killEnergy: s.killEnergy,
                 id: s.id
@@ -644,6 +651,12 @@ class GameScene extends Phaser.Scene {
 
     _allMinionsCleared() {
         return !this.enemies || this.enemies.every(enemy => !enemy.alive);
+    }
+
+    _isSpawnInsideMap(x, y) {
+        if (typeof x !== 'number' || Number.isNaN(x)) return false;
+        if (typeof y !== 'number' || Number.isNaN(y)) return false;
+        return x >= 0 && x <= this.levelWidth && y >= 0 && y <= this.levelHeight;
     }
 
     _shouldSpawnBoss() {

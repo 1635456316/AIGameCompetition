@@ -1,5 +1,5 @@
 /**
- * 全局 Debug 开关。URL ?debug=1 或游戏中按 F9 切换碰撞盒显示。
+ * 全局 Debug 开关。URL ?debug=1 或游戏中按 F9 切换碰撞盒显示与调试信息。
  * URL ?respawn=1 开启复活流程调试日志（控制台过滤 [RespawnDBG]）。
  * URL ?boss=1 开启 Boss 生成位置调试日志（控制台过滤 [BossSpawnDBG]）。
  */

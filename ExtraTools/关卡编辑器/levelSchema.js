@@ -568,6 +568,40 @@ const LevelEditorSchema = (() => {
         return JSON.stringify(payload, null, 2);
     }
 
+    function spawnLabel(spawn, index) {
+        return spawn.id != null && spawn.id !== '' ? `小怪 "${spawn.id}"` : `小怪 #${index + 1}`;
+    }
+
+    function resolveSpawnWorldY(level, spawn) {
+        if (typeof spawn.y === 'number' && !Number.isNaN(spawn.y)) {
+            return spawn.y;
+        }
+        return groundY(level) - 4;
+    }
+
+    function validateSpawnBounds(level, errors) {
+        (level.spawns || []).forEach((s, i) => {
+            const label = spawnLabel(s, i);
+            if (typeof s.x !== 'number' || Number.isNaN(s.x)) {
+                errors.push(`${label} 缺少有效 X 坐标`);
+                return;
+            }
+            if (s.y != null && (typeof s.y !== 'number' || Number.isNaN(s.y))) {
+                errors.push(`${label} Y 坐标无效`);
+                return;
+            }
+            const x = s.x;
+            const y = resolveSpawnWorldY(level, s);
+            const W = level.width;
+            const H = level.height;
+            if (x < 0 || x > W || y < 0 || y > H) {
+                errors.push(
+                    `${label} 坐标 (${Math.round(x)}, ${Math.round(y)}) 超出地图范围 (宽 0–${W}，高 0–${H})`
+                );
+            }
+        });
+    }
+
     function validateLevel(level) {
         const errors = [];
         const normalized = normalizeLevel(level);
@@ -677,6 +711,7 @@ const LevelEditorSchema = (() => {
             if (seenSpawnIds.has(id)) errors.push(`小怪 id 重复: "${id}"（生成点 #${i + 1}）`);
             seenSpawnIds.add(id);
         });
+        validateSpawnBounds(normalized, errors);
         (normalized.systemWalls || []).forEach((w, i) => {
             const bind = w.bindEnemyId != null && w.bindEnemyId !== '' ? String(w.bindEnemyId) : '';
             if (!bind) {
