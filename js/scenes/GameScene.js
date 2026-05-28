@@ -626,8 +626,19 @@ class GameScene extends Phaser.Scene {
     }
 
     _playerReachedBossTrigger() {
+        if (!this.player) return false;
+        const zone = this.levelConfig.bossTriggerZone;
+        if (zone && typeof zone.x === 'number' && typeof zone.y === 'number') {
+            return playerOverlapsRect(
+                this.player,
+                zone.x,
+                zone.y,
+                zone.w || 160,
+                zone.h || 120
+            );
+        }
         const triggerOffset = this.levelConfig.bossTriggerOffset || 600;
-        return this.player && this.player.x > this.levelWidth - triggerOffset;
+        return this.player.x > this.levelWidth - triggerOffset;
     }
 
     _allMinionsCleared() {

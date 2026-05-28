@@ -70,6 +70,7 @@ const LevelEditorSchema = (() => {
                 { kind: 'player_start', label: '玩家出生', icon: '★', color: '#44ff88' },
                 { kind: 'checkpoint', label: '复活点', icon: '⛳', color: '#44cc88' },
                 { kind: 'boss', label: 'Boss 位置', icon: '👹', color: '#cc44ff' },
+                { kind: 'boss_trigger', label: 'Boss 触发框', icon: '⬚', color: '#ff6688' },
                 { kind: 'finish', label: '终点', icon: '🏁', color: '#ffcc44' }
             ]
         }
@@ -138,6 +139,25 @@ const LevelEditorSchema = (() => {
         return boss;
     }
 
+    function hasBossTriggerZone(level) {
+        const z = level?.bossTriggerZone;
+        return z != null && typeof z.x === 'number' && !Number.isNaN(z.x)
+            && typeof z.y === 'number' && !Number.isNaN(z.y);
+    }
+
+    function normalizeBossTriggerZone(raw) {
+        if (!raw || typeof raw.x !== 'number' || Number.isNaN(raw.x)
+            || typeof raw.y !== 'number' || Number.isNaN(raw.y)) {
+            return null;
+        }
+        return {
+            x: raw.x,
+            y: raw.y,
+            w: Math.max(16, raw.w ?? 160),
+            h: Math.max(16, raw.h ?? 120)
+        };
+    }
+
     function createEmptyLevel(id = 1) {
         return {
             id,
@@ -151,6 +171,7 @@ const LevelEditorSchema = (() => {
             hpStartPercent: 100,
             enemyKillEnergy: 10,
             bossTriggerOffset: 600,
+            bossTriggerZone: null,
             boss: { type: 'steelTriceratops', xOffset: 240, yOffset: 80 },
             finish: null,
             startVideoUrl: null,
@@ -188,9 +209,11 @@ const LevelEditorSchema = (() => {
         if (isFinishLevel(raw)) {
             level.finish = { w: 80, h: 80, ...(raw.finish || {}) };
             level.boss = null;
+            level.bossTriggerZone = null;
         } else {
             level.finish = null;
             level.boss = normalizeBoss(raw.boss);
+            level.bossTriggerZone = normalizeBossTriggerZone(raw.bossTriggerZone);
         }
         level.platforms = (raw.platforms || []).map(p => [...p]);
         level.walls = (raw.walls || []).map(w => ({ ...w }));
@@ -418,6 +441,10 @@ const LevelEditorSchema = (() => {
                 const by = levelHeight(level) - (level.boss.yOffset || 80);
                 return { x: bx - 24, y: by - 24, w: 48, h: 48 };
             }
+            case 'bossTriggerZone': {
+                const z = level.bossTriggerZone || data;
+                return { x: z.x - z.w / 2, y: z.y - z.h / 2, w: z.w, h: z.h };
+            }
             case 'finish': {
                 const f = level.finish || data;
                 return { x: f.x - f.w / 2, y: f.y - f.h / 2, w: f.w, h: f.h };
@@ -489,6 +516,8 @@ const LevelEditorSchema = (() => {
                 return '玩家出生点';
             case 'boss':
                 return 'Boss 位置';
+            case 'bossTriggerZone':
+                return 'Boss 触发框';
             case 'finish':
                 return '终点';
             default:
@@ -508,6 +537,9 @@ const LevelEditorSchema = (() => {
         items.push({ category: 'playerStart', index: 0, data: level.playerStart });
         if (isBossLevel(level)) {
             items.push({ category: 'boss', index: 0, data: level.boss });
+            if (hasBossTriggerZone(level)) {
+                items.push({ category: 'bossTriggerZone', index: 0, data: level.bossTriggerZone });
+            }
         }
         if (isFinishLevel(level)) {
             items.push({ category: 'finish', index: 0, data: level.finish });
@@ -529,6 +561,7 @@ const LevelEditorSchema = (() => {
         const payload = { ...out };
         if (isFinishLevel(payload)) {
             delete payload.boss;
+            delete payload.bossTriggerZone;
         } else {
             delete payload.finish;
         }
@@ -577,6 +610,11 @@ const LevelEditorSchema = (() => {
             }
             if (b.damageMult != null && (typeof b.damageMult !== 'number' || Number.isNaN(b.damageMult) || b.damageMult < 0)) {
                 errors.push('Boss 攻击伤害倍率 damageMult 应为 >= 0 的数值');
+            }
+            if (hasBossTriggerZone(normalized)) {
+                const z = normalized.bossTriggerZone;
+                if (!z.w || z.w < 16) errors.push('Boss 触发框宽度 w 应 >= 16');
+                if (!z.h || z.h < 16) errors.push('Boss 触发框高度 h 应 >= 16');
             }
         }
 
@@ -732,6 +770,9 @@ const LevelEditorSchema = (() => {
         if (level.finish && typeof level.finish.y === 'number' && level.finish.y >= P) {
             level.finish = { ...level.finish, y: level.finish.y + L };
         }
+        if (hasBossTriggerZone(level) && level.bossTriggerZone.y >= P) {
+            level.bossTriggerZone = { ...level.bossTriggerZone, y: level.bossTriggerZone.y + L };
+        }
 
         if (opts.adjustBottomAnchored) {
             const H = opts.levelHeightBefore ?? levelHeight(level);
@@ -811,6 +852,9 @@ const LevelEditorSchema = (() => {
         if (level.finish?.x >= P) {
             level.finish = { ...level.finish, x: shiftIf(level.finish.x) };
         }
+        if (hasBossTriggerZone(level) && level.bossTriggerZone.x >= P) {
+            level.bossTriggerZone = { ...level.bossTriggerZone, x: level.bossTriggerZone.x + L };
+        }
         if (isBossLevel(level) && level.boss) {
             const bossX = level.width - (level.boss.xOffset || 240);
             if (bossX >= P) {
@@ -866,6 +910,8 @@ const LevelEditorSchema = (() => {
         isFinishLevel,
         isBossLevel,
         bossTriggerX,
+        hasBossTriggerZone,
+        normalizeBossTriggerZone,
         playerY,
         checkpointBounds,
         normalizeCheckpoint,

@@ -163,6 +163,7 @@
         const { category, index } = selection;
         if (category === 'playerStart') return level.playerStart;
         if (category === 'boss') return level.boss;
+        if (category === 'bossTriggerZone') return level.bossTriggerZone;
         if (category === 'finish') return level.finish;
         const arr = level[category];
         if (!arr || index < 0 || index >= arr.length) return null;
@@ -178,6 +179,10 @@
         }
         if (category === 'boss') {
             level.boss = { ...level.boss, ...data };
+            return;
+        }
+        if (category === 'bossTriggerZone') {
+            level.bossTriggerZone = { ...level.bossTriggerZone, ...data };
             return;
         }
         if (category === 'finish') {
@@ -254,6 +259,7 @@
             };
         }
         if (category === 'finish') return { x: data.x, y: data.y };
+        if (category === 'bossTriggerZone') return { x: data.x, y: data.y };
         if (category === 'spawns' || category === 'pickups') {
             return { x: data.x, y: data.y ?? (S.groundY(level) - 4) };
         }
@@ -276,6 +282,7 @@
         for (const item of items) {
             if (item.category === category && category === 'playerStart') continue;
             if (item.category === category && category === 'boss') continue;
+            if (item.category === category && category === 'bossTriggerZone') continue;
             if (item.category === category && category === 'finish') continue;
             const bounds = S.getItemBounds(item.category, item.data, level);
             if (rectsOverlap(pastedBounds, bounds)) return true;
@@ -303,6 +310,9 @@
             selection = { category, index: 0 };
         } else if (category === 'boss') {
             level.boss = copy;
+            selection = { category, index: 0 };
+        } else if (category === 'bossTriggerZone') {
+            level.bossTriggerZone = copy;
             selection = { category, index: 0 };
         } else if (category === 'finish') {
             level.finish = copy;
@@ -442,6 +452,23 @@
     function drawBossTrigger() {
         if (!S.isBossLevel(level)) return;
         const h = getLevelH();
+        if (S.hasBossTriggerZone(level)) {
+            const z = level.bossTriggerZone;
+            const sel = selection?.category === 'bossTriggerZone';
+            ctx.fillStyle = sel ? 'rgba(255,100,100,0.35)' : 'rgba(255,100,100,0.18)';
+            ctx.strokeStyle = sel ? '#ff8888' : '#ff6644';
+            ctx.lineWidth = sel ? 3 : 2;
+            ctx.setLineDash([6, 4]);
+            ctx.fillRect(z.x - z.w / 2, z.y - z.h / 2, z.w, z.h);
+            ctx.strokeRect(z.x - z.w / 2 + 0.5, z.y - z.h / 2 + 0.5, z.w - 1, z.h - 1);
+            ctx.setLineDash([]);
+            ctx.fillStyle = sel ? '#ffaaaa' : '#ff8866';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Boss 触发框', z.x, z.y + 4);
+            ctx.textAlign = 'left';
+            return;
+        }
         const tx = S.bossTriggerX(level);
         ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
         ctx.setLineDash([8, 6]);
@@ -844,9 +871,21 @@
             refreshAll();
             return;
         }
+        if (kind === 'boss_trigger') {
+            if (!S.isBossLevel(level)) {
+                alert('须先为关卡设置 Boss（Boss 关卡）');
+                return;
+            }
+            pushUndo();
+            level.bossTriggerZone = { x: S.snap(wx), y: S.snap(wy), w: 160, h: 120 };
+            selection = { category: 'bossTriggerZone', index: 0 };
+            refreshAll();
+            return;
+        }
         if (kind === 'finish') {
             pushUndo();
             level.boss = null;
+            level.bossTriggerZone = null;
             level.finish = { x: S.snap(wx), y: S.snap(wy), w: 80, h: 80 };
             selection = { category: 'finish', index: 0 };
             refreshAll();
@@ -947,6 +986,10 @@
             } else if (selection.category === 'finish') {
                 if (key === 'x' || key === 'y') level.finish[key] = S.snap(v);
                 else level.finish[key] = v;
+            } else if (selection.category === 'bossTriggerZone') {
+                if (key === 'x' || key === 'y') level.bossTriggerZone[key] = S.snap(v);
+                else level.bossTriggerZone[key] = v;
+                updateBossTriggerHint();
             } else if (selection.category === 'hazards' && level.hazards[selection.index].type === 'checkpoint') {
                 const item = { ...level.hazards[selection.index], feetAnchor: true };
                 if (key === 'x') item[key] = S.snap(v);
@@ -1169,6 +1212,15 @@
             addField('Y', 'y', 'number', { value: data.y });
             addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
             addField('高 h', 'h', 'number', { value: data.h ?? 80 });
+        } else if (selection.category === 'bossTriggerZone') {
+            addField('X', 'x', 'number', { value: data.x });
+            addField('Y', 'y', 'number', { value: data.y });
+            addField('宽 w', 'w', 'number', { value: data.w ?? 160 });
+            addField('高 h', 'h', 'number', { value: data.h ?? 120 });
+            const triggerHint = document.createElement('p');
+            triggerHint.className = 'field-hint';
+            triggerHint.textContent = '玩家进入此矩形区域且清完小怪后触发 Boss；设置后 Boss 触发线（bossTriggerOffset）不再生效。';
+            form.appendChild(triggerHint);
         }
 
         const copyBtn = document.createElement('button');
@@ -1192,6 +1244,8 @@
                 pushUndo();
                 if (selection.category === 'finish') {
                     level.finish = null;
+                } else if (selection.category === 'bossTriggerZone') {
+                    level.bossTriggerZone = null;
                 } else {
                     level[selection.category].splice(selection.index, 1);
                 }
@@ -1335,6 +1389,16 @@
         });
     }
 
+    function updateBossTriggerHint() {
+        const el = document.getElementById('boss-trigger-offset-hint');
+        if (!el) return;
+        if (S.hasBossTriggerZone(level)) {
+            el.textContent = '已设置 Boss 触发框，触发线（bossTriggerOffset）在游戏中不生效。';
+        } else {
+            el.textContent = '未设置触发框时，玩家越过距右边缘该距离的竖线即进入 Boss 触发判定（须先清完小怪）。';
+        }
+    }
+
     function buildLevelForm() {
         const form = document.getElementById('level-form');
         const fields = [
@@ -1413,6 +1477,13 @@
                     refreshAll(false);
                 });
             });
+            if (sec.section === 'Boss') {
+                const triggerHint = document.createElement('p');
+                triggerHint.className = 'field-hint';
+                triggerHint.id = 'boss-trigger-offset-hint';
+                form.appendChild(triggerHint);
+                updateBossTriggerHint();
+            }
         });
 
     }
@@ -1583,6 +1654,7 @@
     function refreshAll(rebuildForms = true) {
         render();
         updateInfo();
+        updateBossTriggerHint();
         if (rebuildForms) {
             buildPropsForm();
             buildLevelForm();
@@ -1716,6 +1788,9 @@
         if (category === 'finish') {
             return { x: worldX - level.finish.x, y: worldY - level.finish.y };
         }
+        if (category === 'bossTriggerZone') {
+            return { x: worldX - level.bossTriggerZone.x, y: worldY - level.bossTriggerZone.y };
+        }
         if (category === 'spawns' || category === 'pickups') {
             return {
                 x: worldX - data.x,
@@ -1754,6 +1829,9 @@
         } else if (selection.category === 'finish') {
             level.finish.x = worldX - ox;
             level.finish.y = worldY - oy;
+        } else if (selection.category === 'bossTriggerZone') {
+            level.bossTriggerZone.x = worldX - ox;
+            level.bossTriggerZone.y = worldY - oy;
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = worldX - ox;
@@ -1789,6 +1867,9 @@
         } else if (selection.category === 'finish') {
             level.finish.x = level.finish.x + dx;
             level.finish.y = level.finish.y + dy;
+        } else if (selection.category === 'bossTriggerZone') {
+            level.bossTriggerZone.x = level.bossTriggerZone.x + dx;
+            level.bossTriggerZone.y = level.bossTriggerZone.y + dy;
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = item.x + dx;
@@ -1961,6 +2042,8 @@
                 ? level.playerStart
                 : selection.category === 'boss'
                     ? level.boss
+                    : selection.category === 'bossTriggerZone'
+                        ? level.bossTriggerZone
                     : selection.category === 'finish'
                         ? level.finish
                     : level[selection.category]?.[selection.index];

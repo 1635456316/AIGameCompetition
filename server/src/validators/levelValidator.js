@@ -36,6 +36,25 @@ function normalizeBoss(raw) {
     return boss;
 }
 
+function normalizeBossTriggerZone(raw) {
+    if (!raw || typeof raw.x !== 'number' || Number.isNaN(raw.x)
+        || typeof raw.y !== 'number' || Number.isNaN(raw.y)) {
+        return null;
+    }
+    return {
+        x: raw.x,
+        y: raw.y,
+        w: Math.max(16, raw.w ?? 160),
+        h: Math.max(16, raw.h ?? 120)
+    };
+}
+
+function hasBossTriggerZone(level) {
+    const z = level?.bossTriggerZone;
+    return z != null && typeof z.x === 'number' && !Number.isNaN(z.x)
+        && typeof z.y === 'number' && !Number.isNaN(z.y);
+}
+
 function normalizeLevel(raw) {
     const level = {
         id: raw.id || 1,
@@ -75,9 +94,11 @@ function normalizeLevel(raw) {
     if (isFinishLevel(raw)) {
         level.finish = { w: 80, h: 80, ...(raw.finish || {}) };
         level.boss = null;
+        level.bossTriggerZone = null;
     } else {
         level.finish = null;
         level.boss = normalizeBoss(raw.boss);
+        level.bossTriggerZone = normalizeBossTriggerZone(raw.bossTriggerZone);
     }
 
     return level;
@@ -143,6 +164,11 @@ export function validateLevel(level) {
         }
         if (b.damageMult != null && (typeof b.damageMult !== 'number' || Number.isNaN(b.damageMult) || b.damageMult < 0)) {
             errors.push('Boss damageMult 应为 >= 0 的数值');
+        }
+        if (hasBossTriggerZone(normalized)) {
+            const z = normalized.bossTriggerZone;
+            if (!z.w || z.w < 16) errors.push('Boss 触发框宽度 w 应 >= 16');
+            if (!z.h || z.h < 16) errors.push('Boss 触发框高度 h 应 >= 16');
         }
     }
 
