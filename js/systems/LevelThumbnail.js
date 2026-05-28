@@ -132,6 +132,8 @@ class LevelThumbnail {
         if (Array.isArray(level.hazards)) {
             gfx.fillStyle(0xff5fb9, 0.85);
             level.hazards.forEach(h => {
+                // 风场区域大且游戏中几乎不可见，缩略图里会占满整图
+                if (h.type === 'wind') return;
                 const rx = (h.x || 0) * sx;
                 const ry = (h.y || 0) * sy;
                 const rw = Math.max(2, (h.w || 32) * sx);
