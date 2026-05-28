@@ -18,17 +18,13 @@ class PauseMenu {
             .setScrollFactor(0).setDepth(this.uiDepth + 1).setVisible(false);
         this._ui.push(panel);
 
-        const title = scene.add.text(panelX, panelY - 120, '暂   停', {
+        const title = scene.add.text(panelX, panelY - 120, this._buildTitle(), {
             font: 'bold 40px Arial', color: PaletteHex.warning,
             stroke: '#000', strokeThickness: 6
         }).setOrigin(0.5).setScrollFactor(0).setDepth(this.uiDepth + 2).setVisible(false);
         this._ui.push(title);
 
-        this.items = [
-            { label: '继续游戏', action: () => this.hide() },
-            { label: '重新开始', action: () => { this.hide(); scene.scene.restart(); } },
-            { label: '返回主菜单', action: () => { this.hide(); scene.scene.start('MenuScene'); } }
-        ];
+        this.items = this._buildItems();
 
         this.buttons = [];
         this.items.forEach((item, i) => {
@@ -59,6 +55,39 @@ class PauseMenu {
         scene.input.keyboard.on('keydown-W', () => { if (this.visible) this._navigate(-1); });
         scene.input.keyboard.on('keydown-S', () => { if (this.visible) this._navigate(1); });
         scene.input.keyboard.on('keydown-ENTER', () => { if (this.visible) this.items[this.selectedIndex].action(); });
+    }
+
+    _buildTitle() {
+        const mode = this.scene.mode || 'campaign';
+        if (mode === 'editorTest') return '试 玩 暂 停';
+        return '暂   停';
+    }
+
+    _buildItems() {
+        const scene = this.scene;
+        const mode = scene.mode || 'campaign';
+
+        if (mode === 'editorTest') {
+            return [
+                { label: '继续试玩', action: () => this.hide() },
+                { label: '重新开始', action: () => { this.hide(); scene.scene.restart(); } },
+                { label: '返回关卡编辑器', action: () => { window.location.href = '/ExtraTools/关卡编辑器/?mode=player'; } }
+            ];
+        }
+
+        if (mode === 'workshop') {
+            return [
+                { label: '继续游戏', action: () => this.hide() },
+                { label: '重新开始', action: () => { this.hide(); scene.scene.restart(); } },
+                { label: '返回创意工坊', action: () => { this.hide(); scene.scene.start('WorkshopScene'); } }
+            ];
+        }
+
+        return [
+            { label: '继续游戏', action: () => this.hide() },
+            { label: '重新开始', action: () => { this.hide(); scene.scene.restart(); } },
+            { label: '返回主菜单', action: () => { this.hide(); scene.scene.start('MenuScene'); } }
+        ];
     }
 
     show() {

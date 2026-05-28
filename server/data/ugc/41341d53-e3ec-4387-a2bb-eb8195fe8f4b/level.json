@@ -1,0 +1,34 @@
+{
+  "id": 1,
+  "title": "第 1 关 · 钢 甲 要 塞",
+  "subtitle": "教学关：电磁机关与钢甲三角龙",
+  "width": 1000,
+  "playerStart": {
+    "x": 160,
+    "yOffset": 120
+  },
+  "energyStartPercent": 0,
+  "energyRegenRate": 0,
+  "hpStartPercent": 10,
+  "enemyKillEnergy": 10,
+  "bossTriggerOffset": 900,
+  "finish": {
+    "w": 80,
+    "h": 80,
+    "x": 848,
+    "y": 568
+  },
+  "startVideoUrl": null,
+  "endVideoUrl": null,
+  "normalBgmUrl": null,
+  "bossBgmUrl": null,
+  "bgUrl": null,
+  "resultBgUrl": null,
+  "platforms": [],
+  "walls": [],
+  "destructibleWalls": [],
+  "systemWalls": [],
+  "pickups": [],
+  "spawns": [],
+  "hazards": []
+}

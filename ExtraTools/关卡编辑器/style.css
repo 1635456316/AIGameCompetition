@@ -81,6 +81,16 @@ h2 {
     border-color: #4a9ee8;
 }
 .btn.primary:hover { background: linear-gradient(180deg, #4a9ee8 0%, #3578c4 100%); }
+.btn.danger {
+    background: #3a2028;
+    border-color: #c04455;
+    color: #ff8899;
+}
+.btn.danger:hover {
+    background: #4a2830;
+    border-color: #e05566;
+    color: #ffb3bd;
+}
 .btn.active, .tool-btn.active {
     background: #2d4a6a;
     border-color: #5a9fd4;

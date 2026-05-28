@@ -66,7 +66,8 @@ class LevelSelectScene extends Phaser.Scene {
         const btnW = 185;
         const btnGap = 12;
         const btnY = h - 78;
-        const btnStartX = w / 2 - (btnW * 2 + btnGap) / 2 + btnW / 2;
+        const btnCount = 3;
+        const btnStartX = w / 2 - (btnW * btnCount + btnGap * (btnCount - 1)) / 2 + btnW / 2;
         const bottomEnterOffset = 48;
         const bottomBtnDelay = 220 + totalLevels * 45;
         const bottomBtnDuration = 300;
@@ -74,13 +75,16 @@ class LevelSelectScene extends Phaser.Scene {
         const backBtn = this._createImageButton(btnStartX, btnY + bottomEnterOffset, 'ui_btn_continue', '返回主菜单', () => {
             this.scene.start('MenuScene');
         }, btnW).setAlpha(0);
-        const resetBtn = this._createImageButton(btnStartX + btnW + btnGap, btnY + bottomEnterOffset, 'ui_btn_exit', '重置存档', () => {
+        const workshopBtn = this._createImageButton(btnStartX + btnW + btnGap, btnY + bottomEnterOffset, 'ui_btn_continue', '创意工坊', () => {
+            this.scene.start('WorkshopScene');
+        }, btnW).setAlpha(0);
+        const resetBtn = this._createImageButton(btnStartX + (btnW + btnGap) * 2, btnY + bottomEnterOffset, 'ui_btn_exit', '重置存档', () => {
             SaveSystem.reset();
             this.scene.restart();
         }, btnW).setAlpha(0);
 
         this.tweens.add({
-            targets: [backBtn, resetBtn],
+            targets: [backBtn, workshopBtn, resetBtn],
             alpha: 1,
             y: btnY,
             duration: bottomBtnDuration,

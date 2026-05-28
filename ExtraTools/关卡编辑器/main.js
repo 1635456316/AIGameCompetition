@@ -960,7 +960,11 @@
                 value: data.type,
                 options: [
                     { v: 'steelTriceratops', t: 'steelTriceratops' },
-                    { v: 'mechanicalDino', t: 'mechanicalDino' }
+                    { v: 'mechanicalDino', t: 'mechanicalDino' },
+                    { v: 'octopusDoctor', t: 'octopusDoctor' },
+                    { v: 'steelCrab', t: 'steelCrab' },
+                    { v: 'skyCarrier', t: 'skyCarrier' },
+                    { v: 'finalDinoGod', t: 'finalDinoGod' }
                 ]
             });
             addField('xOffset（距右边缘）', 'xOffset', 'number', { value: data.xOffset });
@@ -1775,6 +1779,35 @@
         buildLevelForm();
         setupSceneToolsModal();
         S.setGridSize(parseInt(document.getElementById('grid-size').value, 10));
+
+        if (LevelEditorPlayerMode.isEnabled()) {
+            const playerUi = LevelEditorPlayerMode.setupUi({
+                getLevel: () => level,
+                saveDraftLocal: savePlayerDraft,
+                startTestPlay: startPlayerTestPlay
+            });
+            LevelEditorPlayerMode.hideMediaSection();
+
+            const draftId = LevelEditorPlayerMode.getOrCreateDraftId();
+            const saved = await LevelEditorPlayerMode.loadDraft(draftId);
+            try {
+                if (saved && saved.levelJson) {
+                    await loadLevel(LevelEditorPlayerMode.stripMedia(saved.levelJson));
+                } else {
+                    await loadLevel(await LevelEditorPlayerMode.loadTemplate());
+                }
+            } catch (err) {
+                console.warn(err);
+                await loadLevel(S.createEmptyLevel(1));
+                alert('未能加载玩家模板：' + err.message);
+            }
+
+            await playerUi.refreshAuth();
+            await LevelEditorPlayerMode.refreshUploadState(playerUi.uploadBtn, level);
+            requestAnimationFrame(tick);
+            return;
+        }
+
         try {
             await loadManifest();
             if (levelsCache.length) await loadLevel(levelsCache[0]);
@@ -1785,6 +1818,34 @@
             alert('未能自动加载关卡 JSON。\n请通过 HTTP 服务打开（如项目根目录 npx serve），或使用「打开」手动加载。\n\n' + err.message);
         }
         requestAnimationFrame(tick);
+    }
+
+    async function savePlayerDraft() {
+        const draftId = LevelEditorPlayerMode.getOrCreateDraftId();
+        await LevelEditorPlayerMode.saveDraft(draftId, level);
+        setSaveStatus('草稿已保存到本地');
+    }
+
+    async function startPlayerTestPlay() {
+        const errors = S.validateLevel(level);
+        if (errors.length) {
+            alert('请先修正以下问题再试玩：\n\n' + errors.join('\n'));
+            return;
+        }
+
+        try {
+            await savePlayerDraft();
+        } catch (err) {
+            alert('保存草稿失败，无法开始试玩：\n' + (err.message || err));
+            return;
+        }
+
+        const draftId = LevelEditorPlayerMode.getOrCreateDraftId();
+        const payload = LevelEditorPlayerMode.stripMedia(level);
+        sessionStorage.setItem('editor-test-level', JSON.stringify(payload));
+        sessionStorage.setItem('editor-draft-id', draftId);
+        sessionStorage.removeItem('editor-test-pass');
+        window.location.href = `/?testPlay=1&draftId=${encodeURIComponent(draftId)}`;
     }
 
     init();

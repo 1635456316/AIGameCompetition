@@ -4,8 +4,18 @@ class GameScene extends Phaser.Scene {
     }
 
     init(data) {
-        this.levelId = data?.levelId || 1;
-        this.levelConfig = LevelConfigs.find(level => level.id === this.levelId) || LevelConfigs[0];
+        this.mode = data?.mode || 'campaign';
+        this.returnScene = data?.returnScene || 'LevelSelectScene';
+        this.workshopLevelId = data?.workshopLevelId || null;
+        this.editorDraftId = data?.editorDraftId || null;
+
+        if (data?.levelConfig) {
+            this.levelConfig = data.levelConfig;
+            this.levelId = data.levelConfig.id || 0;
+        } else {
+            this.levelId = data?.levelId || 1;
+            this.levelConfig = LevelConfigs.find(level => level.id === this.levelId) || LevelConfigs[0];
+        }
         // restart 复用同一 Scene 实例，必须清掉上一局的死亡/结算状态
         this.gameOver = false;
         this._gameOverShown = false;
@@ -212,7 +222,7 @@ class GameScene extends Phaser.Scene {
         if (this._onDebugKey) this.input.keyboard.off(`keydown-${GameDebug.toggleKey}`, this._onDebugKey);
         this._onEscKey = () => {
             if (this.gameOver) {
-                this.scene.start('MenuScene');
+                this._exitToMenuOrEditor();
                 return;
             }
             if (this.paused) {
@@ -549,11 +559,19 @@ class GameScene extends Phaser.Scene {
         if (this.levelCompleted || this.gameOver) return;
         this.levelCompleted = true;
 
-        SaveSystem.completeLevel(this.levelId);
-        const isFinal = this.levelId >= LevelConfigs.length;
+        if (this.mode === 'campaign') {
+            SaveSystem.completeLevel(this.levelId);
+        }
+
+        const isFinal = this.mode === 'campaign' && this.levelId >= LevelConfigs.length;
         const timeSec = Math.floor((this.time.now - this.startTime) / 1000);
         const resultData = {
             levelId: this.levelId,
+            mode: this.mode,
+            returnScene: this.returnScene,
+            levelConfig: this.mode !== 'campaign' ? this.levelConfig : undefined,
+            workshopLevelId: this.workshopLevelId,
+            editorDraftId: this.editorDraftId,
             score: this.hud.score,
             maxCombo: this.hud.maxCombo,
             timeSec: timeSec,
@@ -563,6 +581,23 @@ class GameScene extends Phaser.Scene {
 
         Effects.bigText(this, '通 关 !!', PaletteHex.warning);
         Effects.shake(this, 300, 0.015);
+
+        if (this.mode === 'editorTest') {
+            WorkshopApi.hashLevelJson(this.levelConfig).then(levelHash => {
+                sessionStorage.setItem('editor-test-pass', JSON.stringify({
+                    draftId: this.editorDraftId,
+                    levelHash,
+                    passedAt: Date.now()
+                }));
+            }).catch(err => console.warn('[GameScene] test pass hash failed', err));
+        }
+
+        if (this.mode !== 'campaign') {
+            this.time.delayedCall(1500, () => {
+                this.scene.start('ResultScene', resultData);
+            });
+            return;
+        }
 
         const endVideoUrl = this.levelConfig.endVideoUrl;
         const endPVKey = `level${this.levelId}-end`;
@@ -1261,13 +1296,31 @@ class GameScene extends Phaser.Scene {
         this._createGameOverButton(w / 2 - 110, h / 2 + 60, '重新挑战', Palette.warning, () => {
             this.scene.restart();
         });
-        this._createGameOverButton(w / 2 + 110, h / 2 + 60, '返回主菜单', Palette.hero, () => {
-            this.scene.start('MenuScene');
+        const exitLabel = this.mode === 'editorTest'
+            ? '返回编辑器'
+            : (this.mode === 'workshop' ? '返回创意工坊' : '返回主菜单');
+        this._createGameOverButton(w / 2 + 110, h / 2 + 60, exitLabel, Palette.hero, () => {
+            this._exitToMenuOrEditor();
         });
 
-        this.add.text(w / 2, h / 2 + 130, 'R：重新挑战    ESC：返回主菜单', {
+        const hintExit = this.mode === 'editorTest'
+            ? 'ESC：返回编辑器'
+            : (this.mode === 'workshop' ? 'ESC：返回创意工坊' : 'ESC：返回主菜单');
+        this.add.text(w / 2, h / 2 + 130, `R：重新挑战    ${hintExit}`, {
             font: '14px Arial', color: '#7f8998'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(2502);
+    }
+
+    _exitToMenuOrEditor() {
+        if (this.mode === 'editorTest') {
+            window.location.href = '/ExtraTools/关卡编辑器/?mode=player';
+            return;
+        }
+        if (this.mode === 'workshop') {
+            this.scene.start('WorkshopScene');
+            return;
+        }
+        this.scene.start('MenuScene');
     }
 
     _createGameOverButton(x, y, label, accent, action) {

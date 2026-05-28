@@ -155,6 +155,21 @@ class BootScene extends Phaser.Scene {
         HeroAnimLoader.registerAll(this);
         BossAnimLoader.registerAll(this);
         TextureFactory.bakeAll(this);
+
+        if (window.__testPlayLaunch) {
+            const launch = window.__testPlayLaunch;
+            window.__testPlayLaunch = null;
+            this.scene.start('GameScene', launch);
+            return;
+        }
+
+        const bootScene = sessionStorage.getItem('boot-scene');
+        if (bootScene) {
+            sessionStorage.removeItem('boot-scene');
+            this.scene.start(bootScene);
+            return;
+        }
+
         this.scene.start('MenuScene');
     }
 }

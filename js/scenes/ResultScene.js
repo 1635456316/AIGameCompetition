@@ -5,6 +5,11 @@ class ResultScene extends Phaser.Scene {
 
     init(data) {
         this.levelId = data.levelId || 1;
+        this.mode = data.mode || 'campaign';
+        this.returnScene = data.returnScene || 'LevelSelectScene';
+        this.levelConfig = data.levelConfig || null;
+        this.workshopLevelId = data.workshopLevelId || null;
+        this.editorDraftId = data.editorDraftId || null;
         this.score = data.score || 0;
         this.maxCombo = data.maxCombo || 0;
         this.timeSec = data.timeSec || 0;
@@ -13,6 +18,91 @@ class ResultScene extends Phaser.Scene {
     }
 
     create() {
+        if (this.mode === 'workshop' || this.mode === 'editorTest') {
+            this._createWorkshopResultUI();
+            return;
+        }
+
+        this._createCampaignResultUI();
+    }
+
+    _createWorkshopResultUI() {
+        const W = GAME_WIDTH;
+        const H = GAME_HEIGHT;
+
+        this.add.image(W / 2, H / 2, 'bg_far').setDisplaySize(W, H);
+        this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6);
+
+        const title = this.mode === 'editorTest' ? '试 玩 通 关' : '关 卡 完 成';
+        this.add.text(W / 2, 80, title, {
+            font: 'bold 44px Arial', color: PaletteHex.warning,
+            stroke: '#000', strokeThickness: 8
+        }).setOrigin(0.5);
+
+        const statsY = 220;
+        const stats = [
+            { label: '分  数', value: this.score.toString() },
+            { label: '最高连击', value: this.maxCombo + ' HIT' },
+            { label: '用  时', value: this._formatTime(this.timeSec) },
+            { label: '受伤次数', value: this.damageTaken + ' 次' }
+        ];
+
+        stats.forEach((s, i) => {
+            const y = statsY + i * 50;
+            this.add.text(W / 2 - 140, y, s.label, {
+                font: 'bold 22px Arial', color: '#cccccc'
+            }).setOrigin(0, 0.5);
+            this.add.text(W / 2 + 140, y, s.value, {
+                font: 'bold 24px Arial', color: PaletteHex.warning
+            }).setOrigin(1, 0.5);
+        });
+
+        const buttons = [];
+        if (this.mode === 'editorTest') {
+            buttons.push({
+                label: '返回编辑器',
+                action: () => { window.location.href = '/ExtraTools/关卡编辑器/?mode=player'; }
+            });
+        } else {
+            buttons.push({
+                label: '返回创意工坊',
+                action: () => this.scene.start('WorkshopScene')
+            });
+        }
+
+        if (this.mode === 'workshop' && this.levelConfig) {
+            buttons.push({
+                label: '重新挑战',
+                action: () => this.scene.start('GameScene', {
+                    mode: 'workshop',
+                    levelConfig: this.levelConfig,
+                    workshopLevelId: this.workshopLevelId,
+                    returnScene: 'WorkshopScene'
+                })
+            });
+        }
+
+        if (this.mode === 'editorTest' && this.levelConfig) {
+            buttons.push({
+                label: '再试一次',
+                action: () => this.scene.start('GameScene', {
+                    mode: 'editorTest',
+                    levelConfig: this.levelConfig,
+                    editorDraftId: this.editorDraftId,
+                    returnScene: 'editor'
+                })
+            });
+        }
+
+        const btnY = 520;
+        const totalWidth = buttons.length * 220;
+        const startX = W / 2 - totalWidth / 2 + 110;
+        buttons.forEach((btn, i) => {
+            this._createButton(startX + i * 220, btnY, btn.label, btn.action);
+        });
+    }
+
+    _createCampaignResultUI() {
         const W = GAME_WIDTH;
         const H = GAME_HEIGHT;
 

@@ -1,0 +1,170 @@
+import crypto from 'crypto';
+
+const MEDIA_KEYS = [
+    'startVideoUrl',
+    'endVideoUrl',
+    'normalBgmUrl',
+    'bossBgmUrl',
+    'bgUrl',
+    'resultBgUrl'
+];
+
+function hazardNumber(value, fallback) {
+    return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
+}
+
+function isFinishLevel(level) {
+    const f = level?.finish;
+    return f != null && typeof f.x === 'number' && !Number.isNaN(f.x);
+}
+
+function isBossLevel(level) {
+    return !isFinishLevel(level) && level?.boss != null;
+}
+
+function normalizeLevel(raw) {
+    const level = {
+        id: raw.id || 1,
+        title: raw.title || '',
+        subtitle: raw.subtitle || '',
+        width: raw.width || 2400,
+        playerStart: { x: 160, yOffset: 120, ...(raw.playerStart || {}) },
+        energyStartPercent: hazardNumber(raw.energyStartPercent, 0),
+        energyRegenRate: hazardNumber(raw.energyRegenRate, 0),
+        hpStartPercent: hazardNumber(raw.hpStartPercent, 100),
+        enemyKillEnergy: hazardNumber(raw.enemyKillEnergy, 10),
+        bossTriggerOffset: raw.bossTriggerOffset ?? 600,
+        boss: null,
+        finish: null,
+        startVideoUrl: raw.startVideoUrl ?? null,
+        endVideoUrl: raw.endVideoUrl ?? null,
+        normalBgmUrl: raw.normalBgmUrl ?? null,
+        bossBgmUrl: raw.bossBgmUrl ?? null,
+        bgUrl: raw.bgUrl ?? null,
+        resultBgUrl: raw.resultBgUrl ?? null,
+        platforms: (raw.platforms || []).map(p => [...p]),
+        walls: (raw.walls || []).map(w => ({ ...w })),
+        destructibleWalls: (raw.destructibleWalls || []).map(w => ({ ...w })),
+        systemWalls: (raw.systemWalls || []).map(w => ({ ...w })),
+        pickups: (raw.pickups || []).map(p => ({ ...p })),
+        spawns: (raw.spawns || []).map(s => ({ ...s })),
+        hazards: (raw.hazards || []).map(h => ({ ...h }))
+    };
+
+    if (isFinishLevel(raw)) {
+        level.finish = { w: 80, h: 80, ...(raw.finish || {}) };
+        level.boss = null;
+    } else {
+        level.finish = null;
+        level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80, ...(raw.boss || {}) };
+    }
+
+    return level;
+}
+
+export function sanitizeForPlayer(level) {
+    const out = normalizeLevel(level);
+    MEDIA_KEYS.forEach(key => {
+        out[key] = null;
+    });
+    return out;
+}
+
+export function exportLevel(level) {
+    const out = sanitizeForPlayer(level);
+    if (isFinishLevel(out)) {
+        delete out.boss;
+    } else {
+        delete out.finish;
+    }
+    return out;
+}
+
+export function validateLevel(level) {
+    const errors = [];
+    const normalized = normalizeLevel(level);
+
+    if (!normalized.id) errors.push('缺少关卡 id');
+    if (!normalized.width || normalized.width < 800) errors.push('关卡宽度 width 应 >= 800');
+    if (!normalized.playerStart) {
+        errors.push('缺少玩家出生点');
+    } else {
+        if (typeof normalized.playerStart.x !== 'number' || Number.isNaN(normalized.playerStart.x)) {
+            errors.push('玩家出生点 X 无效');
+        }
+        if (typeof normalized.playerStart.yOffset !== 'number' || Number.isNaN(normalized.playerStart.yOffset)) {
+            errors.push('玩家出生点 yOffset 无效');
+        }
+    }
+
+    const boss = isBossLevel(normalized);
+    const finish = isFinishLevel(normalized);
+    if (boss && finish) errors.push('Boss 与终点不能同时存在');
+    if (!boss && !finish) errors.push('须设置 Boss 或终点之一作为通关条件');
+
+    if (finish) {
+        const f = normalized.finish;
+        if (typeof f.y !== 'number' || Number.isNaN(f.y)) errors.push('终点 Y 无效');
+        if (!f.w || f.w < 16) errors.push('终点宽度 w 应 >= 16');
+        if (!f.h || f.h < 16) errors.push('终点高度 h 应 >= 16');
+    }
+
+    if (boss) {
+        const b = normalized.boss;
+        if (!b.type) errors.push('Boss 缺少 type');
+        if (typeof b.xOffset !== 'number' || Number.isNaN(b.xOffset)) errors.push('Boss xOffset 无效');
+        if (typeof b.yOffset !== 'number' || Number.isNaN(b.yOffset)) errors.push('Boss yOffset 无效');
+    }
+
+    if (normalized.energyStartPercent < 0 || normalized.energyStartPercent > 100) {
+        errors.push('energyStartPercent 应在 0–100');
+    }
+    if (normalized.hpStartPercent < 0 || normalized.hpStartPercent > 100) {
+        errors.push('hpStartPercent 应在 0–100');
+    }
+    if (normalized.energyRegenRate < 0) errors.push('energyRegenRate 不能为负');
+    if (normalized.enemyKillEnergy < 0) errors.push('enemyKillEnergy 不能为负');
+
+    const spawnIds = new Set(
+        (normalized.spawns || [])
+            .map(s => s.id)
+            .filter(id => id != null && id !== '')
+            .map(id => String(id))
+    );
+    const seenSpawnIds = new Set();
+    (normalized.spawns || []).forEach((s, i) => {
+        if (s.id == null || s.id === '') return;
+        const id = String(s.id);
+        if (seenSpawnIds.has(id)) errors.push(`小怪 id 重复: "${id}"（生成点 #${i + 1}）`);
+        seenSpawnIds.add(id);
+    });
+    (normalized.systemWalls || []).forEach((w, i) => {
+        const bind = w.bindEnemyId != null && w.bindEnemyId !== '' ? String(w.bindEnemyId) : '';
+        if (!bind) errors.push(`系统墙 #${i + 1} 未设置 bindEnemyId`);
+        else if (!spawnIds.has(bind)) errors.push(`系统墙 #${i + 1} 绑定了不存在的小怪 id: "${bind}"`);
+    });
+    (normalized.hazards || []).forEach((h, i) => {
+        if (h.type !== 'hint') return;
+        const bind = h.bindEnemyId != null && h.bindEnemyId !== '' ? String(h.bindEnemyId) : '';
+        if (!bind) return;
+        if (!spawnIds.has(bind)) errors.push(`提示区 #${i + 1} 绑定了不存在的小怪 id: "${bind}"`);
+    });
+    (normalized.hazards || []).forEach((h, i) => {
+        if (h.type !== 'energy_drain') return;
+        const rate = h.drainRate ?? 15;
+        if (rate < 0) errors.push(`能量损失区 #${i + 1} 的 drainRate 不能为负`);
+    });
+
+    return errors;
+}
+
+export function hashLevelData(level) {
+    return hashJson(exportLevel(level));
+}
+
+export function hashJson(obj) {
+    const text = JSON.stringify(obj);
+    return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+export { normalizeLevel, isFinishLevel, isBossLevel };

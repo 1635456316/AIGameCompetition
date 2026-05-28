@@ -1,0 +1,57 @@
+{
+  "id": 1,
+  "title": "继续测试",
+  "subtitle": "111122222",
+  "width": 1000,
+  "playerStart": {
+    "x": 48,
+    "yOffset": 128,
+    "w": 16
+  },
+  "energyStartPercent": 0,
+  "energyRegenRate": 0,
+  "hpStartPercent": 10,
+  "enemyKillEnergy": 10,
+  "bossTriggerOffset": 900,
+  "finish": {
+    "w": 80,
+    "h": 80,
+    "x": 848,
+    "y": 568
+  },
+  "startVideoUrl": null,
+  "endVideoUrl": null,
+  "normalBgmUrl": null,
+  "bossBgmUrl": null,
+  "bgUrl": null,
+  "resultBgUrl": null,
+  "platforms": [],
+  "walls": [],
+  "destructibleWalls": [],
+  "systemWalls": [],
+  "pickups": [],
+  "spawns": [
+    {
+      "type": "ranged",
+      "x": 360,
+      "y": 599
+    },
+    {
+      "type": "flying",
+      "x": 336,
+      "y": 158
+    }
+  ],
+  "hazards": [
+    {
+      "type": "electric",
+      "x": 544,
+      "y": 368,
+      "w": 140,
+      "h": 60,
+      "period": 2400,
+      "activeDuration": 1000,
+      "damage": 6
+    }
+  ]
+}
