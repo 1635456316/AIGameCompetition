@@ -33,7 +33,58 @@ h2 {
     background: linear-gradient(180deg, #1c2129 0%, #181c23 100%);
     border-bottom: 1px solid #262c35;
     flex-shrink: 0;
-    gap: 16px;
+    gap: 12px;
+}
+
+.published-levels-bar {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    margin-left: 8px;
+}
+
+.published-levels-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+    max-width: 280px;
+}
+
+.published-levels-label {
+    font-size: 12px;
+    color: #8893a3;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.published-levels-select {
+    flex: 1;
+    min-width: 0;
+    max-width: 220px;
+    background: #232932;
+    border: 1px solid #2e3540;
+    border-radius: 6px;
+    color: #e6e8eb;
+    padding: 5px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.published-levels-select:disabled {
+    color: #5a6470;
+    cursor: not-allowed;
+}
+
+.published-levels-select:hover:not(:disabled) {
+    border-color: #3a4455;
+}
+
+.published-levels-select:focus {
+    outline: none;
+    border-color: #5a9fd4;
 }
 
 .top-bar h1 {

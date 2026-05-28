@@ -102,7 +102,18 @@ export function verifyTestPass(levelData, testPass) {
     return { ok: true };
 }
 
-export async function createLevel({ authorId, authorName, authorAvatar, title, description, levelData, testPass }) {
+function normalizeTitle(title) {
+    return String(title || '').trim();
+}
+
+export async function findLevelByTitle(title) {
+    const normalized = normalizeTitle(title);
+    if (!normalized) return null;
+    const levels = await listLevels();
+    return levels.find(l => normalizeTitle(l.title) === normalized) || null;
+}
+
+export async function createLevel({ authorId, authorName, authorAvatar, title, description, levelData, testPass, overwriteLevelId }) {
     const errors = validateLevel(levelData);
     if (errors.length) {
         return { ok: false, error: errors.join('；') };
@@ -114,6 +125,50 @@ export async function createLevel({ authorId, authorName, authorAvatar, title, d
     }
 
     const cleaned = exportLevel(levelData);
+    const metaTitle = normalizeTitle(title || cleaned.title || '未命名关卡');
+    if (!metaTitle) {
+        return { ok: false, error: '关卡名称不能为空' };
+    }
+
+    const existing = await findLevelByTitle(metaTitle);
+    if (existing) {
+        if (overwriteLevelId) {
+            if (existing.id !== overwriteLevelId) {
+                return { ok: false, error: '关卡名称与要覆盖的目标不一致' };
+            }
+            return updateLevel({
+                levelId: overwriteLevelId,
+                authorId,
+                authorName,
+                authorAvatar,
+                title: metaTitle,
+                description,
+                levelData,
+                testPass
+            });
+        }
+        if (existing.authorId === authorId) {
+            return {
+                ok: false,
+                duplicate: true,
+                ownLevel: true,
+                existing,
+                error: '你已发布过同名关卡，是否覆盖发布？'
+            };
+        }
+        return {
+            ok: false,
+            duplicate: true,
+            ownLevel: false,
+            existing,
+            error: `关卡名称「${metaTitle}」已被 ${existing.authorName || '其他玩家'} 使用，请更换名称`
+        };
+    }
+
+    if (overwriteLevelId) {
+        return { ok: false, error: '要覆盖的关卡不存在或名称已变更' };
+    }
+
     const now = Date.now();
     const id = crypto.randomUUID();
     const tmpDir = path.join(config.ugcRoot, `${id}.tmp`);
@@ -124,7 +179,7 @@ export async function createLevel({ authorId, authorName, authorAvatar, title, d
 
     const meta = {
         id,
-        title: String(title || cleaned.title || '未命名关卡').trim(),
+        title: metaTitle,
         description: String(description || '').trim(),
         authorId,
         authorName,
@@ -133,11 +188,6 @@ export async function createLevel({ authorId, authorName, authorAvatar, title, d
         updatedAt: now
     };
 
-    if (!meta.title) {
-        await fs.rm(tmpDir, { recursive: true, force: true });
-        return { ok: false, error: '关卡名称不能为空' };
-    }
-
     cleaned.title = meta.title;
     cleaned.subtitle = meta.description || cleaned.subtitle || '';
 
@@ -145,7 +195,75 @@ export async function createLevel({ authorId, authorName, authorAvatar, title, d
     await fs.writeFile(path.join(tmpDir, LEVEL_FILE), JSON.stringify(cleaned, null, 2), 'utf8');
     await fs.rename(tmpDir, finalDir);
 
-    return { ok: true, level: meta };
+    return { ok: true, level: meta, updated: false };
+}
+
+export async function updateLevel({ levelId, authorId, authorName, authorAvatar, title, description, levelData, testPass }) {
+    const data = await getLevel(levelId);
+    if (!data) return { ok: false, error: '关卡不存在' };
+    if (data.meta.authorId !== authorId) {
+        return { ok: false, error: '无权覆盖此关卡，该关卡由其他玩家发布' };
+    }
+
+    const errors = validateLevel(levelData);
+    if (errors.length) {
+        return { ok: false, error: errors.join('；') };
+    }
+
+    const passCheck = verifyTestPass(levelData, testPass);
+    if (!passCheck.ok) {
+        return passCheck;
+    }
+
+    const cleaned = exportLevel(levelData);
+    const metaTitle = normalizeTitle(title || cleaned.title || data.meta.title);
+    if (!metaTitle) {
+        return { ok: false, error: '关卡名称不能为空' };
+    }
+
+    const conflict = await findLevelByTitle(metaTitle);
+    if (conflict && conflict.id !== levelId) {
+        if (conflict.authorId === authorId) {
+            return {
+                ok: false,
+                duplicate: true,
+                ownLevel: true,
+                existing: conflict,
+                error: '你已发布过同名关卡，是否覆盖发布？'
+            };
+        }
+        return {
+            ok: false,
+            duplicate: true,
+            ownLevel: false,
+            existing: conflict,
+            error: `关卡名称「${metaTitle}」已被 ${conflict.authorName || '其他玩家'} 使用，请更换名称`
+        };
+    }
+
+    const now = Date.now();
+    const meta = {
+        ...data.meta,
+        title: metaTitle,
+        description: String(description ?? data.meta.description ?? '').trim(),
+        authorName,
+        authorAvatar: typeof authorAvatar === 'string' ? authorAvatar : (data.meta.authorAvatar || ''),
+        updatedAt: now
+    };
+
+    cleaned.title = meta.title;
+    cleaned.subtitle = meta.description || cleaned.subtitle || '';
+
+    const dir = path.join(config.ugcRoot, levelId);
+    await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(meta, null, 2), 'utf8');
+    await fs.writeFile(path.join(dir, LEVEL_FILE), JSON.stringify(cleaned, null, 2), 'utf8');
+
+    return { ok: true, level: meta, updated: true };
+}
+
+export async function listLevelsByAuthor(authorId) {
+    const levels = await listLevels();
+    return levels.filter(l => l.authorId === authorId);
 }
 
 export async function deleteLevel(levelId, authorId) {

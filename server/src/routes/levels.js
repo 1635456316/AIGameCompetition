@@ -5,13 +5,21 @@ import {
     deleteLevel,
     getLevel,
     getLevelFilePath,
-    listLevels
+    listLevels,
+    listLevelsByAuthor
 } from '../services/ugcStorage.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export async function levelsRoutes(fastify) {
     fastify.get('/api/levels', async () => {
         const levels = await listLevels();
+        return { levels };
+    });
+
+    fastify.get('/api/levels/mine', async (request, reply) => {
+        if (!(await requireAuth(request, reply))) return;
+
+        const levels = await listLevelsByAuthor(request.user.userId);
         return { levels };
     });
 
@@ -40,7 +48,7 @@ export async function levelsRoutes(fastify) {
             }
         }
 
-        const { title, description, levelData, testPass } = body || {};
+        const { title, description, levelData, testPass, overwriteLevelId } = body || {};
         if (!levelData || typeof levelData !== 'object') {
             reply.code(400).send({ error: '缺少 levelData' });
             return;
@@ -53,16 +61,26 @@ export async function levelsRoutes(fastify) {
             title,
             description,
             levelData,
-            testPass
+            testPass,
+            overwriteLevelId: typeof overwriteLevelId === 'string' ? overwriteLevelId : undefined
         });
 
         if (!result.ok) {
+            if (result.duplicate) {
+                reply.code(409).send({
+                    error: result.error,
+                    duplicate: true,
+                    ownLevel: result.ownLevel,
+                    existing: result.existing
+                });
+                return;
+            }
             reply.code(400).send({ error: result.error });
             return;
         }
 
-        reply.code(201);
-        return { level: result.level };
+        reply.code(result.updated ? 200 : 201);
+        return { level: result.level, updated: !!result.updated };
     });
 
     fastify.delete('/api/levels/:id', async (request, reply) => {

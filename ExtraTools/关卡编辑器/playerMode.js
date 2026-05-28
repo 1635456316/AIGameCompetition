@@ -90,6 +90,36 @@ const LevelEditorPlayerMode = (() => {
         document.title = '关卡编辑器 · 玩家模式';
         document.querySelector('.top-bar h1').textContent = '关卡编辑器 · 玩家模式';
 
+        const topBar = document.querySelector('.top-bar');
+        let publishedBar = document.getElementById('published-levels-bar');
+        if (!publishedBar) {
+            publishedBar = document.createElement('div');
+            publishedBar.id = 'published-levels-bar';
+            publishedBar.className = 'published-levels-bar';
+            publishedBar.innerHTML = `
+                <label class="published-levels-field">
+                    <span class="published-levels-label">我的发布</span>
+                    <select id="published-levels-select" class="published-levels-select">
+                        <option value="">—</option>
+                    </select>
+                </label>`;
+            topBar.insertBefore(publishedBar, topBar.querySelector('.top-tools'));
+        }
+        const publishedSelectEl = publishedBar.querySelector('#published-levels-select');
+        let publishedLevelsCache = [];
+
+        if (publishedSelectEl && !publishedSelectEl.dataset.bound) {
+            publishedSelectEl.dataset.bound = '1';
+            publishedSelectEl.addEventListener('change', async () => {
+                const id = publishedSelectEl.value;
+                publishedSelectEl.value = '';
+                if (!id) return;
+                const item = publishedLevelsCache.find(l => l.id === id);
+                if (!item) return;
+                await loadPublishedLevel(ctx, item);
+            });
+        }
+
         const hideIds = [
             'btn-scene-tools', 'btn-clear-scene', 'btn-new', 'btn-open',
             'btn-save', 'level-select'
@@ -166,10 +196,67 @@ const LevelEditorPlayerMode = (() => {
             showUploadModal(ctx);
         });
 
+        let currentAuth = { loggedIn: false };
+
+        async function refreshPublishedLevels() {
+            if (!publishedSelectEl) return;
+            publishedLevelsCache = [];
+            publishedSelectEl.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+
+            if (!currentAuth.loggedIn) {
+                placeholder.textContent = '登录后查看';
+                publishedSelectEl.appendChild(placeholder);
+                publishedSelectEl.disabled = true;
+                return;
+            }
+
+            publishedSelectEl.disabled = false;
+            try {
+                const res = await fetch('/api/levels/mine', { credentials: 'include' });
+                const data = await res.json();
+                const levels = data.levels || [];
+                publishedLevelsCache = levels;
+                placeholder.textContent = levels.length ? '选择已发布关卡…' : '暂无发布';
+                publishedSelectEl.appendChild(placeholder);
+                levels.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.title || '未命名关卡';
+                    publishedSelectEl.appendChild(opt);
+                });
+            } catch {
+                placeholder.textContent = '加载失败';
+                publishedSelectEl.appendChild(placeholder);
+                publishedSelectEl.disabled = true;
+            }
+        }
+
+        async function loadPublishedLevel(ctx, item) {
+            if (!item?.id) return;
+            if (!confirm(`确定用已发布关卡「${item.title || '未命名关卡'}」覆盖当前画布吗？\n本地未保存的修改将丢失。`)) {
+                return;
+            }
+            try {
+                const res = await fetch(`/api/levels/${encodeURIComponent(item.id)}`, { credentials: 'include' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || '加载关卡失败');
+                await ctx.loadPublishedLevel(data.level, item);
+            } catch (err) {
+                alert(err.message || String(err));
+            }
+        }
+
         return {
             userSpan,
             uploadBtn,
-            refreshAuth: () => refreshAuth(userSpan),
+            refreshAuth: async () => {
+                currentAuth = await refreshAuth(userSpan);
+                await refreshPublishedLevels();
+                return currentAuth;
+            },
+            refreshPublishedLevels,
             refreshUploadState: (level) => refreshUploadState(uploadBtn, level)
         };
     }
@@ -301,9 +388,6 @@ const LevelEditorPlayerMode = (() => {
                 </div>`;
             document.body.appendChild(modal);
             modal.querySelector('#upload-modal-close').addEventListener('click', () => { modal.hidden = true; });
-            modal.addEventListener('click', e => {
-                if (e.target === modal) modal.hidden = true;
-            });
         }
 
         modal.hidden = false;
@@ -315,7 +399,7 @@ const LevelEditorPlayerMode = (() => {
         statusEl.textContent = '';
 
         const submitBtn = modal.querySelector('#upload-submit');
-        const onSubmit = async () => {
+        const onSubmit = async (overwriteLevelId) => {
             if (!hasValidTestPass()) {
                 alert('请先试玩并通关后再发布关卡。');
                 return;
@@ -327,21 +411,46 @@ const LevelEditorPlayerMode = (() => {
                 const pass = readTestPass();
                 const levelData = ctx.getLevel();
                 const levelHash = await hashLevel(levelData);
+                const payload = {
+                    title: titleInput.value.trim(),
+                    description: descInput.value.trim(),
+                    levelData,
+                    testPass: { levelHash, passedAt: pass?.passedAt || Date.now() }
+                };
+                if (overwriteLevelId) payload.overwriteLevelId = overwriteLevelId;
+
                 const res = await fetch('/api/levels', {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: titleInput.value.trim(),
-                        description: descInput.value.trim(),
-                        levelData,
-                        testPass: { levelHash, passedAt: pass?.passedAt || Date.now() }
-                    })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
+
+                if (res.status === 409 && data.duplicate) {
+                    if (data.ownLevel) {
+                        const existingTitle = data.existing?.title || titleInput.value.trim();
+                        const existingAuthor = data.existing?.authorName || '';
+                        const msg = existingAuthor
+                            ? `已存在同名关卡「${existingTitle}」（发布者：${existingAuthor}）。\n是否覆盖发布？`
+                            : `已存在同名关卡「${existingTitle}」。\n是否覆盖发布？`;
+                        if (confirm(msg)) {
+                            submitBtn.disabled = false;
+                            return onSubmit(data.existing?.id);
+                        }
+                        statusEl.textContent = '已取消覆盖发布';
+                        return;
+                    }
+                    statusEl.textContent = data.error || '关卡名称已被其他玩家使用';
+                    return;
+                }
+
                 if (!res.ok) throw new Error(data.error || '发布失败');
-                statusEl.textContent = '发布成功！';
+                statusEl.textContent = data.updated ? '覆盖发布成功！' : '发布成功！';
                 sessionStorage.removeItem('editor-test-pass');
+                if (typeof ctx.refreshPublishedLevels === 'function') {
+                    await ctx.refreshPublishedLevels();
+                }
                 setTimeout(() => {
                     modal.hidden = true;
                     if (confirm('关卡已发布到创意工坊，是否前往创意工坊？')) {
@@ -355,7 +464,7 @@ const LevelEditorPlayerMode = (() => {
             }
         };
 
-        submitBtn.onclick = onSubmit;
+        submitBtn.onclick = () => onSubmit();
     }
 
     return {

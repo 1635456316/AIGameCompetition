@@ -45,8 +45,17 @@ class WorkshopApi {
         return data.levels || [];
     }
 
+    static async fetchMyLevels() {
+        const data = await this.fetchJson('/api/levels/mine');
+        return data.levels || [];
+    }
+
     static async fetchLevel(levelId) {
         return this.fetchJson(`/api/levels/${encodeURIComponent(levelId)}`);
+    }
+
+    static async deleteLevel(levelId) {
+        return this.fetchJson(`/api/levels/${encodeURIComponent(levelId)}`, { method: 'DELETE' });
     }
 
     static async publishLevel({ title, description, levelData, testPass }) {

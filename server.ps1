@@ -30,7 +30,12 @@ if ($Action -ne 'deploy' -and -not $Target) {
 }
 
 switch ($Action) {
-    'start' { Start-GameServer -Target $Target }
+    'start' {
+        if ($Target -eq 'dev') {
+            Stop-GameServer -Target $Target
+        }
+        Start-GameServer -Target $Target
+    }
     'stop' { Stop-GameServer -Target $Target }
     'deploy' {
         & (Join-Path $ScriptsDir 'deploy.ps1')

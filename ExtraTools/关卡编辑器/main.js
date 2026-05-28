@@ -1881,11 +1881,24 @@
         S.setGridSize(parseInt(document.getElementById('grid-size').value, 10));
 
         if (LevelEditorPlayerMode.isEnabled()) {
-            const playerUi = LevelEditorPlayerMode.setupUi({
+            const playerCtx = {
                 getLevel: () => level,
                 saveDraftLocal: savePlayerDraft,
                 startTestPlay: startPlayerTestPlay
-            });
+            };
+            const playerUi = LevelEditorPlayerMode.setupUi(playerCtx);
+            playerCtx.loadPublishedLevel = async (levelData, meta) => {
+                await loadLevel(LevelEditorPlayerMode.stripMedia(levelData));
+                sessionStorage.removeItem('editor-test-pass');
+                await LevelEditorPlayerMode.refreshUploadState(playerUi.uploadBtn, level);
+                try {
+                    await savePlayerDraft();
+                } catch {
+                    // 加载成功即可继续编辑
+                }
+                setSaveStatus(`已加载 · ${meta?.title || level.title || ''}`);
+            };
+            playerCtx.refreshPublishedLevels = () => playerUi.refreshPublishedLevels();
             LevelEditorPlayerMode.hideMediaSection();
 
             const draftId = LevelEditorPlayerMode.getOrCreateDraftId();

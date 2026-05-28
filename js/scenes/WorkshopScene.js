@@ -20,6 +20,8 @@ class WorkshopScene extends Phaser.Scene {
         this.pageSize = 6;
         this.authLoggedIn = false;
         this.authUser = null;
+        this.myLevelsMenuOpen = false;
+        this.myLevelsLoading = false;
         this.levelCards = [];
         this.textResolution = Math.max(2, Math.min(3, (window.devicePixelRatio || 1) * 1.5));
     }
@@ -68,6 +70,18 @@ class WorkshopScene extends Phaser.Scene {
 
         this._loadAuth();
         this._loadLevels();
+
+        this.scale.on('resize', this._onScaleResize, this);
+    }
+
+    shutdown() {
+        this.scale.off('resize', this._onScaleResize, this);
+        this._closeMyLevelsMenu();
+        this._removeMyLevelsMenuDom();
+    }
+
+    _onScaleResize() {
+        if (this.myLevelsMenuOpen) this._positionMyLevelsMenu();
     }
 
     // ============ 顶栏（玻璃面板：标题 + 登录信息） ============
@@ -139,6 +153,14 @@ class WorkshopScene extends Phaser.Scene {
         this.authBar.add(this.authAvatarSlot);
         this._renderAvatarInto(this.authAvatarSlot, 12, null, null, '?', false);
 
+        const avatarHit = this.add.zone(avatarX, avatarY, 30, 30).setInteractive({ useHandCursor: true });
+        this.authBar.add(avatarHit);
+        avatarHit.on('pointerdown', (pointer) => {
+            pointer.event.stopPropagation();
+            this._onAvatarClick();
+        });
+        this.authAvatarHit = avatarHit;
+
         this.authUserText = this._addText(42, panelH / 2, '检测登录…', {
             font: '13px Microsoft YaHei, Arial',
             color: '#9fb0c8'
@@ -171,6 +193,11 @@ class WorkshopScene extends Phaser.Scene {
 
         this.authActionBg = actionBg;
         this.authBar.add(actionContainer);
+
+        this.authBarPanelX = panelX;
+        this.authBarPanelY = panelY;
+        this.authBarPanelW = panelW;
+        this.authBarPanelH = panelH;
     }
 
     // ============ 信息栏（"共 X 个 / 第 N/M 页" + 排序占位） ============
@@ -355,6 +382,277 @@ class WorkshopScene extends Phaser.Scene {
         }
     }
 
+    async _onAvatarClick() {
+        if (!this.authLoggedIn) {
+            sessionStorage.setItem('boot-scene', 'WorkshopScene');
+            window.location.href = WorkshopApi.getLoginUrl('/');
+            return;
+        }
+
+        if (this.myLevelsMenuOpen) {
+            this._closeMyLevelsMenu();
+            return;
+        }
+
+        await this._openMyLevelsMenu();
+    }
+
+    _ensureMyLevelsMenuDom() {
+        if (this.myLevelsMenuEl) return;
+
+        if (!document.getElementById('workshop-my-levels-styles')) {
+            const style = document.createElement('style');
+            style.id = 'workshop-my-levels-styles';
+            style.textContent = `
+                .workshop-my-levels-menu {
+                    position: fixed;
+                    z-index: 10000;
+                    width: 280px;
+                    max-height: 320px;
+                    display: flex;
+                    flex-direction: column;
+                    background: linear-gradient(180deg, rgba(8, 22, 40, 0.97) 0%, rgba(4, 13, 28, 0.98) 100%);
+                    border: 1px solid rgba(95, 234, 255, 0.55);
+                    border-radius: 10px;
+                    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 95, 185, 0.15);
+                    backdrop-filter: blur(8px);
+                    overflow: hidden;
+                    font-family: "Microsoft YaHei", Arial, sans-serif;
+                }
+                .workshop-my-levels-menu[hidden] { display: none !important; }
+                .workshop-my-levels-header {
+                    padding: 10px 14px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #5feaff;
+                    border-bottom: 1px solid rgba(95, 234, 255, 0.25);
+                    background: rgba(95, 234, 255, 0.06);
+                }
+                .workshop-my-levels-list {
+                    overflow-y: auto;
+                    max-height: 260px;
+                    padding: 6px;
+                }
+                .workshop-my-levels-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 10px;
+                    border-radius: 6px;
+                    transition: background 0.12s;
+                }
+                .workshop-my-levels-item:hover { background: rgba(95, 234, 255, 0.08); }
+                .workshop-my-levels-title {
+                    flex: 1;
+                    min-width: 0;
+                    font-size: 13px;
+                    color: #e6eef8;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .workshop-my-levels-delete {
+                    flex-shrink: 0;
+                    padding: 4px 10px;
+                    border: 1px solid rgba(255, 95, 185, 0.65);
+                    border-radius: 5px;
+                    background: rgba(255, 95, 185, 0.12);
+                    color: #ff8fbf;
+                    font-size: 12px;
+                    cursor: pointer;
+                    transition: background 0.12s, color 0.12s;
+                }
+                .workshop-my-levels-delete:hover:not(:disabled) {
+                    background: rgba(255, 95, 185, 0.28);
+                    color: #ffffff;
+                }
+                .workshop-my-levels-delete:disabled {
+                    opacity: 0.45;
+                    cursor: not-allowed;
+                }
+                .workshop-my-levels-empty,
+                .workshop-my-levels-loading,
+                .workshop-my-levels-error {
+                    padding: 16px 14px;
+                    font-size: 13px;
+                    color: #8fbfd6;
+                    text-align: center;
+                }
+                .workshop-my-levels-error { color: #ff8fbf; }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const menu = document.createElement('div');
+        menu.id = 'workshop-my-levels-menu';
+        menu.className = 'workshop-my-levels-menu';
+        menu.hidden = true;
+        menu.innerHTML = `
+            <div class="workshop-my-levels-header">我的发布</div>
+            <div class="workshop-my-levels-list"></div>`;
+        document.body.appendChild(menu);
+
+        this.myLevelsMenuEl = menu;
+        this.myLevelsListEl = menu.querySelector('.workshop-my-levels-list');
+
+        this._myLevelsOutsideHandler = (e) => {
+            if (!this.myLevelsMenuOpen || !this.myLevelsMenuEl) return;
+            if (this.myLevelsMenuEl.contains(e.target)) return;
+            this._closeMyLevelsMenu();
+        };
+    }
+
+    _removeMyLevelsMenuDom() {
+        if (this._myLevelsOutsideHandler) {
+            document.removeEventListener('mousedown', this._myLevelsOutsideHandler);
+            this._myLevelsOutsideHandler = null;
+        }
+        if (this.myLevelsMenuEl) {
+            this.myLevelsMenuEl.remove();
+            this.myLevelsMenuEl = null;
+            this.myLevelsListEl = null;
+        }
+    }
+
+    _gameToScreen(x, y) {
+        const canvas = this.game.canvas;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = rect.width / GAME_WIDTH;
+        const scaleY = rect.height / GAME_HEIGHT;
+        return {
+            left: rect.left + x * scaleX,
+            top: rect.top + y * scaleY,
+            scaleX,
+            scaleY
+        };
+    }
+
+    _positionMyLevelsMenu() {
+        if (!this.myLevelsMenuEl) return;
+
+        const panelX = this.authBarPanelX ?? (GAME_WIDTH - 262);
+        const panelY = this.authBarPanelY ?? 22;
+        const panelW = this.authBarPanelW ?? 240;
+        const panelH = this.authBarPanelH ?? 42;
+
+        const anchorX = panelX + panelW;
+        const anchorY = panelY + panelH + 6;
+        const screen = this._gameToScreen(anchorX, anchorY);
+        const menuW = this.myLevelsMenuEl.offsetWidth || 280;
+
+        let left = screen.left - menuW;
+        let top = screen.top;
+
+        left = Math.max(8, Math.min(left, window.innerWidth - menuW - 8));
+        top = Math.max(8, Math.min(top, window.innerHeight - (this.myLevelsMenuEl.offsetHeight || 200) - 8));
+
+        this.myLevelsMenuEl.style.left = `${left}px`;
+        this.myLevelsMenuEl.style.top = `${top}px`;
+    }
+
+    async _openMyLevelsMenu() {
+        this._ensureMyLevelsMenuDom();
+        this.myLevelsMenuOpen = true;
+        this.myLevelsMenuEl.hidden = false;
+        this._positionMyLevelsMenu();
+        document.addEventListener('mousedown', this._myLevelsOutsideHandler);
+
+        await this._refreshMyLevelsMenu();
+    }
+
+    _closeMyLevelsMenu() {
+        this.myLevelsMenuOpen = false;
+        if (this.myLevelsMenuEl) this.myLevelsMenuEl.hidden = true;
+        if (this._myLevelsOutsideHandler) {
+            document.removeEventListener('mousedown', this._myLevelsOutsideHandler);
+        }
+    }
+
+    async _refreshMyLevelsMenu() {
+        if (!this.myLevelsListEl) return;
+        this.myLevelsLoading = true;
+        this.myLevelsListEl.innerHTML = '<div class="workshop-my-levels-loading">加载中…</div>';
+
+        try {
+            const levels = await WorkshopApi.fetchMyLevels();
+            this._renderMyLevelsMenu(levels);
+        } catch (err) {
+            this.myLevelsListEl.innerHTML = `<div class="workshop-my-levels-error">${this._escapeHtml(err.message || '加载失败')}</div>`;
+        } finally {
+            this.myLevelsLoading = false;
+            if (this.myLevelsMenuOpen) this._positionMyLevelsMenu();
+        }
+    }
+
+    _renderMyLevelsMenu(levels) {
+        if (!this.myLevelsListEl) return;
+        this.myLevelsListEl.innerHTML = '';
+
+        if (!levels.length) {
+            this.myLevelsListEl.innerHTML = '<div class="workshop-my-levels-empty">暂无发布关卡</div>';
+            return;
+        }
+
+        levels.forEach(level => {
+            const row = document.createElement('div');
+            row.className = 'workshop-my-levels-item';
+
+            const title = document.createElement('span');
+            title.className = 'workshop-my-levels-title';
+            title.textContent = level.title || '未命名关卡';
+            title.title = level.title || '未命名关卡';
+
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'workshop-my-levels-delete';
+            delBtn.textContent = '删除';
+            delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._deleteMyLevel(level.id, level.title || '未命名关卡', delBtn);
+            });
+
+            row.appendChild(title);
+            row.appendChild(delBtn);
+            this.myLevelsListEl.appendChild(row);
+        });
+    }
+
+    async _deleteMyLevel(levelId, title, btn) {
+        if (!levelId || this.myLevelsDeleting) return;
+        if (!confirm(`确定删除关卡「${title}」吗？\n此操作不可恢复。`)) return;
+
+        this.myLevelsDeleting = true;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '删除中…';
+        }
+
+        try {
+            await WorkshopApi.deleteLevel(levelId);
+            this.levels = this.levels.filter(l => l.id !== levelId);
+            this._updateInfo();
+            this._renderPage();
+            await this._refreshMyLevelsMenu();
+            this.subtitleText.setText(`已删除「${this._truncate(title, 12)}」`);
+        } catch (err) {
+            alert(err.message || '删除失败');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '删除';
+            }
+        } finally {
+            this.myLevelsDeleting = false;
+        }
+    }
+
+    _escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     async _onAuthAction() {
         if (this.authLoggingOut) return;
 
@@ -363,6 +661,7 @@ class WorkshopScene extends Phaser.Scene {
             this.authActionText.setText('登出中…');
             try {
                 await WorkshopApi.logout();
+                this._closeMyLevelsMenu();
                 this._updateAuthBar({ loggedIn: false });
             } catch (err) {
                 this.subtitleText.setText(`登出失败：${err.message || err}`);
