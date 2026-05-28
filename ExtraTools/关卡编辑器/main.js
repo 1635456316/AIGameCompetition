@@ -466,14 +466,14 @@
                 ctx.fillText(`-${h.drainRate ?? 15}/s`, h.x, h.y + 4);
                 ctx.textAlign = 'left';
             } else if (h.type === 'missile') {
-                const y = h.y ?? (S.GROUND_Y - 4);
+                const b = S.getItemBounds('hazards', h, level);
                 ctx.fillStyle = 'rgba(255,100,60,0.15)';
-                ctx.fillRect(h.xMin, y - 30, h.xMax - h.xMin, 60);
+                ctx.fillRect(b.x, b.y, b.w, b.h);
                 ctx.strokeStyle = '#ff6644';
-                ctx.strokeRect(h.xMin, y - 30, h.xMax - h.xMin, 60);
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
                 ctx.fillStyle = '#ff6644';
                 ctx.font = '14px sans-serif';
-                ctx.fillText('⚠', (h.xMin + h.xMax) / 2 - 7, y - 10);
+                ctx.fillText('⚠', h.x - 7, h.y + 5);
             } else if (h.type === 'crumble') {
                 ctx.fillStyle = sel ? '#ffaa44' : '#ff8800';
                 ctx.fillRect(h.x - S.PLATFORM_W / 2, h.y - S.PLATFORM_H / 2, S.PLATFORM_W, S.PLATFORM_H);
@@ -763,10 +763,6 @@
             } else if (selection.category === 'finish') {
                 if (key === 'x' || key === 'y') level.finish[key] = S.snap(v);
                 else level.finish[key] = v;
-            } else if (selection.category === 'hazards' && level.hazards[selection.index].type === 'missile') {
-                const h = { ...level.hazards[selection.index] };
-                h[key] = S.snap(v);
-                level.hazards[selection.index] = h;
             } else if (selection.category === 'hazards' && level.hazards[selection.index].type === 'checkpoint') {
                 const item = { ...level.hazards[selection.index], feetAnchor: true };
                 if (key === 'x') item[key] = S.snap(v);
@@ -809,7 +805,7 @@
                     if (v === '' || v == null) delete item.bindEnemyId;
                     else item.bindEnemyId = String(v);
                 }
-                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'force', 'id'].includes(key)) {
+                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id'].includes(key)) {
                     item[key] = S.snap(v);
                 }
                 else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id') {
@@ -941,11 +937,17 @@
                 drainHint.textContent = '玩家处于区域内时持续扣能量，速率单位与关卡「回能量速度」相同（能量/秒）。';
                 form.appendChild(drainHint);
             } else if (data.type === 'missile') {
-                addField('X 最小 xMin', 'xMin', 'number', { value: data.xMin });
-                addField('X 最大 xMax', 'xMax', 'number', { value: data.xMax });
-                addField('Y', 'y', 'number', { value: data.y ?? (S.GROUND_Y - 4) });
-                addField('间隔 interval (ms)', 'interval', 'number', { value: data.interval });
-                addField('伤害 damage', 'damage', 'number', { value: data.damage });
+                addField('X', 'x', 'number', { value: data.x });
+                addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 160 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 60 });
+                addField('间隔 interval (ms)', 'interval', 'number', { value: data.interval ?? 3000 });
+                addField('启动延迟 startDelay (ms)', 'startDelay', 'number', { value: data.startDelay ?? 0 });
+                addField('伤害 damage', 'damage', 'number', { value: data.damage ?? 12 });
+                const missileHint = document.createElement('p');
+                missileHint.className = 'field-hint';
+                missileHint.textContent = '在矩形区域内随机选取落点；多个导弹设置相同间隔与不同启动延迟，可实现错相但同周期打击。';
+                form.appendChild(missileHint);
             } else if (data.type === 'crumble') {
                 addField('X', 'x', 'number', { value: data.x });
                 addField('Y', 'y', 'number', { value: data.y });
@@ -1136,9 +1138,6 @@
             return level.width - (data.xOffset || 240);
         }
         if (selection.category === 'finish') return data.x;
-        if (selection.category === 'hazards' && data.type === 'missile') {
-            return (data.xMin + data.xMax) / 2;
-        }
         if (typeof data.x === 'number') return data.x;
         return null;
     }
@@ -1331,10 +1330,6 @@
         if (category === 'finish') {
             return { x: worldX - level.finish.x, y: worldY - level.finish.y };
         }
-        if (category === 'hazards' && data.type === 'missile') {
-            const cy = (data.y ?? (S.GROUND_Y - 4));
-            return { x: worldX - (data.xMin + data.xMax) / 2, y: worldY - cy };
-        }
         if (category === 'spawns' || category === 'pickups') {
             return {
                 x: worldX - data.x,
@@ -1360,7 +1355,10 @@
         const oy = dragState.grabOffsetY ?? 0;
 
         if (selection.category === 'platforms') {
-            level.platforms[selection.index] = [worldX - ox, worldY - oy, data[2]];
+            const h = S.platformHeight(data);
+            level.platforms[selection.index] = h > S.PLATFORM_H
+                ? [worldX - ox, worldY - oy, data[2], h]
+                : [worldX - ox, worldY - oy, data[2]];
         } else if (selection.category === 'playerStart') {
             level.playerStart.x = worldX - ox;
             level.playerStart.yOffset = S.GAME_HEIGHT - (worldY - oy);
@@ -1370,15 +1368,6 @@
         } else if (selection.category === 'finish') {
             level.finish.x = worldX - ox;
             level.finish.y = worldY - oy;
-        } else if (selection.category === 'hazards' && data.type === 'missile') {
-            const h = { ...data };
-            const halfW = (h.xMax - h.xMin) / 2;
-            const cx = worldX - ox;
-            const cy = worldY - oy;
-            h.xMin = cx - halfW;
-            h.xMax = cx + halfW;
-            h.y = cy;
-            level.hazards[selection.index] = h;
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = worldX - ox;
@@ -1401,7 +1390,10 @@
         const data = getSelectionData();
         if (!data) return;
         if (selection.category === 'platforms') {
-            level.platforms[selection.index] = [data[0] + dx, data[1] + dy, data[2]];
+            const h = S.platformHeight(data);
+            level.platforms[selection.index] = h > S.PLATFORM_H
+                ? [data[0] + dx, data[1] + dy, data[2], h]
+                : [data[0] + dx, data[1] + dy, data[2]];
         } else if (selection.category === 'playerStart') {
             level.playerStart.x = level.playerStart.x + dx;
             level.playerStart.yOffset = level.playerStart.yOffset - dy;
@@ -1411,12 +1403,6 @@
         } else if (selection.category === 'finish') {
             level.finish.x = level.finish.x + dx;
             level.finish.y = level.finish.y + dy;
-        } else if (selection.category === 'hazards' && data.type === 'missile') {
-            const h = { ...data };
-            h.xMin = h.xMin + dx;
-            h.xMax = h.xMax + dx;
-            h.y = (h.y ?? (S.GROUND_Y - 4)) + dy;
-            level.hazards[selection.index] = h;
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = item.x + dx;
@@ -1443,12 +1429,6 @@
             const by = S.GAME_HEIGHT - level.boss.yOffset;
             level.boss.xOffset = level.width - S.snap(bx);
             level.boss.yOffset = S.GAME_HEIGHT - S.snap(by);
-        } else if (selection.category === 'hazards' && data.type === 'missile') {
-            const h = { ...data };
-            h.xMin = S.snap(h.xMin);
-            h.xMax = S.snap(h.xMax);
-            h.y = S.snap(h.y ?? (S.GROUND_Y - 4));
-            level.hazards[selection.index] = h;
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = S.snap(item.x);
@@ -1502,19 +1482,19 @@
         if (!data) return;
         if (selection.category === 'platforms') {
             const b = S.getItemBounds('platforms', data, level);
-            const h = S.platformHeight(data);
+            let count = data[2];
+            let h = S.platformHeight(data);
+            let centerY = data[1];
             if (handle === 'e' || handle === 'se') {
-                const newCount = Math.max(1, Math.round((S.snap(wx) - (data[0] - S.PLATFORM_W / 2)) / S.PLATFORM_W));
-                level.platforms[selection.index] = h > S.PLATFORM_H ? [data[0], data[1], newCount, h] : [data[0], data[1], newCount];
-                return;
+                count = Math.max(1, Math.round((S.snap(wx) - (data[0] - S.PLATFORM_W / 2)) / S.PLATFORM_W));
             }
             if (handle === 's' || handle === 'se') {
-                const newH = Math.max(S.PLATFORM_H, S.snap(wy) - b.y);
-                level.platforms[selection.index] = newH > S.PLATFORM_H
-                    ? [data[0], data[1], data[2], newH]
-                    : [data[0], data[1], data[2]];
-                return;
+                h = Math.max(S.PLATFORM_H, S.snap(wy) - b.y);
+                centerY = b.y + h / 2;
             }
+            level.platforms[selection.index] = h > S.PLATFORM_H
+                ? [data[0], centerY, count, h]
+                : [data[0], centerY, count];
             return;
         }
         const item = { ...data };
@@ -1544,11 +1524,7 @@
             item.h = newH;
             item.y = b.y + newH / 2;
         }
-        if (selection.category === 'hazards' && item.type === 'missile') {
-            if (handle === 'e') item.xMax = S.snap(wx);
-        } else {
-            setSelectionData(item);
-        }
+        setSelectionData(item);
     }
 
     // --- Events ---

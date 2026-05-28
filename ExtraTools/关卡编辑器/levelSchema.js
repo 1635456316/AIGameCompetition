@@ -145,8 +145,38 @@ const LevelEditorSchema = (() => {
             if (s.id != null && s.id !== '') out.id = String(s.id);
             return out;
         });
-        level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint({ ...h }));
+        level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint(normalizeMissile({ ...h })));
         return level;
+    }
+
+    /** 导弹打击：x,y 为区域中心，w/h 为随机落点范围；兼容旧版 xMin/xMax */
+    function normalizeMissile(h) {
+        if (h.type !== 'missile') return h;
+        if (typeof h.x === 'number' && typeof h.w === 'number') {
+            return {
+                type: 'missile',
+                x: h.x,
+                y: h.y ?? (GROUND_Y - 4),
+                w: Math.max(16, h.w),
+                h: Math.max(16, h.h ?? 60),
+                interval: hazardNumber(h.interval, 3000),
+                startDelay: hazardNumber(h.startDelay, 0),
+                damage: hazardNumber(h.damage, 12)
+            };
+        }
+        const xMin = hazardNumber(h.xMin, 0);
+        const xMax = hazardNumber(h.xMax, xMin + 160);
+        const y = h.y ?? (GROUND_Y - 4);
+        return {
+            type: 'missile',
+            x: (xMin + xMax) / 2,
+            y,
+            w: Math.max(16, xMax - xMin),
+            h: Math.max(16, h.h ?? 60),
+            interval: hazardNumber(h.interval, 3000),
+            startDelay: hazardNumber(h.startDelay, 0),
+            damage: hazardNumber(h.damage, 12)
+        };
     }
 
     /** 复活点：x,y = 脚底（与出生点/敌人生成一致）；旧版中心坐标自动迁移 */
@@ -217,7 +247,7 @@ const LevelEditorSchema = (() => {
             case 'energy_drain':
                 return { category: 'hazards', data: { type: 'energy_drain', x: sx, y: sy, w: 140, h: 80, drainRate: 15 } };
             case 'missile':
-                return { category: 'hazards', data: { type: 'missile', xMin: sx - 80, xMax: sx + 80, y: GROUND_Y - 4, interval: 3000, damage: 12 } };
+                return { category: 'hazards', data: { type: 'missile', x: sx, y: sy, w: 160, h: 60, interval: 3000, startDelay: 0, damage: 12 } };
             case 'crumble':
                 return { category: 'hazards', data: { type: 'crumble', x: sx, y: sy, delay: 800, respawn: 4000 } };
             case 'death':
@@ -266,8 +296,8 @@ const LevelEditorSchema = (() => {
             }
             case 'hazards':
                 if (data.type === 'missile') {
-                    const y = data.y ?? (GROUND_Y - 4);
-                    return { x: data.xMin, y: y - 30, w: data.xMax - data.xMin, h: 60 };
+                    const m = normalizeMissile(data);
+                    return { x: m.x - m.w / 2, y: m.y - m.h / 2, w: m.w, h: m.h };
                 }
                 if (data.type === 'crumble') {
                     return { x: data.x - PLATFORM_W / 2, y: data.y - PLATFORM_H / 2, w: PLATFORM_W, h: PLATFORM_H };
@@ -560,8 +590,9 @@ const LevelEditorSchema = (() => {
         level.spawns = level.spawns.map(s => (s.x >= P ? { ...s, x: s.x + L } : s));
         level.hazards = level.hazards.map(h => {
             if (h.type === 'missile') {
-                if (h.xMin >= P) return { ...h, xMin: h.xMin + L, xMax: h.xMax + L };
-                return h;
+                const m = normalizeMissile(h);
+                if (m.x - m.w / 2 >= P) return { ...m, x: m.x + L };
+                return m;
             }
             if (typeof h.x === 'number' && h.x >= P) return { ...h, x: h.x + L };
             return h;
@@ -613,6 +644,7 @@ const LevelEditorSchema = (() => {
         playerY,
         checkpointBounds,
         normalizeCheckpoint,
+        normalizeMissile,
         resolveStandingFeetY,
         electricIsActive,
         spawnDefaultHp,

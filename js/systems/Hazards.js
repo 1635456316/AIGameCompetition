@@ -291,28 +291,64 @@ class HintZone {
     }
 }
 
+function resolveMissileConfig(cfg, scene) {
+    const groundY = scene.levelHeight - 64;
+    if (typeof cfg.x === 'number' && typeof cfg.w === 'number') {
+        return {
+            x: cfg.x,
+            y: cfg.y ?? groundY,
+            w: Math.max(16, cfg.w),
+            h: Math.max(16, cfg.h ?? 60),
+            interval: hazardNumber(cfg.interval, 3000),
+            startDelay: hazardNumber(cfg.startDelay, 0),
+            damage: hazardNumber(cfg.damage, 12)
+        };
+    }
+    const xMin = hazardNumber(cfg.xMin, 0);
+    const xMax = hazardNumber(cfg.xMax, xMin + 160);
+    const y = cfg.y ?? groundY;
+    return {
+        x: (xMin + xMax) / 2,
+        y,
+        w: Math.max(16, xMax - xMin),
+        h: Math.max(16, cfg.h ?? 60),
+        interval: hazardNumber(cfg.interval, 3000),
+        startDelay: hazardNumber(cfg.startDelay, 0),
+        damage: hazardNumber(cfg.damage, 12)
+    };
+}
+
 class MissileStrike {
     constructor(scene, cfg) {
         this.scene = scene;
-        this.xMin = cfg.xMin;
-        this.xMax = cfg.xMax;
-        this.y = cfg.y || (scene.levelHeight - 64);
-        this.interval = cfg.interval || 3000;
-        this.damage = cfg.damage || 12;
-        this.lastStrike = 0;
+        const m = resolveMissileConfig(cfg, scene);
+        this.x = m.x;
+        this.y = m.y;
+        this.w = m.w;
+        this.h = m.h;
+        this.interval = m.interval;
+        this.startDelay = m.startDelay;
+        this.damage = m.damage;
+        this.lastPeriod = -1;
     }
 
     update(time, delta, player) {
-        if (time - this.lastStrike < this.interval) return;
-        this.lastStrike = time;
+        if (this.interval <= 0) return;
+        if (time < this.startDelay) return;
+        const period = Math.floor((time - this.startDelay) / this.interval);
+        if (period <= this.lastPeriod) return;
+        this.lastPeriod = period;
 
-        const targetX = Phaser.Math.Between(this.xMin, this.xMax);
+        const halfW = this.w / 2;
+        const halfH = this.h / 2;
+        const targetX = Phaser.Math.Between(this.x - halfW, this.x + halfW);
+        const targetY = Phaser.Math.Between(this.y - halfH, this.y + halfH);
         const scene = this.scene;
 
-        const warning = scene.add.text(targetX, this.y - 40, '⚠', {
+        const warning = scene.add.text(targetX, targetY - 40, '⚠', {
             font: 'bold 28px Arial', color: PaletteHex.danger
         }).setOrigin(0.5).setDepth(900);
-        const line = scene.add.rectangle(targetX, this.y - 200, 4, 400, Palette.danger, 0.4).setDepth(899);
+        const line = scene.add.rectangle(targetX, targetY - 200, 4, 400, Palette.danger, 0.4).setDepth(899);
 
         scene.tweens.add({
             targets: [warning, line],
@@ -325,11 +361,9 @@ class MissileStrike {
         scene.time.delayedCall(1200, () => {
             warning.destroy();
             line.destroy();
-            Effects.explosion(scene, targetX, this.y - 20, 1.0, false);
+            Effects.explosion(scene, targetX, targetY, 1.0, false);
 
-            const dist = Math.abs(player.x - targetX);
-            const vertDist = Math.abs(player.y - this.y);
-            if (dist < 60 && vertDist < 60) {
+            if (Phaser.Math.Distance.Between(player.x, player.y, targetX, targetY) < 60) {
                 player.takeDamage(this.damage, targetX);
             }
         });
