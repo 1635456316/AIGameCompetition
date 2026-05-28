@@ -4,8 +4,9 @@
   "subtitle": "最终关：机械暴龙的钢铁咆哮",
   "width": 5000,
   "playerStart": {
-    "x": 160,
-    "yOffset": 120
+    "x": 88,
+    "yOffset": 560,
+    "w": 31.99999999976626
   },
   "energyStartPercent": 50,
   "energyRegenRate": 5,
@@ -14,8 +15,10 @@
   "bossTriggerOffset": 800,
   "boss": {
     "type": "mechanicalDino",
-    "xOffset": 336,
-    "yOffset": 624
+    "xOffset": 392,
+    "yOffset": 528,
+    "hp": 200,
+    "damageMult": null
   },
   "startVideoUrl": "assets/video/最终Boss出场.mp4",
   "endVideoUrl": "assets/video/PV-结束.mp4",
@@ -25,8 +28,8 @@
   "resultBgUrl": "assets/UI/最终关Boss倒地.jpg",
   "platforms": [
     [
-      380,
-      540,
+      456,
+      328,
       3
     ],
     [
@@ -73,6 +76,11 @@
       7456,
       232,
       6
+    ],
+    [
+      80,
+      200,
+      1
     ]
   ],
   "walls": [
@@ -126,14 +134,40 @@
     },
     {
       "type": "melee",
-      "x": 2100,
-      "y": 652
+      "x": 2328,
+      "y": 434
     },
     {
       "type": "ranged",
       "x": 2350,
       "y": 652
+    },
+    {
+      "type": "flying",
+      "x": 528,
+      "y": 67
+    },
+    {
+      "type": "ranged",
+      "x": 784,
+      "y": 432
+    },
+    {
+      "type": "melee",
+      "x": 504,
+      "y": 641
+    },
+    {
+      "type": "flying",
+      "x": 808,
+      "y": 75
     }
   ],
-  "hazards": []
+  "hazards": [],
+  "maxJumps": null,
+  "jumpVelocity": null,
+  "secondJumpVelocity": null,
+  "moveSpeed": null,
+  "gravity": null,
+  "maxFallVelocity": null
 }

@@ -15,6 +15,7 @@ class ResultScene extends Phaser.Scene {
         this.timeSec = data.timeSec || 0;
         this.damageTaken = data.damageTaken || 0;
         this.isFinal = data.isFinal || false;
+        this.isFinishLevel = !!data.isFinishLevel;
     }
 
     create() {
@@ -39,7 +40,14 @@ class ResultScene extends Phaser.Scene {
             stroke: '#000', strokeThickness: 8
         }).setOrigin(0.5);
 
-        const statsY = 220;
+        const rank = this._calcRank();
+        const rankColors = { S: '#ff2b2b', A: '#ffd400', B: '#00e5ff' };
+        this.add.text(W / 2, 150, rank, {
+            font: 'bold 72px Arial', color: rankColors[rank] || '#ffffff',
+            stroke: '#000', strokeThickness: 8
+        }).setOrigin(0.5);
+
+        const statsY = 240;
         const stats = [
             { label: '分  数', value: this.score.toString() },
             { label: '最高连击', value: this.maxCombo + ' HIT' },
@@ -234,8 +242,21 @@ class ResultScene extends Phaser.Scene {
     }
 
     _calcRank() {
+        if (this.isFinishLevel) return this._calcFinishRank();
+        return this._calcBossRank();
+    }
+
+    /** Boss 关：连击 + 受伤 + 时间 */
+    _calcBossRank() {
         if (this.maxCombo >= 20 && this.damageTaken <= 2 && this.timeSec < 120) return 'S';
         if (this.maxCombo >= 10 && this.damageTaken <= 5) return 'A';
+        return 'B';
+    }
+
+    /** 终点关：时间与受伤次数 */
+    _calcFinishRank() {
+        if (this.damageTaken === 0 && this.timeSec < 120) return 'S';
+        if (this.damageTaken <= 2 && this.timeSec < 180) return 'A';
         return 'B';
     }
 

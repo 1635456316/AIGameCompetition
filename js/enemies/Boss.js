@@ -2,7 +2,7 @@
  * Boss：逻辑体 + 表现层分离，技能与阶段逻辑仍在此类。
  */
 class Boss {
-    constructor(scene, x, y, config) {
+    constructor(scene, x, y, config, overrides = {}) {
         this.scene = scene;
         this.config = config || BossConfigs.mechanicalDino;
         const entityCfg = BossConfigs.buildEntityConfig(scene, this.config);
@@ -21,13 +21,19 @@ class Boss {
             this._restoreBossTint();
         }
 
-        this.maxHp = this.config.hp || 800;
+        this.damageMult = typeof overrides.damageMult === 'number'
+            ? Math.max(0, overrides.damageMult)
+            : 1;
+        const baseHp = this.config.hp || 800;
+        this.maxHp = typeof overrides.hp === 'number'
+            ? Math.max(0, overrides.hp)
+            : baseHp;
         this.hp = this.maxHp;
         this.alive = true;
         this.phase = 1;
         this.facing = -1;
         this.nextSkillAt = scene.time.now + 1500;
-        this.contactDamage = this.config.contactDamage ?? 14;
+        this.contactDamage = (this.config.contactDamage ?? 14) * this.damageMult;
         this.skillState = null;
 
         const barY = 80;
@@ -77,6 +83,18 @@ class Boss {
 
     syncView() {
         this.view.syncFromLogic(this.logic);
+    }
+
+    _scaledDamage(raw, fallback = 0) {
+        return Math.max(0, (raw ?? fallback) * this.damageMult);
+    }
+
+    _bulletDamage(base = 8) {
+        return this._scaledDamage(base, 8);
+    }
+
+    _spawnBullet(x, y, vx, vy) {
+        this.scene.spawnEnemyBullet(x, y, vx, vy, this._bulletDamage(8));
     }
 
     get x() { return this.logic.x; }
@@ -428,7 +446,7 @@ class Boss {
     _jumpSlamImpact(player, cfg) {
         const scene = this.scene;
         const radius = cfg.radius || 210;
-        const damage = cfg.damage || 18;
+        const damage = this._scaledDamage(cfg.damage, 18);
         Effects.shake(scene, 320, 0.022);
         Effects.explosion(scene, this.x, this.y - 20, 1.35, true);
 
@@ -483,7 +501,7 @@ class Boss {
                 );
                 if (Phaser.Geom.Intersects.RectangleToRectangle(bossRect, playerRect)) {
                     if (!scene._playerIsPhasing?.()) {
-                        scene._damagePlayer(cfg.damage || 16, this.x);
+                        scene._damagePlayer(this._scaledDamage(cfg.damage, 16), this.x);
                         Effects.hitFlash(scene, player.x, player.y - 24);
                     }
                     this._chargeHitPlayer = true;
@@ -516,14 +534,14 @@ class Boss {
             const baseAngle = this._baseAimAngle(x, y, target.x, target.y);
             this._spreadOffsets(cfg).forEach((offset) => {
                 const rad = Phaser.Math.DegToRad(baseAngle + offset);
-                scene.spawnEnemyBullet(x, y, Math.cos(rad) * speed, Math.sin(rad) * speed);
+                this._spawnBullet(x, y, Math.cos(rad) * speed, Math.sin(rad) * speed);
             });
             return;
         }
 
         [-30, -15, 0, 15, 30].forEach((angle) => {
             const rad = Phaser.Math.DegToRad(angle);
-            scene.spawnEnemyBullet(
+            this._spawnBullet(
                 x, y,
                 Math.cos(rad) * this.facing * speed,
                 Math.sin(rad) * speed
@@ -548,9 +566,9 @@ class Boss {
                 if (this._aimsAtPlayer()) {
                     const target = this._playerAimTarget(player);
                     const v = this._aimVelocityAt(x, y, target.x, target.y, speed);
-                    scene.spawnEnemyBullet(x, y, v.vx, v.vy);
+                    this._spawnBullet(x, y, v.vx, v.vy);
                 } else {
-                    scene.spawnEnemyBullet(x, y, this.facing * speed, 0);
+                    this._spawnBullet(x, y, this.facing * speed, 0);
                 }
             });
         }
@@ -563,7 +581,7 @@ class Boss {
             if (!this.alive) return;
             Effects.shake(scene, 240, 0.018);
             for (let i = -1; i <= 1; i += 2) {
-                scene.spawnEnemyBullet(this.x + i * 30, this.y - 10, i * 320, -60);
+                this._spawnBullet(this.x + i * 30, this.y - 10, i * 320, -60);
             }
         });
     }
@@ -581,10 +599,10 @@ class Boss {
                     const aimX = target.x + Phaser.Math.Between(-params.xSpread, params.xSpread);
                     const aimY = target.y + Phaser.Math.Between(-24, 24);
                     const v = this._aimVelocityAt(x, y, aimX, aimY, params.speed);
-                    scene.spawnEnemyBullet(x, y, v.vx, v.vy);
+                    this._spawnBullet(x, y, v.vx, v.vy);
                 } else {
                     const x = player.x + Phaser.Math.Between(-params.xSpread, params.xSpread);
-                    scene.spawnEnemyBullet(
+                    this._spawnBullet(
                         x,
                         80,
                         Phaser.Math.Between(-params.vxJitter, params.vxJitter),

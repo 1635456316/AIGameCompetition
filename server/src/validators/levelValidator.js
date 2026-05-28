@@ -22,6 +22,18 @@ function isBossLevel(level) {
     return !isFinishLevel(level) && level?.boss != null;
 }
 
+function normalizeBoss(raw) {
+    const boss = {
+        type: 'steelTriceratops',
+        xOffset: 240,
+        yOffset: 80,
+        ...(raw || {})
+    };
+    boss.hp = raw?.hp != null ? hazardNumber(raw.hp, null) : null;
+    boss.damageMult = raw?.damageMult != null ? hazardNumber(raw.damageMult, null) : null;
+    return boss;
+}
+
 function normalizeLevel(raw) {
     const level = {
         id: raw.id || 1,
@@ -62,7 +74,7 @@ function normalizeLevel(raw) {
         level.boss = null;
     } else {
         level.finish = null;
-        level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80, ...(raw.boss || {}) };
+        level.boss = normalizeBoss(raw.boss);
     }
 
     return level;
@@ -120,6 +132,12 @@ export function validateLevel(level) {
         if (!b.type) errors.push('Boss 缺少 type');
         if (typeof b.xOffset !== 'number' || Number.isNaN(b.xOffset)) errors.push('Boss xOffset 无效');
         if (typeof b.yOffset !== 'number' || Number.isNaN(b.yOffset)) errors.push('Boss yOffset 无效');
+        if (b.hp != null && (typeof b.hp !== 'number' || Number.isNaN(b.hp) || b.hp < 0)) {
+            errors.push('Boss hp 应为 >= 0 的数值');
+        }
+        if (b.damageMult != null && (typeof b.damageMult !== 'number' || Number.isNaN(b.damageMult) || b.damageMult < 0)) {
+            errors.push('Boss damageMult 应为 >= 0 的数值');
+        }
     }
 
     if (normalized.energyStartPercent < 0 || normalized.energyStartPercent > 100) {
@@ -206,4 +224,4 @@ export function hashJson(obj) {
     return crypto.createHash('sha256').update(text).digest('hex');
 }
 
-export { normalizeLevel, isFinishLevel, isBossLevel };
+export { normalizeLevel, isFinishLevel, isBossLevel, normalizeBoss };

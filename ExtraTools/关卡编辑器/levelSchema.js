@@ -96,8 +96,37 @@ const LevelEditorSchema = (() => {
         { key: 'maxFallVelocity', label: '最大下落速度', unit: 'px/s', optional: true, min: 0 }
     ];
 
+    /** 编辑器可选 Boss（须与 BootScene 已加载资源一致） */
+    const BOSS_TYPE_OPTIONS = [
+        { id: 'steelTriceratops', label: '钢甲三角龙' },
+        { id: 'mechanicalDino', label: '机械暴龙' }
+    ];
+
     function spawnDefaultHp(type) {
         return ENEMY_DEFAULT_HP[type] ?? ENEMY_DEFAULT_HP.melee;
+    }
+
+    function getBossTypeDefaults(type) {
+        if (typeof BossConfigs !== 'undefined' && BossConfigs[type]) {
+            const cfg = BossConfigs[type];
+            return {
+                hp: cfg.hp ?? 800,
+                contactDamage: cfg.contactDamage ?? 0
+            };
+        }
+        return { hp: 800, contactDamage: 14 };
+    }
+
+    function normalizeBoss(raw) {
+        const boss = {
+            type: 'steelTriceratops',
+            xOffset: 240,
+            yOffset: 80,
+            ...(raw || {})
+        };
+        boss.hp = raw?.hp != null ? hazardNumber(raw.hp, null) : null;
+        boss.damageMult = raw?.damageMult != null ? hazardNumber(raw.damageMult, null) : null;
+        return boss;
     }
 
     function createEmptyLevel(id = 1) {
@@ -150,7 +179,7 @@ const LevelEditorSchema = (() => {
             level.boss = null;
         } else {
             level.finish = null;
-            level.boss = { type: 'steelTriceratops', xOffset: 240, yOffset: 80, ...(raw.boss || {}) };
+            level.boss = normalizeBoss(raw.boss);
         }
         level.platforms = (raw.platforms || []).map(p => [...p]);
         level.walls = (raw.walls || []).map(w => ({ ...w }));
@@ -528,6 +557,12 @@ const LevelEditorSchema = (() => {
             if (!b.type) errors.push('Boss 缺少 type');
             if (typeof b.xOffset !== 'number' || Number.isNaN(b.xOffset)) errors.push('Boss xOffset 无效');
             if (typeof b.yOffset !== 'number' || Number.isNaN(b.yOffset)) errors.push('Boss yOffset 无效');
+            if (b.hp != null && (typeof b.hp !== 'number' || Number.isNaN(b.hp) || b.hp < 0)) {
+                errors.push('Boss 血量 hp 应为 >= 0 的数值');
+            }
+            if (b.damageMult != null && (typeof b.damageMult !== 'number' || Number.isNaN(b.damageMult) || b.damageMult < 0)) {
+                errors.push('Boss 攻击伤害倍率 damageMult 应为 >= 0 的数值');
+            }
         }
 
         if (normalized.energyStartPercent < 0 || normalized.energyStartPercent > 100) {
@@ -734,6 +769,9 @@ const LevelEditorSchema = (() => {
         electricIsActive,
         spawnDefaultHp,
         ENEMY_DEFAULT_HP,
+        BOSS_TYPE_OPTIONS,
+        getBossTypeDefaults,
+        normalizeBoss,
         PLAYER_CONFIG_DEFAULTS,
         PLAYER_CONFIG_FIELDS,
         clearLevelContent,

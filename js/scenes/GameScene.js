@@ -118,7 +118,7 @@ class GameScene extends Phaser.Scene {
             if (!bullet || !bullet.active) return;
             // 冲刺无敌时完全穿过子弹，不触发受击特效，也不销毁子弹。
             if (this._playerIsPhasing()) return;
-            this._damagePlayer(8, bullet.x);
+            this._damagePlayer(bullet._bulletDamage ?? 8, bullet.x);
             Effects.hitFlash(this, bullet.x, bullet.y);
             bullet.destroy();
         });
@@ -580,7 +580,8 @@ class GameScene extends Phaser.Scene {
             maxCombo: this.hud.maxCombo,
             timeSec: timeSec,
             damageTaken: this.player.damageTakenCount,
-            isFinal: isFinal
+            isFinal: isFinal,
+            isFinishLevel: this._isFinishLevel()
         };
 
         Effects.bigText(this, '通 关 !!', PaletteHex.warning);
@@ -657,8 +658,15 @@ class GameScene extends Phaser.Scene {
         const groundY = this.levelHeight - 64;
         const y = this._resolveBossSpawnY(bossInfo, groundY);
         const bossConfig = BossConfigs[bossInfo.type] || BossConfigs.mechanicalDino;
+        const bossOverrides = {};
+        if (typeof bossInfo.hp === 'number' && !Number.isNaN(bossInfo.hp)) {
+            bossOverrides.hp = Math.max(0, bossInfo.hp);
+        }
+        if (typeof bossInfo.damageMult === 'number' && !Number.isNaN(bossInfo.damageMult)) {
+            bossOverrides.damageMult = Math.max(0, bossInfo.damageMult);
+        }
         this._playLevelBGM('boss');
-        this.boss = new Boss(this, x, y, bossConfig);
+        this.boss = new Boss(this, x, y, bossConfig, bossOverrides);
         this.boss.snapFeetToGroundY(y);
         this.physics.add.collider(this.boss.sprite, this.groundSolids);
         this.physics.add.collider(this.boss.sprite, this.platforms);
@@ -761,10 +769,11 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    spawnEnemyBullet(x, y, vx, vy = 0) {
+    spawnEnemyBullet(x, y, vx, vy = 0, damage = 8) {
         const b = this.enemyBullets.create(x, y, 'bullet_enemy');
         b.body.allowGravity = false;
         b.setVelocity(vx, vy);
+        b._bulletDamage = damage;
     }
 
     spawnPlayerMelee(cx, cy, w, h, facing) {

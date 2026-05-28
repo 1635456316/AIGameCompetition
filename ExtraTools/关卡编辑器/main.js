@@ -20,6 +20,7 @@
     let bgImage = null;
     let animTime = 0;
     let lastCursorX = 0;
+    let lastCursorY = 0;
     let undoStack = [];
     let redoStack = [];
     let clipboard = null;
@@ -238,27 +239,61 @@
         return d;
     }
 
-    function copySelection() {
-        if (!selection) return false;
-        const data = getSelectionData();
-        if (!data) return false;
-        clipboard = {
-            category: selection.category,
-            data: cloneSelectionData(data, selection.category)
-        };
-        pasteGeneration = 0;
-        return true;
+    function getDataAnchor(category, data) {
+        if (!data) return { x: 0, y: 0 };
+        if (category === 'platforms') return { x: data[0], y: data[1] };
+        if (category === 'playerStart') return { x: data.x, y: S.playerY(level) };
+        if (category === 'boss') {
+            return {
+                x: level.width - (data.xOffset ?? 240),
+                y: S.GAME_HEIGHT - (data.yOffset ?? 80)
+            };
+        }
+        if (category === 'finish') return { x: data.x, y: data.y };
+        if (category === 'spawns' || category === 'pickups') {
+            return { x: data.x, y: data.y ?? (S.GROUND_Y - 4) };
+        }
+        if (typeof data === 'object') {
+            return {
+                x: typeof data.x === 'number' ? data.x : 0,
+                y: typeof data.y === 'number' ? data.y : 0
+            };
+        }
+        return { x: 0, y: 0 };
     }
 
-    function duplicateSelection(offsetX, offsetY) {
-        if (!clipboard) return false;
-        pushUndo();
-        pasteGeneration += 1;
-        const dx = offsetX ?? S.getGridSize() * pasteGeneration;
-        const dy = offsetY ?? 0;
-        const { category, data } = clipboard;
-        const copy = applyOffsetToData(data, category, dx, dy);
+    function rectsOverlap(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
 
+    function pastedBoundsOverlapLevel(category, pastedData) {
+        const pastedBounds = S.getItemBounds(category, pastedData, level);
+        const items = S.listAllItems(level);
+        for (const item of items) {
+            if (item.category === category && category === 'playerStart') continue;
+            if (item.category === category && category === 'boss') continue;
+            if (item.category === category && category === 'finish') continue;
+            const bounds = S.getItemBounds(item.category, item.data, level);
+            if (rectsOverlap(pastedBounds, bounds)) return true;
+        }
+        return false;
+    }
+
+    function resolvePasteOffset(category, data, baseDx, baseDy) {
+        const step = S.getGridSize();
+        let dx = baseDx;
+        let dy = baseDy;
+        for (let i = 0; i < 256; i++) {
+            const copy = applyOffsetToData(data, category, dx, dy);
+            if (!pastedBoundsOverlapLevel(category, copy)) {
+                return { dx, dy, copy };
+            }
+            dx += step;
+        }
+        return { dx: baseDx, dy: baseDy, copy: applyOffsetToData(data, category, baseDx, baseDy) };
+    }
+
+    function insertPastedCopy(category, copy) {
         if (category === 'playerStart') {
             level.playerStart = copy;
             selection = { category, index: 0 };
@@ -274,6 +309,44 @@
         }
         refreshAll();
         return true;
+    }
+
+    function pasteAtWorld(worldX, worldY) {
+        if (!clipboard) return false;
+        pushUndo();
+        const { category, data } = clipboard;
+        const anchor = clipboard.anchor || getDataAnchor(category, data);
+        const baseDx = S.snap(worldX) - anchor.x;
+        const baseDy = S.snap(worldY) - anchor.y;
+        const { copy } = resolvePasteOffset(category, data, baseDx, baseDy);
+        return insertPastedCopy(category, copy);
+    }
+
+    function copySelection() {
+        if (!selection) return false;
+        const data = getSelectionData();
+        if (!data) return false;
+        clipboard = {
+            category: selection.category,
+            data: cloneSelectionData(data, selection.category),
+            anchor: getDataAnchor(selection.category, data)
+        };
+        pasteGeneration = 0;
+        return true;
+    }
+
+    function duplicateSelection(offsetX, offsetY) {
+        if (!clipboard) return false;
+        if (offsetX === undefined && offsetY === undefined) {
+            return pasteAtWorld(lastCursorX, lastCursorY);
+        }
+        pushUndo();
+        pasteGeneration += 1;
+        const dx = offsetX ?? S.getGridSize() * pasteGeneration;
+        const dy = offsetY ?? 0;
+        const { category, data } = clipboard;
+        const copy = applyOffsetToData(data, category, dx, dy);
+        return insertPastedCopy(category, copy);
     }
 
     function getResizeHandle(worldX, worldY) {
@@ -817,15 +890,21 @@
                 row.querySelector('select').addEventListener('change', e => {
                     pushUndo();
                     applyPropChange(key, type === 'select' ? e.target.value : parseFloat(e.target.value));
+                    if (selection?.category === 'boss' && key === 'type') {
+                        buildPropsForm();
+                    }
                 });
                 return;
             }
             const val = opts.value !== undefined ? opts.value : (Array.isArray(data) ? data[opts.idx] : data[key]);
-            row.innerHTML = `<label for="${id}">${label}</label><input id="${id}" type="${type}" value="${val ?? ''}"${opts.step ? ` step="${opts.step}"` : ''}>`;
+            const placeholder = opts.placeholder ? ` placeholder="${opts.placeholder}"` : '';
+            const step = opts.step ? ` step="${opts.step}"` : '';
+            row.innerHTML = `<label for="${id}">${label}</label><input id="${id}" type="${type}" value="${val ?? ''}"${placeholder}${step}>`;
             form.appendChild(row);
             row.querySelector('input').addEventListener('change', e => {
                 pushUndo();
-                const v = type === 'number' ? parseFloat(e.target.value) : e.target.value;
+                let v = type === 'number' ? parseFloat(e.target.value) : e.target.value;
+                if (type === 'number' && e.target.value.trim() === '') v = '';
                 applyPropChange(key, v, opts.idx);
             });
         };
@@ -846,7 +925,17 @@
                 if (key === 'x') level.playerStart.x = S.snap(v);
                 else if (key === 'yOffset') level.playerStart.yOffset = v;
             } else if (selection.category === 'boss') {
-                level.boss[key] = v;
+                if (key === 'hp' || key === 'damageMult') {
+                    if (v === '' || v == null || Number.isNaN(v)) {
+                        delete level.boss[key];
+                    } else {
+                        level.boss[key] = Math.max(0, v);
+                    }
+                } else {
+                    level.boss[key] = v;
+                }
+                refreshAll(false);
+                return;
             } else if (selection.category === 'finish') {
                 if (key === 'x' || key === 'y') level.finish[key] = S.snap(v);
                 else level.finish[key] = v;
@@ -1047,19 +1136,26 @@
             addField('X', 'x', 'number', { value: data.x });
             addField('yOffset（距底边）', 'yOffset', 'number', { value: data.yOffset });
         } else if (selection.category === 'boss') {
+            const bossDefaults = S.getBossTypeDefaults(data.type);
             addField('Boss 类型', 'type', 'select', {
                 value: data.type,
-                options: [
-                    { v: 'steelTriceratops', t: 'steelTriceratops' },
-                    { v: 'mechanicalDino', t: 'mechanicalDino' },
-                    { v: 'octopusDoctor', t: 'octopusDoctor' },
-                    { v: 'steelCrab', t: 'steelCrab' },
-                    { v: 'skyCarrier', t: 'skyCarrier' },
-                    { v: 'finalDinoGod', t: 'finalDinoGod' }
-                ]
+                options: S.BOSS_TYPE_OPTIONS.map(o => ({ v: o.id, t: o.label }))
             });
             addField('xOffset（距右边缘）', 'xOffset', 'number', { value: data.xOffset });
             addField('yOffset（距底边）', 'yOffset', 'number', { value: data.yOffset });
+            addField(`血量（默认 ${bossDefaults.hp}）`, 'hp', 'number', {
+                value: data.hp ?? '',
+                placeholder: '留空=默认'
+            });
+            addField('攻击伤害倍率（默认 1）', 'damageMult', 'number', {
+                value: data.damageMult ?? '',
+                placeholder: '留空=1',
+                step: '0.1'
+            });
+            const bossHint = document.createElement('p');
+            bossHint.className = 'field-hint';
+            bossHint.textContent = `当前类型默认：HP ${bossDefaults.hp}，接触伤害 ${bossDefaults.contactDamage}；倍率作用于接触伤害、技能伤害与弹幕。留空使用默认。`;
+            form.appendChild(bossHint);
         } else if (selection.category === 'finish') {
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y });
@@ -1843,6 +1939,7 @@
     window.addEventListener('mousemove', e => {
         const w = screenToWorld(e.clientX, e.clientY);
         lastCursorX = w.x;
+        lastCursorY = w.y;
         document.getElementById('cursor-pos').textContent = `X: ${Math.round(w.x)}  Y: ${Math.round(w.y)}`;
 
         if (panning && panStart) {
