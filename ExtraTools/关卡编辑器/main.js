@@ -196,6 +196,12 @@
         const hits = [];
         const items = S.listAllItems(level).reverse();
         for (const item of items) {
+            if (item.category === 'spawns') {
+                if (S.hitTestSpawn(worldX, worldY, item.data, level)) {
+                    hits.push({ category: item.category, index: item.index });
+                }
+                continue;
+            }
             const b = S.getItemBounds(item.category, item.data, level);
             if (worldX >= b.x && worldX <= b.x + b.w && worldY >= b.y && worldY <= b.y + b.h) {
                 hits.push({ category: item.category, index: item.index });
@@ -261,7 +267,7 @@
         if (category === 'finish') return { x: data.x, y: data.y };
         if (category === 'bossTriggerZone') return { x: data.x, y: data.y };
         if (category === 'spawns' || category === 'pickups') {
-            return { x: data.x, y: data.y ?? (S.groundY(level) - 4) };
+            return { x: data.x, y: S.getSpawnFeetY(level, data) };
         }
         if (typeof data === 'object') {
             return {
@@ -698,10 +704,10 @@
     }
 
     function drawSpawns() {
+        const r = S.SPAWN_RADIUS;
         level.spawns.forEach((s, i) => {
             const sel = selection?.category === 'spawns' && selection.index === i;
-            const y = s.y ?? (S.groundY(level) - 4);
-            const r = 14;
+            const y = S.getSpawnFeetY(level, s);
             ctx.fillStyle = spawnColor(s.type, sel);
             ctx.beginPath();
             // 圆底边 = y（与游戏内脚底坐标一致）
@@ -1792,10 +1798,8 @@
             return { x: worldX - level.bossTriggerZone.x, y: worldY - level.bossTriggerZone.y };
         }
         if (category === 'spawns' || category === 'pickups') {
-            return {
-                x: worldX - data.x,
-                y: worldY - (data.y ?? (S.groundY(level) - 4))
-            };
+            const feetY = S.getSpawnFeetY(level, data);
+            return { x: worldX - data.x, y: worldY - feetY };
         }
         if (category === 'hazards' && data.type === 'checkpoint') {
             return { x: worldX - data.x, y: worldY - data.y };
@@ -1873,7 +1877,7 @@
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = item.x + dx;
-            item.y = (item.y ?? (S.groundY(level) - 4)) + dy;
+            item.y = S.getSpawnFeetY(level, item) + dy;
             setSelectionData(item);
         } else if (typeof data === 'object') {
             const item = { ...data };
@@ -1902,7 +1906,7 @@
         } else if (selection.category === 'spawns') {
             const item = { ...data };
             item.x = S.snap(item.x);
-            item.y = item.y ?? (S.groundY(level) - 4);
+            item.y = S.snap(S.getSpawnFeetY(level, item));
             setSelectionData(item);
         } else if (selection.category === 'hazards' && data.type === 'checkpoint') {
             const item = { ...data, feetAnchor: true };

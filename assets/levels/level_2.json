@@ -13,9 +13,14 @@
   "hpStartPercent": 100,
   "enemyKillEnergy": 10,
   "bossTriggerOffset": 800,
-  "bossTriggerZone": null,
+  "bossTriggerZone": {
+    "x": 5456,
+    "y": 992,
+    "w": 554,
+    "h": 302
+  },
   "boss": {
-    "type": "steelTriceratops",
+    "type": "mechanicalDino",
     "xOffset": 976,
     "yOffset": 408,
     "w": 816,

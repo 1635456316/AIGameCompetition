@@ -26,6 +26,18 @@ const LevelEditorSchema = (() => {
     }
 
     const PICKUP_SIZE = 28;
+    const SPAWN_RADIUS = 14;
+
+    function getSpawnFeetY(level, spawn) {
+        return spawn.y ?? (groundY(level) - 4);
+    }
+
+    function hitTestSpawn(worldX, worldY, spawn, level) {
+        const feetY = getSpawnFeetY(level, spawn);
+        const dx = worldX - spawn.x;
+        const dy = worldY - (feetY - SPAWN_RADIUS);
+        return dx * dx + dy * dy <= SPAWN_RADIUS * SPAWN_RADIUS;
+    }
 
     const PALETTE = [
         {
@@ -374,7 +386,7 @@ const LevelEditorSchema = (() => {
             case 'spawn_ranged':
                 return { category: 'spawns', data: { type: 'ranged', x: sx, y: sy } };
             case 'spawn_flying':
-                return { category: 'spawns', data: { type: 'flying', x: sx, y: sy - 120 } };
+                return { category: 'spawns', data: { type: 'flying', x: sx, y: sy } };
             default:
                 return null;
         }
@@ -427,9 +439,10 @@ const LevelEditorSchema = (() => {
                 }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
             case 'spawns': {
-                const y = data.y ?? (groundY(level) - 4);
-                // y 为脚底坐标，与画布圆点底边对齐
-                return { x: data.x - 16, y: y - 28, w: 32, h: 28 };
+                const y = getSpawnFeetY(level, data);
+                const d = SPAWN_RADIUS * 2;
+                // 圆底边 = y（与画布圆点底边、游戏内脚底坐标一致）
+                return { x: data.x - SPAWN_RADIUS, y: y - d, w: d, h: d };
             }
             case 'playerStart': {
                 const px = level.playerStart.x;
@@ -532,7 +545,6 @@ const LevelEditorSchema = (() => {
         level.destructibleWalls.forEach((data, index) => items.push({ category: 'destructibleWalls', index, data }));
         level.systemWalls.forEach((data, index) => items.push({ category: 'systemWalls', index, data }));
         level.pickups.forEach((data, index) => items.push({ category: 'pickups', index, data }));
-        level.spawns.forEach((data, index) => items.push({ category: 'spawns', index, data }));
         level.hazards.forEach((data, index) => items.push({ category: 'hazards', index, data }));
         items.push({ category: 'playerStart', index: 0, data: level.playerStart });
         if (isBossLevel(level)) {
@@ -544,6 +556,8 @@ const LevelEditorSchema = (() => {
         if (isFinishLevel(level)) {
             items.push({ category: 'finish', index: 0, data: level.finish });
         }
+        // 小怪置于最上层，避免被机关等区域遮挡导致点选/拖不动
+        level.spawns.forEach((data, index) => items.push({ category: 'spawns', index, data }));
         return items;
     }
 
@@ -930,6 +944,9 @@ const LevelEditorSchema = (() => {
         platformHeight,
         platformSegmentCount,
         PICKUP_SIZE,
+        SPAWN_RADIUS,
+        getSpawnFeetY,
+        hitTestSpawn,
         PALETTE,
         createEmptyLevel,
         normalizeLevel,
