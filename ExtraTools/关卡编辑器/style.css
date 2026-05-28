@@ -463,3 +463,21 @@ h2 {
     color: #6cc6ff;
     font-weight: 600;
 }
+
+/* === 教学视频弹窗 === */
+
+.tutorial-video-panel {
+    width: min(960px, calc(100vw - 32px));
+}
+
+.tutorial-video-body {
+    padding: 12px 16px 16px;
+}
+
+.tutorial-video-body video {
+    display: block;
+    width: 100%;
+    max-height: min(70vh, 540px);
+    border-radius: 6px;
+    background: #000;
+}

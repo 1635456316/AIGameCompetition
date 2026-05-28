@@ -124,6 +124,14 @@ const LevelEditorPlayerMode = (() => {
         });
         tools.insertBefore(exitBtn, sceneToolsBtn);
 
+        const tutorialBtn = document.createElement('button');
+        tutorialBtn.className = 'btn primary';
+        tutorialBtn.id = 'btn-tutorial-video';
+        tutorialBtn.textContent = '教学视频';
+        tutorialBtn.title = '观看关卡编辑器教学视频';
+        tutorialBtn.addEventListener('click', showTutorialVideoModal);
+        tools.insertBefore(tutorialBtn, sceneToolsBtn);
+
         const userSpan = document.createElement('span');
         userSpan.id = 'player-user-label';
         userSpan.className = 'save-status';
@@ -226,6 +234,44 @@ const LevelEditorPlayerMode = (() => {
         if (!res.ok) throw new Error('无法加载第一关模板');
         const raw = await res.json();
         return stripMedia(raw);
+    }
+
+    const TUTORIAL_VIDEO_URL = '../../assets/video/关卡编辑器教学视频.mp4';
+
+    function showTutorialVideoModal() {
+        let modal = document.getElementById('tutorial-video-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'tutorial-video-modal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-panel tutorial-video-panel" role="dialog" aria-labelledby="tutorial-video-title">
+                    <div class="modal-header">
+                        <h2 id="tutorial-video-title">关卡编辑器教学</h2>
+                        <button type="button" class="btn modal-close" id="tutorial-video-close" title="关闭">×</button>
+                    </div>
+                    <div class="modal-body tutorial-video-body">
+                        <video id="tutorial-video-player" controls playsinline preload="metadata"></video>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            const video = modal.querySelector('#tutorial-video-player');
+            video.src = TUTORIAL_VIDEO_URL;
+            modal.querySelector('#tutorial-video-close').addEventListener('click', () => closeTutorialVideoModal(modal, video));
+            modal.addEventListener('click', e => {
+                if (e.target === modal) closeTutorialVideoModal(modal, video);
+            });
+        }
+
+        const video = modal.querySelector('#tutorial-video-player');
+        modal.hidden = false;
+        video.currentTime = 0;
+        video.play().catch(() => {});
+    }
+
+    function closeTutorialVideoModal(modal, video) {
+        modal.hidden = true;
+        try { video.pause(); } catch (e) {}
     }
 
     function showUploadModal(ctx) {
