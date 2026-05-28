@@ -134,6 +134,31 @@ class Enemy {
         }
     }
 
+    _isInAimedShootRange(player, logic) {
+        const spawnY = this.y - (logic.bulletSpawnOffsetY || 36);
+        const tx = player?.x ?? this.x;
+        const ty = (player?.y ?? this.y) - 40;
+        const maxRange = logic.shootRange2D ?? Math.max(this.shootRangeX, 460);
+        return Math.hypot(tx - this.x, ty - spawnY) <= maxRange;
+    }
+
+    _fireRangedBullet(player, logic, samePlane) {
+        const dir = samePlane ? this.facing : (player.x >= this.x ? 1 : -1);
+        const spawnX = this.x + dir * (logic.bulletSpawnOffsetX || 28);
+        const spawnY = this.y - (logic.bulletSpawnOffsetY || 36);
+        const speed = logic.bulletSpeed || 400;
+        if (samePlane) {
+            this.scene.spawnEnemyBullet(spawnX, spawnY, this.facing * speed, 0);
+            return;
+        }
+        const tx = player.x;
+        const ty = player.y - 40;
+        const dx = tx - spawnX;
+        const dy = ty - spawnY;
+        const len = Math.hypot(dx, dy) || 1;
+        this.scene.spawnEnemyBullet(spawnX, spawnY, (dx / len) * speed, (dy / len) * speed);
+    }
+
     _updateGroundCombat(time, player) {
         const dx = player.x - this.x;
         const distX = Math.abs(dx);
@@ -146,17 +171,19 @@ class Enemy {
             this.logic.setVelocityX(this.facing * this.moveSpeed);
         } else if (this.type === 'ranged' && distX < this.detectRangeX) {
             this.facing = dir;
-            if (samePlane) {
+            const inShootRange = samePlane
+                ? distX < this.shootRangeX
+                : this._isInAimedShootRange(player, logic);
+            if (inShootRange) {
                 this.logic.setVelocityX(0);
-                if (distX < this.shootRangeX && time - this.lastAttackAt > this.attackCooldown) {
+                if (time - this.lastAttackAt > this.attackCooldown) {
                     this.lastAttackAt = time;
-                    const spawnX = this.x + dir * (logic.bulletSpawnOffsetX || 28);
-                    const spawnY = this.y - (logic.bulletSpawnOffsetY || 36);
-                    this.scene.spawnEnemyBullet(spawnX, spawnY, dir * (logic.bulletSpeed || 400));
+                    this._fireRangedBullet(player, logic, samePlane);
                 }
-            } else {
-                // 玩家在不同高度：站定瞄准，不再巡逻（窄台缘否则会左右抖）
+            } else if (samePlane) {
                 this.logic.setVelocityX(0);
+            } else {
+                this._updatePatrol();
             }
         } else {
             this._updatePatrol();

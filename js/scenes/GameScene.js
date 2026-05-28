@@ -135,9 +135,6 @@ class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.enemyBullets, this.groundSolids, (bullet) => {
             if (bullet?.active) bullet.destroy();
         }, (_bullet, solid) => !this._isWallSolid(solid));
-        this.physics.add.collider(this.enemyBullets, this.platforms, (bullet) => {
-            if (bullet?.active) bullet.destroy();
-        }, (_bullet, solid) => !this._isWallSolid(solid));
 
         this._bindDestructibleWallHits();
         this.pickups = Pickups.spawn(this, this.levelConfig);
