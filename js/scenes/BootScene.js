@@ -83,6 +83,7 @@ class BootScene extends Phaser.Scene {
 
         // UI 图片资源
         this.load.image('ui_level_select_bg', 'assets/UI/关卡选择背景.png');
+        this.load.image('ui_workshop_bg', 'assets/UI/创意工坊背景.png');
 
         // 关卡背景 / 结算背景：遍历关卡配置预加载，key 为 level_bg_${id} / result_bg_${id}
         if (typeof LevelConfigs !== 'undefined') {

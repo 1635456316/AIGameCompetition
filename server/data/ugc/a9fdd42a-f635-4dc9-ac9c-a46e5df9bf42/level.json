@@ -1,0 +1,147 @@
+{
+  "id": 1,
+  "title": "平台跳跃",
+  "subtitle": "平台跳跃",
+  "width": 5000,
+  "playerStart": {
+    "x": 160,
+    "yOffset": 120
+  },
+  "energyStartPercent": 5,
+  "energyRegenRate": 0,
+  "hpStartPercent": 100,
+  "enemyKillEnergy": 10,
+  "bossTriggerOffset": 900,
+  "finish": {
+    "w": 80,
+    "h": 80,
+    "x": 4824,
+    "y": 576
+  },
+  "startVideoUrl": null,
+  "endVideoUrl": null,
+  "normalBgmUrl": null,
+  "bossBgmUrl": null,
+  "bgUrl": null,
+  "resultBgUrl": null,
+  "platforms": [],
+  "walls": [],
+  "destructibleWalls": [],
+  "systemWalls": [],
+  "pickups": [],
+  "spawns": [],
+  "hazards": [
+    {
+      "type": "death",
+      "x": 2502,
+      "y": 640,
+      "w": 4532,
+      "h": 24
+    },
+    {
+      "type": "crumble",
+      "x": 296,
+      "y": 544,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 576,
+      "y": 416,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 864,
+      "y": 376,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 1200,
+      "y": 344,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 1624,
+      "y": 408,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 1864,
+      "y": 432,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 2096,
+      "y": 400,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 2392,
+      "y": 368,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 2696,
+      "y": 392,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 3048,
+      "y": 408,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 3440,
+      "y": 416,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 3816,
+      "y": 392,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 4184,
+      "y": 384,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 4528,
+      "y": 416,
+      "delay": 800,
+      "respawn": 4000
+    },
+    {
+      "type": "crumble",
+      "x": 4600,
+      "y": 136,
+      "delay": 800,
+      "respawn": 4000
+    }
+  ]
+}
