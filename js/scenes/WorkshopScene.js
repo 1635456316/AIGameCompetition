@@ -8,6 +8,8 @@ class WorkshopScene extends Phaser.Scene {
         this.loading = true;
         this.errorText = '';
         this.focusIndex = 0;
+        this.authLoggedIn = false;
+        this.authUser = null;
     }
 
     create() {
@@ -37,6 +39,8 @@ class WorkshopScene extends Phaser.Scene {
             font: '16px Microsoft YaHei, Arial',
             color: '#9fb0c8'
         }).setOrigin(0.5).setDepth(20);
+
+        this._createAuthBar(w);
 
         this.cardsContainer = this.add.container(0, 0).setDepth(15);
         this.emptyText = this.add.text(w / 2, h / 2, '', {
@@ -72,7 +76,90 @@ class WorkshopScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-RIGHT', () => this._moveFocus(1));
         this.input.keyboard.on('keydown-ENTER', () => this._enterFocusedLevel());
 
+        this._loadAuth();
         this._loadLevels();
+    }
+
+    _createAuthBar(w) {
+        const panelW = 248;
+        const panelH = 38;
+        const rightX = w - 18;
+        const panelY = 34;
+
+        this.authBar = this.add.container(rightX, panelY).setDepth(40);
+
+        const bg = this.add.rectangle(-panelW / 2, 0, panelW, panelH, 0x0a1020, 0.88)
+            .setStrokeStyle(1, Palette.warning, 0.45);
+        this.authBar.add(bg);
+
+        this.authUserText = this.add.text(-panelW + 14, 0, '登录状态加载中…', {
+            font: '14px Microsoft YaHei, Arial',
+            color: '#8899aa'
+        }).setOrigin(0, 0.5);
+        this.authBar.add(this.authUserText);
+
+        this.authActionText = this.add.text(-14, 0, '登录', {
+            font: 'bold 14px Microsoft YaHei, Arial',
+            color: PaletteHex.warning
+        }).setOrigin(1, 0.5);
+        this.authBar.add(this.authActionText);
+
+        const actionHit = this.add.zone(-36, 0, 72, panelH).setInteractive({ useHandCursor: true });
+        this.authBar.add(actionHit);
+
+        actionHit.on('pointerover', () => this.authActionText.setColor('#ffffff'));
+        actionHit.on('pointerout', () => {
+            this.authActionText.setColor(this.authLoggedIn ? '#ff9a9a' : PaletteHex.warning);
+        });
+        actionHit.on('pointerdown', () => this._onAuthAction());
+    }
+
+    async _loadAuth() {
+        try {
+            const auth = await WorkshopApi.checkAuth();
+            this._updateAuthBar(auth);
+        } catch {
+            this._updateAuthBar({ loggedIn: false });
+        }
+    }
+
+    _updateAuthBar(auth) {
+        this.authLoggedIn = !!auth.loggedIn;
+        this.authUser = auth.loggedIn ? auth : null;
+
+        if (auth.loggedIn) {
+            const name = auth.userName || '已登录';
+            this.authUserText.setText(name);
+            this.authUserText.setColor('#8fdcff');
+            this.authActionText.setText('登出');
+            this.authActionText.setColor('#ff9a9a');
+        } else {
+            this.authUserText.setText('未登录');
+            this.authUserText.setColor('#8899aa');
+            this.authActionText.setText('登录');
+            this.authActionText.setColor(PaletteHex.warning);
+        }
+    }
+
+    async _onAuthAction() {
+        if (this.authLoggingOut) return;
+
+        if (this.authLoggedIn) {
+            this.authLoggingOut = true;
+            this.authActionText.setText('登出中…');
+            try {
+                await WorkshopApi.logout();
+                this._updateAuthBar({ loggedIn: false });
+            } catch (err) {
+                this.subtitleText.setText(`登出失败：${err.message || err}`);
+            } finally {
+                this.authLoggingOut = false;
+            }
+            return;
+        }
+
+        sessionStorage.setItem('boot-scene', 'WorkshopScene');
+        window.location.href = WorkshopApi.getLoginUrl('/');
     }
 
     async _loadLevels() {
@@ -207,16 +294,22 @@ class WorkshopScene extends Phaser.Scene {
     }
 
     async _openEditor() {
-        try {
-            const auth = await WorkshopApi.checkAuth();
-            if (!auth.loggedIn) {
-                window.location.href = WorkshopApi.getLoginUrl('/ExtraTools/关卡编辑器/?mode=player');
-                return;
+        let loggedIn = this.authLoggedIn;
+        if (!loggedIn) {
+            try {
+                const auth = await WorkshopApi.checkAuth();
+                loggedIn = !!auth.loggedIn;
+                if (loggedIn) this._updateAuthBar(auth);
+            } catch {
+                loggedIn = false;
             }
-            window.location.href = '/ExtraTools/关卡编辑器/?mode=player';
-        } catch {
-            window.location.href = WorkshopApi.getLoginUrl('/ExtraTools/关卡编辑器/?mode=player');
         }
+        if (!loggedIn) {
+            sessionStorage.setItem('boot-scene', 'WorkshopScene');
+            window.location.href = WorkshopApi.getLoginUrl('/ExtraTools/关卡编辑器/?mode=player');
+            return;
+        }
+        window.location.href = '/ExtraTools/关卡编辑器/?mode=player';
     }
 
     _createImageButton(x, y, textureKey, label, action, targetWidth = 185) {
