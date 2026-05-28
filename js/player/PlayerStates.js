@@ -271,9 +271,14 @@ const SwordChargeState = {
         Effects.destroySwordChargeBar(player);
     },
     handleInput(player, input) {
-        // 蓄力期间 L 为取消，不触发冲刺、不消耗能量
         if (input.dashPressed) {
-            player.cancelSwordCharge();
+            if (player.canDash()) {
+                // 打断蓄力并冲刺（不释放剑气；冲刺照常消耗能量）
+                player.setHeroDisplayScaleMult(1);
+                player.fsm.change('dash');
+            } else {
+                player.cancelSwordCharge();
+            }
         }
     }
 };
@@ -334,7 +339,12 @@ const SwordReleaseState = {
         player.swordQiReleaseDir = 'horizontal';
         player.setHeroDisplayScaleMult(1);
     },
-    handleInput() {}
+    handleInput(player, input) {
+        // 冲刺可取消释放后摇
+        if (input.dashPressed && player.canDash()) {
+            player.fsm.change('dash');
+        }
+    }
 };
 
 const HurtState = {

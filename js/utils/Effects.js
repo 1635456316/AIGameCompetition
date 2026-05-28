@@ -61,7 +61,21 @@ class Effects {
     }
 
     static shake(scene, duration = 120, intensity = 0.01) {
-        scene.cameras.main.shake(duration, intensity);
+        const cam = scene?.cameras?.main;
+        if (!cam) return;
+
+        const effect = cam.shakeEffect;
+        if (effect?.isRunning) {
+            const remaining = effect.duration * (1 - effect.progress);
+            const currentIntensity = effect.intensity?.x ?? 0;
+            // 已有震动时，Phaser 默认 force=false 会直接忽略新调用；
+            // 仅当新震动更短且更弱时才跳过，避免 Boss 技能等打断大招长震。
+            if (duration <= remaining && intensity <= currentIntensity) {
+                return;
+            }
+        }
+
+        cam.shake(duration, intensity, true);
     }
 
     static hitStop(scene, ms = 60) {
