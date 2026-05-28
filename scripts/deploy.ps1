@@ -10,7 +10,7 @@
     4. 启动 Server（默认端口 8080，与开发 3000 区分）
 
 .USAGE
-    .\scripts\server.ps1 deploy
+    .\server.ps1 deploy
     powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1
 #>
 
@@ -122,5 +122,5 @@ Start-GameServer -Target 'deployed'
 Write-Host ''
 Write-Host "开发工程: $SourceRoot" -ForegroundColor DarkGray
 Write-Host "生产目录: $TargetRoot" -ForegroundColor DarkGray
-Write-Host "单独启停: .\scripts\server.ps1 start|stop dev|deployed" -ForegroundColor DarkGray
-Write-Host "一键部署: .\scripts\server.ps1 deploy" -ForegroundColor DarkGray
+Write-Host "单独启停: .\server.ps1 start|stop dev|deployed" -ForegroundColor DarkGray
+Write-Host "一键部署: .\server.ps1 deploy" -ForegroundColor DarkGray

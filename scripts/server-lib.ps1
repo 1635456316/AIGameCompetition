@@ -117,7 +117,7 @@ function Start-GameServer {
     }
 
     if (Test-ServerListening $port) {
-        throw "端口 $port 已被占用，请先执行: .\scripts\server.ps1 stop $Target"
+        throw "端口 $port 已被占用，请先执行: .\server.ps1 stop $Target"
     }
 
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
