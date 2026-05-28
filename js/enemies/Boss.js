@@ -69,6 +69,18 @@ class Boss {
             : (this.config.tint || Palette.boss));
     }
 
+    /** 将逻辑锚点（脚底 origin）对齐到指定世界坐标，并重置速度 */
+    snapToSpawnPoint(x, y) {
+        if (!this.logic?.sprite) return;
+        this.logic.sprite.setPosition(x, y);
+        const body = this.logic.body;
+        if (body) {
+            body.updateFromGameObject();
+            body.setVelocity(0, 0);
+        }
+        this.syncView();
+    }
+
     /** 将逻辑锚点（脚底 origin）对齐到地面高度 */
     snapFeetToGroundY(groundY) {
         if (!this.logic?.sprite) return;

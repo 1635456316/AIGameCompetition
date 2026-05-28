@@ -1,12 +1,15 @@
 /**
  * 全局 Debug 开关。URL ?debug=1 或游戏中按 F9 切换碰撞盒显示。
  * URL ?respawn=1 开启复活流程调试日志（控制台过滤 [RespawnDBG]）。
+ * URL ?boss=1 开启 Boss 生成位置调试日志（控制台过滤 [BossSpawnDBG]）。
  */
 const GameDebug = {
     showHitboxes: false,
     respawnDebug: false,
+    bossSpawnDebug: false,
     toggleKey: 'F9',
     _respawnSeq: 0,
+    _bossSpawnSeq: 0,
 
     initFromUrl() {
         try {
@@ -16,6 +19,9 @@ const GameDebug = {
             }
             if (params.get('respawn') === '1') {
                 this.respawnDebug = true;
+            }
+            if (params.get('boss') === '1') {
+                this.bossSpawnDebug = true;
             }
         } catch (e) {}
     },
@@ -29,6 +35,12 @@ const GameDebug = {
         if (!this.respawnDebug) return;
         this._respawnSeq += 1;
         console.log(`[RespawnDBG #${this._respawnSeq}] ${phase}`, payload);
+    },
+
+    bossSpawnLog(phase, payload = {}) {
+        if (!this.bossSpawnDebug) return;
+        this._bossSpawnSeq += 1;
+        console.log(`[BossSpawnDBG #${this._bossSpawnSeq}] ${phase}`, payload);
     },
 
     /** 列出 feetX 附近平台/地面的顶边，便于对比复活 Y */

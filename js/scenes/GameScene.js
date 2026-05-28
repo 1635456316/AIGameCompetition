@@ -159,6 +159,7 @@ class GameScene extends Phaser.Scene {
         this.boss = null;
         this.bossTriggered = false;
         this.bossGateHintShown = false;
+        this._bossSpawnSettling = false;
         this.startTime = this.time.now;
         this._playLevelBGM('normal');
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._stopLevelBGM());
@@ -454,7 +455,7 @@ class GameScene extends Phaser.Scene {
         this.enemies.forEach(e => e.alive && e.update(time, delta, this.player));
 
         // Boss
-        if (this.boss && this.boss.alive) {
+        if (this.boss && this.boss.alive && !this._bossSpawnSettling) {
             this.boss.update(time, delta, this.player);
         }
 
@@ -665,11 +666,44 @@ class GameScene extends Phaser.Scene {
         return groundY;
     }
 
+    _logBossSpawnDebug(phase, bossInfo, expectedX, expectedY, extra = {}) {
+        const player = this.player;
+        GameDebug.bossSpawnLog(phase, {
+            levelSize: { width: this.levelWidth, height: this.levelHeight },
+            config: {
+                xOffset: bossInfo.xOffset ?? null,
+                yOffset: bossInfo.yOffset ?? null,
+                y: bossInfo.y ?? null
+            },
+            expectedWorld: { x: Math.round(expectedX), y: Math.round(expectedY) },
+            distFromRight: Math.round(this.levelWidth - expectedX),
+            distFromBottom: Math.round(this.levelHeight - expectedY),
+            playerWorld: player
+                ? { x: Math.round(player.x), y: Math.round(player.y) }
+                : null,
+            ...extra
+        });
+    }
+
+    _bossDebugBody(boss) {
+        const body = boss?.body;
+        if (!body) return null;
+        return {
+            left: Math.round(body.left),
+            right: Math.round(body.right),
+            top: Math.round(body.top),
+            bottom: Math.round(body.bottom),
+            velX: Math.round(body.velocity?.x ?? 0),
+            velY: Math.round(body.velocity?.y ?? 0)
+        };
+    }
+
     _spawnBoss() {
         const bossInfo = this.levelConfig.boss || { type: 'mechanicalDino', xOffset: 220 };
         const x = this.levelWidth - (bossInfo.xOffset || 220);
         const groundY = this.levelHeight - 64;
         const y = this._resolveBossSpawnY(bossInfo, groundY);
+        this._logBossSpawnDebug('expected', bossInfo, x, y);
         const bossConfig = BossConfigs[bossInfo.type] || BossConfigs.mechanicalDino;
         const bossOverrides = {};
         if (typeof bossInfo.hp === 'number' && !Number.isNaN(bossInfo.hp)) {
@@ -679,13 +713,31 @@ class GameScene extends Phaser.Scene {
             bossOverrides.damageMult = Math.max(0, bossInfo.damageMult);
         }
         this._playLevelBGM('boss');
+        this._bossSpawnSettling = true;
         this.boss = new Boss(this, x, y, bossConfig, bossOverrides);
-        this.boss.snapFeetToGroundY(y);
+        this.boss.snapToSpawnPoint(x, y);
+        this._logBossSpawnDebug('afterSnap', bossInfo, x, y, {
+            actualWorld: { x: Math.round(this.boss.x), y: Math.round(this.boss.y) },
+            actualDistFromRight: Math.round(this.levelWidth - this.boss.x),
+            actualDistFromBottom: Math.round(this.levelHeight - this.boss.y),
+            body: this._bossDebugBody(this.boss)
+        });
         this.physics.add.collider(this.boss.sprite, this.groundSolids);
         this.physics.add.collider(this.boss.sprite, this.platforms);
-        // 首帧物理刷新后再对齐一次，避免构造时 body 未就绪导致偏移
-        this.time.delayedCall(0, () => {
-            if (this.boss?.alive) this.boss.snapFeetToGroundY(y);
+        // 物理步进完成后再锁定一次 spawn 坐标（仅 snap Y 无法纠正 X 被 AI/碰撞推走）
+        this.events.once('postupdate', () => {
+            if (!this.boss?.alive) {
+                this._bossSpawnSettling = false;
+                return;
+            }
+            this.boss.snapToSpawnPoint(x, y);
+            this._bossSpawnSettling = false;
+            this._logBossSpawnDebug('afterPhysicsFrame', bossInfo, x, y, {
+                actualWorld: { x: Math.round(this.boss.x), y: Math.round(this.boss.y) },
+                actualDistFromRight: Math.round(this.levelWidth - this.boss.x),
+                actualDistFromBottom: Math.round(this.levelHeight - this.boss.y),
+                body: this._bossDebugBody(this.boss)
+            });
         });
         this.physics.add.overlap(this.playerBullets, this.boss.sprite, (a, b) => {
             const bullet = this._pickPlayerBullet(a, b);
