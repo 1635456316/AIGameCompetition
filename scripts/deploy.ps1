@@ -25,8 +25,10 @@ $ExcludeDirs = @(
     'node_modules',
     '.git',
     '.cursor',
-    '.claude',
-    'server\data'
+    '.claude'
+)
+$ExcludeDirPaths = @(
+    (Join-Path $SourceRoot 'server\data')
 )
 $ExcludeFiles = @(
     '.env'
@@ -64,6 +66,18 @@ function Ensure-TargetEnv {
     Write-Host "请编辑 $envPath ，填入飞书凭证与正确的 PUBLIC_BASE_URL" -ForegroundColor Yellow
 }
 
+function Ensure-TargetDataDir {
+    $ugcDir = Join-Path $TargetRoot 'server\data\ugc'
+    if (-not (Test-Path $ugcDir)) {
+        Write-ServerStep '初始化生产 server/data/ugc（不复制开发数据）'
+        New-Item -ItemType Directory -Force -Path $ugcDir | Out-Null
+        $gitkeep = Join-Path $ugcDir '.gitkeep'
+        if (-not (Test-Path $gitkeep)) {
+            New-Item -ItemType File -Force -Path $gitkeep | Out-Null
+        }
+    }
+}
+
 function Copy-Project {
     Write-ServerStep "拷贝项目：$SourceRoot -> $TargetRoot"
 
@@ -78,6 +92,10 @@ function Copy-Project {
     foreach ($dir in $ExcludeDirs) {
         $robocopyArgs += '/XD'
         $robocopyArgs += $dir
+    }
+    foreach ($dirPath in $ExcludeDirPaths) {
+        $robocopyArgs += '/XD'
+        $robocopyArgs += $dirPath
     }
     foreach ($file in $ExcludeFiles) {
         $robocopyArgs += '/XF'
@@ -115,6 +133,7 @@ Write-Host ''
 
 Stop-GameServer -Target 'deployed'
 Copy-Project
+Ensure-TargetDataDir
 Ensure-TargetEnv
 Install-Dependencies
 Start-GameServer -Target 'deployed'
