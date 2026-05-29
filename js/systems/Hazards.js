@@ -440,8 +440,17 @@ class WindZone {
         if (Phaser.Geom.Rectangle.Overlaps(pRect, zBounds)) {
             const pushAmount = this.force * (delta / 1000);
             if (this.dirX !== 0) player.sprite.x += this.dirX * pushAmount;
-            if (this.dirY !== 0) player.sprite.y += this.dirY * pushAmount;
-            player.syncView?.();
+            if (this.dirY > 0) {
+                player.sprite.y += this.dirY * pushAmount;
+            } else if (this.dirY < 0) {
+                const deltaY = this.dirY * pushAmount;
+                const savedBodyX = body.x;
+                player.sprite.y += deltaY;
+                body.updateFromGameObject();
+                body.x = savedBodyX;
+                body.updateCenter();
+            }
+            if (this.dirX !== 0 || this.dirY !== 0) player.syncView?.();
         }
     }
 }
