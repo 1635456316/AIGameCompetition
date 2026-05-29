@@ -134,6 +134,30 @@
         redoStack = [];
     }
 
+    /** 边输入边生效：首次 input 时入撤销栈一次，随后实时回调 */
+    function bindLiveInput(el, handler) {
+        el.addEventListener('blur', () => {
+            el._liveUndoPushed = false;
+        });
+        el.addEventListener('input', e => {
+            if (!el._liveUndoPushed) {
+                pushUndo();
+                el._liveUndoPushed = true;
+            }
+            handler(e);
+        });
+    }
+
+    function parseFieldInputValue(raw, type) {
+        if (type === 'number') {
+            if (raw.trim() === '') return { ok: true, value: '' };
+            const n = parseFloat(raw);
+            if (Number.isNaN(n)) return { ok: false };
+            return { ok: true, value: n };
+        }
+        return { ok: true, value: raw };
+    }
+
     function undo() {
         if (!undoStack.length) return;
         redoStack.push(JSON.stringify(level));
@@ -1068,6 +1092,7 @@
         empty.hidden = true;
         form.hidden = false;
         form.innerHTML = '';
+        form.onsubmit = e => e.preventDefault();
 
         const addField = (label, key, type = 'number', opts = {}) => {
             const row = document.createElement('div');
@@ -1090,11 +1115,10 @@
             const step = opts.step ? ` step="${opts.step}"` : '';
             row.innerHTML = `<label for="${id}">${label}</label><input id="${id}" type="${type}" value="${val ?? ''}"${placeholder}${step}>`;
             form.appendChild(row);
-            row.querySelector('input').addEventListener('change', e => {
-                pushUndo();
-                let v = type === 'number' ? parseFloat(e.target.value) : e.target.value;
-                if (type === 'number' && e.target.value.trim() === '') v = '';
-                applyPropChange(key, v, opts.idx);
+            bindLiveInput(row.querySelector('input'), e => {
+                const parsed = parseFieldInputValue(e.target.value, type);
+                if (!parsed.ok) return;
+                applyPropChange(key, parsed.value, opts.idx);
             });
         };
 
@@ -1292,8 +1316,7 @@
                 textRow.className = 'field-row';
                 textRow.innerHTML = `<label for="prop-text">提示文字</label><input id="prop-text" type="text" value="${(data.text || '').replace(/"/g, '&quot;')}">`;
                 form.appendChild(textRow);
-                textRow.querySelector('input').addEventListener('change', e => {
-                    pushUndo();
+                bindLiveInput(textRow.querySelector('input'), e => {
                     applyPropChange('text', e.target.value);
                 });
                 addField('仅显示一次', 'once', 'select', {
@@ -1576,8 +1599,7 @@
             `;
             form.appendChild(row);
 
-            row.querySelector('input').addEventListener('change', e => {
-                pushUndo();
+            bindLiveInput(row.querySelector('input'), e => {
                 const k = e.target.dataset.key;
                 const meta = S.PLAYER_CONFIG_FIELDS.find(item => item.key === k);
                 const next = normalizePlayerFieldValue(k, e.target.value.trim(), meta || {});
@@ -1656,6 +1678,7 @@
         ];
 
         form.innerHTML = '';
+        form.onsubmit = e => e.preventDefault();
         fields.forEach(sec => {
             if (sec.isPlayerSection) {
                 const title = document.createElement('div');
@@ -1685,12 +1708,12 @@
                 const display = val === null || val === undefined ? '' : val;
                 row.innerHTML = `<label>${label}</label><input type="${type}" data-key="${key}" value="${display}">`;
                 form.appendChild(row);
-                row.querySelector('input').addEventListener('change', e => {
-                    pushUndo();
+                bindLiveInput(row.querySelector('input'), e => {
                     const k = e.target.dataset.key;
-                    let v = e.target.value;
-                    if (type === 'number') v = parseFloat(v);
-                    if (Number.isNaN(v)) return;
+                    const parsed = parseFieldInputValue(e.target.value, type);
+                    if (!parsed.ok) return;
+                    let v = parsed.value;
+                    if (type === 'number' && v !== '' && Number.isNaN(v)) return;
                     if (k === 'enemyKillEnergy') v = Math.max(0, v);
                     if (k === 'height') {
                         v = Math.max(S.MIN_LEVEL_HEIGHT, v);
