@@ -1522,9 +1522,15 @@
     }
 
     function formatPlayerConfigDefault(field) {
-        const def = S.PLAYER_CONFIG_DEFAULTS[field.key];
+        let def = S.PLAYER_CONFIG_DEFAULTS[field.key];
+        if (field.storeAsNegative) def = Math.abs(def);
         const unit = field.unit ? ` ${field.unit}` : '';
         return `默认 ${def}${unit}`;
+    }
+
+    function playerFieldDisplayValue(field, val) {
+        if (val === null || val === undefined) return '';
+        return field.storeAsNegative ? Math.abs(val) : val;
     }
 
     function normalizePlayerFieldValue(key, raw, field) {
@@ -1539,7 +1545,7 @@
             v = Math.round(v);
             if (v >= 0) v = Math.max(0, Math.min(10, v));
         }
-        if (key === 'jumpVelocity' || key === 'secondJumpVelocity') v = Math.min(0, v);
+        if (field.storeAsNegative) v = -Math.abs(v);
         if (key === 'moveSpeed') v = Math.max(0, v);
         if (key === 'gravity' || key === 'maxFallVelocity') v = Math.max(0, v);
         if (key === 'energyStartPercent' || key === 'hpStartPercent') v = Math.max(0, Math.min(100, v));
@@ -1556,7 +1562,7 @@
             if (field.optional) {
                 if (val != null) {
                     if (field.key === 'maxJumps' && val < 0) parts.push('跳跃次数 无限');
-                    else parts.push(`${field.label} ${val}`);
+                    else parts.push(`${field.label} ${field.storeAsNegative ? Math.abs(val) : val}`);
                 }
                 return;
             }
@@ -1585,30 +1591,104 @@
                 return;
             }
 
-            const row = document.createElement('div');
-            row.className = 'player-settings-field';
-            const val = level[field.key];
-            const display = val === null || val === undefined ? '' : val;
-            const placeholder = field.optional ? '留空=默认' : String(S.PLAYER_CONFIG_DEFAULTS[field.key]);
-            row.innerHTML = `
-                <div class="player-settings-field-head">
-                    <span class="player-settings-field-name">${field.label}${field.unit ? ` (${field.unit})` : ''}${field.hint ? ` · ${field.hint}` : ''}</span>
-                    <span class="player-settings-field-default">${formatPlayerConfigDefault(field)}</span>
-                </div>
-                <input type="number" data-key="${field.key}" value="${display}" placeholder="${placeholder}">
-            `;
-            form.appendChild(row);
+            if (field.allowUnlimited) {
+                appendPlayerSettingsJumpsField(form, field);
+                return;
+            }
 
-            bindLiveInput(row.querySelector('input'), e => {
-                const k = e.target.dataset.key;
-                const meta = S.PLAYER_CONFIG_FIELDS.find(item => item.key === k);
-                const next = normalizePlayerFieldValue(k, e.target.value.trim(), meta || {});
-                if (next === undefined) return;
-                level[k] = next;
-                if (next === null) e.target.value = '';
-                else e.target.value = next;
-                updatePlayerConfigSummary();
-            });
+            appendPlayerSettingsNumberField(form, field);
+        });
+    }
+
+    function appendPlayerSettingsNumberField(form, field) {
+        const row = document.createElement('div');
+        row.className = 'player-settings-field';
+        const val = level[field.key];
+        const display = playerFieldDisplayValue(field, val);
+        const defaultVal = S.PLAYER_CONFIG_DEFAULTS[field.key];
+        const placeholder = field.optional
+            ? '留空=默认'
+            : String(field.storeAsNegative ? Math.abs(defaultVal) : defaultVal);
+        const minAttr = field.min != null ? ` min="${field.min}"` : '';
+        const maxAttr = field.max != null ? ` max="${field.max}"` : '';
+        row.innerHTML = `
+            <div class="player-settings-field-head">
+                <span class="player-settings-field-name">${field.label}${field.unit ? ` (${field.unit})` : ''}${field.hint ? ` · ${field.hint}` : ''}</span>
+                <span class="player-settings-field-default">${formatPlayerConfigDefault(field)}</span>
+            </div>
+            <input type="number" data-key="${field.key}" value="${display}" placeholder="${placeholder}"${minAttr}${maxAttr}>
+        `;
+        form.appendChild(row);
+
+        bindLiveInput(row.querySelector('input'), e => {
+            const k = e.target.dataset.key;
+            const meta = S.PLAYER_CONFIG_FIELDS.find(item => item.key === k);
+            const next = normalizePlayerFieldValue(k, e.target.value.trim(), meta || {});
+            if (next === undefined) return;
+            level[k] = next;
+            if (next === null) e.target.value = '';
+            else e.target.value = playerFieldDisplayValue(meta || {}, next);
+            updatePlayerConfigSummary();
+        });
+    }
+
+    function appendPlayerSettingsJumpsField(form, field) {
+        const row = document.createElement('div');
+        row.className = 'player-settings-field';
+        const val = level[field.key];
+        const isUnlimited = val != null && val < 0;
+        const display = val == null || isUnlimited ? '' : val;
+        row.innerHTML = `
+            <div class="player-settings-field-head">
+                <span class="player-settings-field-name">${field.label}${field.unit ? ` (${field.unit})` : ''} · 可勾选无限</span>
+                <span class="player-settings-field-default">${formatPlayerConfigDefault(field)}</span>
+            </div>
+            <div class="player-settings-jumps-row">
+                <input type="number" data-key="${field.key}" value="${display}" placeholder="留空=默认" min="0" max="10"${isUnlimited ? ' disabled' : ''}>
+                <label class="player-settings-unlimited">
+                    <input type="checkbox" data-key="${field.key}-unlimited"${isUnlimited ? ' checked' : ''}>无限
+                </label>
+            </div>
+        `;
+        form.appendChild(row);
+
+        const input = row.querySelector('input[type="number"]');
+        const unlimitedCb = row.querySelector('input[type="checkbox"]');
+
+        const applyUnlimited = checked => {
+            if (checked) {
+                level[field.key] = -1;
+                input.value = '';
+                input.disabled = true;
+            } else {
+                input.disabled = false;
+                level[field.key] = input.value.trim() === ''
+                    ? null
+                    : normalizePlayerFieldValue(field.key, input.value.trim(), field);
+            }
+            updatePlayerConfigSummary();
+        };
+
+        unlimitedCb.addEventListener('change', () => {
+            if (!unlimitedCb._liveUndoPushed) {
+                pushUndo();
+                unlimitedCb._liveUndoPushed = true;
+            }
+            applyUnlimited(unlimitedCb.checked);
+        });
+        unlimitedCb.addEventListener('blur', () => {
+            unlimitedCb._liveUndoPushed = false;
+        });
+
+        bindLiveInput(input, e => {
+            if (input.disabled) return;
+            const next = normalizePlayerFieldValue(field.key, e.target.value.trim(), field);
+            if (next === undefined) return;
+            level[field.key] = next;
+            if (next === null) e.target.value = '';
+            else e.target.value = next;
+            unlimitedCb.checked = false;
+            updatePlayerConfigSummary();
         });
     }
 

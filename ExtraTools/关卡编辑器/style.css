@@ -525,6 +525,34 @@ h2 {
     border-color: #4a90c8;
 }
 
+.player-settings-jumps-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.player-settings-jumps-row input[type="number"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.player-settings-unlimited {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #c8d0dc;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.player-settings-unlimited input {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+}
+
 .insert-pick-row {
     display: flex;
     gap: 8px;

@@ -115,9 +115,9 @@ const LevelEditorSchema = (() => {
         { key: 'energyRegenRate', label: '回能量速度', unit: '/秒', min: 0 },
         { section: '移动与跳跃' },
         { key: 'moveSpeed', label: '移动速度', unit: 'px/s', optional: true, min: 0 },
-        { key: 'maxJumps', label: '跳跃次数', unit: '次', optional: true, integer: true, hint: '负数=无限' },
-        { key: 'jumpVelocity', label: '一段跳速度', unit: 'px/s', optional: true, max: 0 },
-        { key: 'secondJumpVelocity', label: '二段跳速度', unit: 'px/s', optional: true, max: 0 },
+        { key: 'maxJumps', label: '跳跃次数', unit: '次', optional: true, integer: true, min: 0, max: 10, allowUnlimited: true },
+        { key: 'jumpVelocity', label: '一段跳速度', unit: 'px/s', optional: true, min: 0, storeAsNegative: true },
+        { key: 'secondJumpVelocity', label: '二段跳速度', unit: 'px/s', optional: true, min: 0, storeAsNegative: true },
         { section: '物理' },
         { key: 'gravity', label: '重力加速度', unit: 'px/s²', optional: true, min: 0 },
         { key: 'maxFallVelocity', label: '最大下落速度', unit: 'px/s', optional: true, min: 0 }
