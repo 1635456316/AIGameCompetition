@@ -8,6 +8,7 @@ const LevelEditorPlayerMode = (() => {
     ];
     const IDB_NAME = 'workshop-editor';
     const IDB_STORE = 'drafts';
+    const TUTORIAL_HINT_SEEN_KEY = 'level-editor-tutorial-hint-seen';
 
     function isEnabled() {
         return new URLSearchParams(location.search).get('mode') === 'player';
@@ -159,8 +160,12 @@ const LevelEditorPlayerMode = (() => {
         tutorialBtn.id = 'btn-tutorial-video';
         tutorialBtn.textContent = '教学视频';
         tutorialBtn.title = '观看关卡编辑器教学视频';
-        tutorialBtn.addEventListener('click', showTutorialVideoModal);
+        tutorialBtn.addEventListener('click', () => {
+            markTutorialHintSeen(tutorialBtn);
+            showTutorialVideoModal();
+        });
         tools.insertBefore(tutorialBtn, sceneToolsBtn);
+        playTutorialBtnShake(tutorialBtn);
 
         const userSpan = document.createElement('span');
         userSpan.id = 'player-user-label';
@@ -324,6 +329,27 @@ const LevelEditorPlayerMode = (() => {
     }
 
     const TUTORIAL_VIDEO_URL = '../../assets/video/关卡编辑器教学视频.mp4';
+
+    function markTutorialHintSeen(btn) {
+        try {
+            localStorage.setItem(TUTORIAL_HINT_SEEN_KEY, '1');
+        } catch {
+            // 隐私模式等环境下忽略
+        }
+        btn?.classList.remove('tutorial-btn-shake');
+    }
+
+    function playTutorialBtnShake(btn) {
+        try {
+            if (localStorage.getItem(TUTORIAL_HINT_SEEN_KEY)) return;
+        } catch {
+            return;
+        }
+        requestAnimationFrame(() => {
+            btn.classList.add('tutorial-btn-shake');
+            btn.addEventListener('animationend', () => markTutorialHintSeen(btn), { once: true });
+        });
+    }
 
     function showTutorialVideoModal() {
         let modal = document.getElementById('tutorial-video-modal');

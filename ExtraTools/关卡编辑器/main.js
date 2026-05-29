@@ -2352,7 +2352,7 @@
 
     // --- Events ---
     viewport.addEventListener('mousedown', e => {
-        if (e.button === 1) {
+        if (e.button === 1 || e.button === 2) {
             e.preventDefault();
             startPan(e);
             return;
@@ -2418,8 +2418,10 @@
     });
 
     viewport.addEventListener('auxclick', e => {
-        if (e.button === 1) e.preventDefault();
+        if (e.button === 1 || e.button === 2) e.preventDefault();
     });
+
+    viewport.addEventListener('contextmenu', e => e.preventDefault());
 
     window.addEventListener('mousemove', e => {
         const w = screenToWorld(e.clientX, e.clientY);
@@ -2455,13 +2457,11 @@
     window.addEventListener('mouseup', endInteraction);
 
     viewport.addEventListener('wheel', e => {
-        if (e.ctrlKey) {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
-            zoom = Math.min(2, Math.max(0.25, zoom + delta));
-            document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
-            render();
-        }
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        zoom = Math.min(2, Math.max(0.25, zoom + delta));
+        document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
+        render();
     }, { passive: false });
 
     viewport.addEventListener('dragover', e => e.preventDefault());

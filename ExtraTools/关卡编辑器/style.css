@@ -654,6 +654,23 @@ h2 {
     font-weight: 600;
 }
 
+/* === 教学视频按钮首次进入提示 === */
+
+@keyframes tutorial-btn-shake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    15% { transform: translateX(-4px) rotate(-3deg); }
+    30% { transform: translateX(4px) rotate(3deg); }
+    45% { transform: translateX(-3px) rotate(-2deg); }
+    60% { transform: translateX(3px) rotate(2deg); }
+    75% { transform: translateX(-2px) rotate(-1deg); }
+    90% { transform: translateX(2px) rotate(1deg); }
+}
+
+#btn-tutorial-video.tutorial-btn-shake {
+    animation: tutorial-btn-shake 0.55s ease-in-out 3;
+    transform-origin: center center;
+}
+
 /* === 教学视频弹窗 === */
 
 .tutorial-video-panel {
