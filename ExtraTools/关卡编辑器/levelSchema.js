@@ -105,7 +105,7 @@ const LevelEditorSchema = (() => {
         jumpVelocity: -720,
         secondJumpVelocity: -560,
         gravity: 1800,
-        maxFallVelocity: 500
+        maxFallVelocity: 1400
     };
 
     const PLAYER_CONFIG_FIELDS = [
