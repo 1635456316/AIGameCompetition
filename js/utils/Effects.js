@@ -90,6 +90,25 @@ class Effects {
         });
     }
 
+    /** 世界坐标飘字（角色头顶提示等） */
+    static floatWorldText(scene, x, y, text, color = PaletteHex.danger) {
+        const t = scene.add.text(x, y, text, {
+            font: 'bold 20px "Microsoft YaHei", Arial, sans-serif',
+            color,
+            stroke: '#000000',
+            strokeThickness: 4
+        }).setOrigin(0.5, 1).setDepth(1600);
+
+        scene.tweens.add({
+            targets: t,
+            y: y - 56,
+            alpha: { from: 1, to: 0 },
+            duration: 820,
+            ease: 'Cubic.easeOut',
+            onComplete: () => t.destroy()
+        });
+    }
+
     static bigText(scene, text, color = PaletteHex.warning) {
         const cam = scene.cameras.main;
         const t = scene.add.text(cam.width / 2, cam.height / 2 - 80, text, {

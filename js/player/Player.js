@@ -311,7 +311,27 @@ class Player {
     feedInput(input) {
         this.input = input;
         this._handlePlatformDropInput(input);
+        this._feedInsufficientEnergyFeedback(input);
         this.fsm.handleInput(input);
+    }
+
+    showInsufficientEnergyHint() {
+        const now = this.scene.time.now;
+        if (this._energyHintAt && now - this._energyHintAt < 550) return;
+        this._energyHintAt = now;
+        Effects.floatWorldText(this.scene, this.x, this.y - 42, '能量不够', PaletteHex.danger);
+    }
+
+    _feedInsufficientEnergyFeedback(input) {
+        if (this.fsm.is('dead') || this.fsm.is('hurt')) return;
+
+        if (input.dashPressed && this.energy < PlayerConfig.dashEnergyCost) {
+            this.showInsufficientEnergyHint();
+        } else if (input.swordChargePressed && this.energy < PlayerConfig.swordQiEnergyCostMin) {
+            this.showInsufficientEnergyHint();
+        } else if (input.ultimatePressed && this.energy < PlayerConfig.ultimateEnergyCost) {
+            this.showInsufficientEnergyHint();
+        }
     }
 
     _handlePlatformDropInput(input) {

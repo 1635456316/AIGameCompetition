@@ -348,15 +348,14 @@ class MenuScene extends Phaser.Scene {
             '',
             '【基础操作】',
             '· J：近战攻击',
-            '· K：按住蓄力，松开释放剑气（松开时 W 向上 / S 向下）',
+            '· K：按住蓄力，松开释放剑气',
             '· L：冲刺',
-            '· O：终极技（能量满时）',
+            '· O：终极技（消耗 50% 能量）',
+            '· K / L / O 均会消耗能量',
             '',
             '【进阶】',
             '· 冲刺期间按 J，可触发冲刺攻击',
-            '',
-            '【Debug】',
-            '· 关卡内按 F9 切换碰撞盒显示'
+            '· 按住 K + 方向键（W/S 或 ↑/↓）可控制剑气方向'
         ].join('\n');
 
         const bodyText = this.add.text(bodyX, bodyY, helpText, {
@@ -413,9 +412,9 @@ class MenuScene extends Phaser.Scene {
     }
 
     /**
-     * 游戏设置弹窗：与"操作说明"采用相同的弹窗风格。
-     * 主要包含：音量滑块（鼠标拖拽 + 点击）、-10% / +10% / 静音 / 默认 四个步进按钮。
-     * 键盘快捷键：← / → 调节音量、M 静音切换、ESC 关闭。
+     * 游戏设置弹窗：特摄 HUD 风格，与主菜单装饰语言一致。
+     * 音量滑块（拖拽 + 点击）、步进按钮、LED 电平条。
+     * 键盘：← / → 微调、M 静音切换、ESC 关闭。
      */
     _showSettingsPanel() {
         if (this._settingsVisible) return;
@@ -424,130 +423,199 @@ class MenuScene extends Phaser.Scene {
         const w = this.cameras.main.width;
         const h = this.cameras.main.height;
         const depthBase = 4000;
+        const panelW = 680;
+        const panelH = 400;
+        const panelX = w / 2;
+        const panelY = h / 2;
+        const panelLeft = panelX - panelW / 2;
+        const panelTop = panelY - panelH / 2;
 
         const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0)
             .setInteractive();
-        const panelW = 720;
-        const panelH = 480;
-        const panel = this.add.rectangle(w / 2, h / 2, panelW, panelH, 0x0a1020, 0.96)
-            .setStrokeStyle(3, Palette.warning, 0.9);
-        const title = this.add.text(w / 2, h / 2 - panelH / 2 + 44, '系 统 设 置', {
-            font: 'bold 36px Microsoft YaHei, Arial',
+
+        const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0x060a14, 0.94)
+            .setStrokeStyle(2, Palette.hero, 0.55);
+        const panelGlow = this.add.rectangle(panelX, panelY, panelW + 8, panelH + 8, Palette.hero, 0.04);
+
+        const panelDecor = this.add.graphics();
+        const drawCorner = (x, y, dx, dy) => {
+            panelDecor.lineStyle(3, Palette.warning, 0.95);
+            panelDecor.beginPath();
+            panelDecor.moveTo(x + dx * 28, y);
+            panelDecor.lineTo(x, y);
+            panelDecor.lineTo(x, y + dy * 28);
+            panelDecor.strokePath();
+            panelDecor.lineStyle(1, Palette.hero, 0.45);
+            panelDecor.beginPath();
+            panelDecor.moveTo(x + dx * 14, y);
+            panelDecor.lineTo(x, y);
+            panelDecor.lineTo(x, y + dy * 14);
+            panelDecor.strokePath();
+        };
+        drawCorner(panelLeft, panelTop, 1, 1);
+        drawCorner(panelLeft + panelW, panelTop, -1, 1);
+        drawCorner(panelLeft, panelTop + panelH, 1, -1);
+        drawCorner(panelLeft + panelW, panelTop + panelH, -1, -1);
+        panelDecor.lineStyle(1, Palette.hero, 0.22);
+        panelDecor.strokeRect(panelLeft + 16, panelTop + 16, panelW - 32, panelH - 32);
+        panelDecor.fillStyle(Palette.warning, 0.95);
+        panelDecor.fillRect(panelX - 72, panelTop + 62, 144, 2);
+        panelDecor.fillStyle(Palette.hero, 0.35);
+        panelDecor.fillRect(panelX - 72, panelTop + 66, 144, 1);
+
+        const title = this.add.text(panelX, panelTop + 38, '系 统 设 置', {
+            font: 'bold 34px Microsoft YaHei, Arial',
             color: PaletteHex.warning,
             stroke: '#000', strokeThickness: 6
         }).setOrigin(0.5);
+        const subtitle = this.add.text(panelX, panelTop + 78, 'AUDIO SYSTEM · 音频控制', {
+            font: 'bold 11px Arial',
+            color: PaletteHex.hero,
+            letterSpacing: 3
+        }).setOrigin(0.5).setAlpha(0.75);
 
-        // 当前音量状态，关闭后由 SaveSystem 持久化
         const settings = { volume: SaveSystem.getVolume() };
 
-        // 区段：主音量 label + 数值
-        const sectionY = h / 2 - 80;
-        const volumeLabel = this.add.text(w / 2 - panelW / 2 + 60, sectionY, '主音量', {
-            font: 'bold 26px Microsoft YaHei, Arial',
-            color: '#ffffff',
-            stroke: '#000', strokeThickness: 5
+        const cardW = panelW - 72;
+        const cardH = 168;
+        const cardX = panelX;
+        const cardY = panelTop + 168;
+        const cardBg = this.add.rectangle(cardX, cardY, cardW, cardH, 0x0c1424, 0.92)
+            .setStrokeStyle(1, Palette.hero, 0.35);
+        const cardAccent = this.add.rectangle(panelLeft + 36, cardY - cardH / 2 + 14, 4, 28, Palette.warning, 0.95)
+            .setOrigin(0, 0.5);
+
+        const sectionY = cardY - 46;
+        const volumeLabel = this.add.text(panelLeft + 56, sectionY, '主音量', {
+            font: 'bold 22px Microsoft YaHei, Arial',
+            color: '#e8faff',
+            stroke: '#000', strokeThickness: 4
         }).setOrigin(0, 0.5);
-        const volumeText = this.add.text(w / 2 + panelW / 2 - 60, sectionY, '', {
-            font: 'bold 26px Microsoft YaHei, Arial',
+        const volumeText = this.add.text(panelX + cardW / 2 - 24, sectionY, '', {
+            font: 'bold 28px Arial',
             color: PaletteHex.warning,
             stroke: '#000', strokeThickness: 5
         }).setOrigin(1, 0.5);
 
-        // 滑块：背景轨 + 填充 + 滑块头
-        const sliderX = w / 2 - panelW / 2 + 60;
-        const sliderY = sectionY + 60;
-        const sliderWidth = panelW - 120;
-        const sliderTrack = this.add.rectangle(sliderX + sliderWidth / 2, sliderY, sliderWidth, 16, 0x121827, 1)
-            .setStrokeStyle(2, Palette.hero, 0.72);
-        const sliderFill = this.add.rectangle(sliderX, sliderY, 1, 16, Palette.warning, 0.95)
+        const sliderX = panelLeft + 56;
+        const sliderY = cardY - 4;
+        const sliderWidth = cardW - 48;
+        const sliderTrackBg = this.add.rectangle(sliderX + sliderWidth / 2, sliderY, sliderWidth, 10, 0x080e18, 1)
+            .setStrokeStyle(1, 0x1a2a40, 0.9);
+        const sliderTrack = this.add.rectangle(sliderX + sliderWidth / 2, sliderY, sliderWidth - 4, 6, 0x101828, 1);
+        const sliderFill = this.add.rectangle(sliderX + 2, sliderY, 2, 6, Palette.hero, 0.95)
             .setOrigin(0, 0.5);
-        const sliderKnob = this.add.rectangle(sliderX, sliderY, 22, 46, Palette.hero, 0.96)
-            .setStrokeStyle(2, Palette.warning, 0.9);
-        const blocksText = this.add.text(sliderX, sliderY + 38, '', {
-            font: 'bold 16px Microsoft YaHei, Arial',
-            color: PaletteHex.hero,
-            stroke: '#000', strokeThickness: 4
-        }).setOrigin(0, 0.5);
+        const sliderFillGlow = this.add.rectangle(sliderX + 2, sliderY, 2, 14, Palette.hero, 0.18)
+            .setOrigin(0, 0.5);
+        const sliderKnobGlow = this.add.circle(sliderX, sliderY, 16, Palette.hero, 0.12);
+        const sliderKnob = this.add.rectangle(sliderX, sliderY, 8, 28, Palette.hero, 1)
+            .setStrokeStyle(2, Palette.warning, 0.95);
 
-        // 滑块拖拽热区（要求高度大一些，方便点击）
-        const sliderHit = this.add.zone(sliderX + sliderWidth / 2, sliderY, sliderWidth + 40, 64)
+        const ledCount = 16;
+        const ledGap = 6;
+        const ledW = (sliderWidth - (ledCount - 1) * ledGap) / ledCount;
+        const ledY = cardY + 38;
+        const ledBars = [];
+        for (let i = 0; i < ledCount; i++) {
+            const bar = this.add.rectangle(
+                sliderX + i * (ledW + ledGap) + ledW / 2,
+                ledY,
+                ledW,
+                8,
+                0x141e30,
+                0.55
+            );
+            ledBars.push(bar);
+        }
+
+        const sliderHit = this.add.zone(sliderX + sliderWidth / 2, sliderY, sliderWidth + 48, 72)
             .setInteractive({ useHandCursor: true, draggable: true });
-        const setFromPointer = (pointer) => {
-            const localX = Phaser.Math.Clamp(pointer.x - sliderX, 0, sliderWidth);
-            setVolume(localX / sliderWidth);
-        };
-        sliderHit.on('pointerdown', setFromPointer);
-        sliderHit.on('drag', (pointer) => setFromPointer(pointer));
 
-        // 四个步进按钮：-10% / +10% / 静音 / 默认
-        const btnY = h / 2 + 80;
-        const btnW = 130;
-        const btnGap = 24;
+        const btnY = cardY + 78;
+        const btnW = 118;
+        const btnGap = 14;
         const totalBtnsW = btnW * 4 + btnGap * 3;
-        const firstBtnX = w / 2 - totalBtnsW / 2 + btnW / 2;
+        const firstBtnX = panelX - totalBtnsW / 2 + btnW / 2;
         const stepButtons = [];
         const buildStepButton = (i, label, onClick) => {
             const x = firstBtnX + i * (btnW + btnGap);
-            const bg = this.add.rectangle(x, btnY, btnW, 46, 0x070b12, 0.9)
-                .setStrokeStyle(2, Palette.warning, 0.75)
+            const bg = this.add.rectangle(x, btnY, btnW, 40, 0x0a1220, 0.95)
+                .setStrokeStyle(1, Palette.hero, 0.45)
                 .setInteractive({ useHandCursor: true });
             const text = this.add.text(x, btnY, label, {
-                font: 'bold 20px Microsoft YaHei, Arial',
-                color: '#ffffff',
-                stroke: '#000', strokeThickness: 4
+                font: 'bold 17px Microsoft YaHei, Arial',
+                color: '#c8d8ea',
+                stroke: '#000', strokeThickness: 3
             }).setOrigin(0.5);
             bg.on('pointerover', () => {
-                bg.setFillStyle(0x12243a, 1);
+                bg.setFillStyle(0x152840, 1);
+                bg.setStrokeStyle(2, Palette.warning, 0.9);
                 text.setColor(PaletteHex.warning);
             });
             bg.on('pointerout', () => {
-                bg.setFillStyle(0x070b12, 0.9);
-                text.setColor('#ffffff');
+                bg.setFillStyle(0x0a1220, 0.95);
+                bg.setStrokeStyle(1, Palette.hero, 0.45);
+                text.setColor('#c8d8ea');
             });
-            bg.on('pointerdown', onClick);
+            bg.on('pointerdown', () => {
+                this.tweens.add({ targets: [bg, text], scaleX: 0.96, scaleY: 0.96, duration: 60, yoyo: true });
+                onClick();
+            });
             stepButtons.push(bg, text);
         };
-        buildStepButton(0, '-10%', () => setVolume(settings.volume - 0.1));
-        buildStepButton(1, '+10%', () => setVolume(settings.volume + 0.1));
+        buildStepButton(0, '◀  -10%', () => setVolume(settings.volume - 0.1));
+        buildStepButton(1, '+10%  ▶', () => setVolume(settings.volume + 0.1));
         buildStepButton(2, '静  音', () => setVolume(0));
         buildStepButton(3, '默  认', () => setVolume(0.8));
 
-        // 快捷键提示
-        const hintText = this.add.text(w / 2, h / 2 + panelH / 2 - 92,
-            '← / →：微调音量    M：静音 / 恢复    ESC：关闭', {
-            font: 'bold 14px Microsoft YaHei, Arial',
-            color: '#cbd7e6',
-            stroke: '#000', strokeThickness: 3
+        const hintText = this.add.text(panelX, panelTop + panelH - 58,
+            '← / →  微调音量     M  静音 / 恢复     ESC  关闭', {
+            font: 'bold 12px Arial',
+            color: '#7a8ea8',
+            letterSpacing: 1
         }).setOrigin(0.5);
 
-        // 关闭按钮
-        const closeBtnY = h / 2 + panelH / 2 - 50;
-        const closeBg = this.add.rectangle(w / 2, closeBtnY, 200, 50, 0x070b12, 0.95)
-            .setStrokeStyle(2, Palette.warning, 0.85)
+        const closeBtnY = panelTop + panelH - 28;
+        const closeBg = this.add.rectangle(panelX, closeBtnY, 220, 44, 0x0a1220, 0.95)
+            .setStrokeStyle(2, Palette.warning, 0.75)
             .setInteractive({ useHandCursor: true });
-        const closeText = this.add.text(w / 2, closeBtnY, '关  闭', {
-            font: 'bold 22px Microsoft YaHei, Arial',
+        const closeText = this.add.text(panelX, closeBtnY, '关  闭', {
+            font: 'bold 20px Microsoft YaHei, Arial',
             color: '#ffffff',
             stroke: '#000', strokeThickness: 4
         }).setOrigin(0.5);
         closeBg.on('pointerover', () => {
-            closeBg.setFillStyle(0x12243a, 1);
+            closeBg.setFillStyle(0x1a2844, 1);
+            closeBg.setStrokeStyle(2, Palette.hero, 0.95);
             closeText.setColor(PaletteHex.warning);
         });
         closeBg.on('pointerout', () => {
-            closeBg.setFillStyle(0x070b12, 0.95);
+            closeBg.setFillStyle(0x0a1220, 0.95);
+            closeBg.setStrokeStyle(2, Palette.warning, 0.75);
             closeText.setColor('#ffffff');
         });
 
-        // 实时刷新视觉 & 持久化 + 同步 BGM 音量
         const refreshVisual = () => {
             const v = settings.volume;
-            volumeText.setText(`${Math.round(v * 100)}%`);
-            const fillWidth = sliderWidth * v;
-            sliderFill.width = Math.max(1, fillWidth);
+            const muted = v <= 0;
+            volumeText.setText(muted ? 'MUTE' : `${Math.round(v * 100)}%`);
+            volumeText.setColor(muted ? PaletteHex.danger : PaletteHex.warning);
+
+            const fillWidth = Math.max(2, sliderWidth * v);
+            sliderFill.width = fillWidth;
+            sliderFillGlow.width = fillWidth;
             sliderKnob.x = sliderX + fillWidth;
-            const blocks = Math.round(v * 10);
-            blocksText.setText('■'.repeat(blocks) + '□'.repeat(10 - blocks));
+            sliderKnobGlow.x = sliderKnob.x;
+
+            const litCount = Math.round(v * ledCount);
+            ledBars.forEach((bar, i) => {
+                const lit = i < litCount;
+                const hot = i >= Math.floor(ledCount * 0.75);
+                bar.setFillStyle(
+                    lit ? (hot ? Palette.warning : Palette.hero) : 0x141e30,
+                    lit ? (hot ? 0.95 : 0.82) : 0.35
+                );
+            });
         };
         const setVolume = (value) => {
             settings.volume = Phaser.Math.Clamp(value, 0, 1);
@@ -555,29 +623,30 @@ class MenuScene extends Phaser.Scene {
             MenuBGM.syncVolume();
             refreshVisual();
         };
+        const setFromPointer = (pointer) => {
+            const localX = Phaser.Math.Clamp(pointer.x - sliderX, 0, sliderWidth);
+            setVolume(localX / sliderWidth);
+        };
+        sliderHit.on('pointerdown', setFromPointer);
+        sliderHit.on('drag', setFromPointer);
         refreshVisual();
 
-        // 集中收纳到 container，关闭时一键销毁
         const settingsContainer = this.add.container(0, 0, [
-            overlay, panel, title,
+            overlay, panelGlow, panel, panelDecor, title, subtitle,
+            cardBg, cardAccent,
             volumeLabel, volumeText,
-            sliderTrack, sliderFill, sliderKnob, blocksText, sliderHit,
+            sliderTrackBg, sliderTrack, sliderFillGlow, sliderFill,
+            sliderKnobGlow, sliderKnob, ...ledBars, sliderHit,
             ...stepButtons,
             hintText, closeBg, closeText
         ]).setDepth(depthBase);
 
-        // 淡入动画
-        const fadeTargets = [overlay, panel, title, volumeLabel, volumeText,
-            sliderTrack, sliderFill, sliderKnob, blocksText,
-            ...stepButtons, hintText, closeBg, closeText];
-        fadeTargets.forEach(t => t.setAlpha ? t.setAlpha(0) : null);
-        this.tweens.add({ targets: overlay, alpha: 0.7, duration: 220 });
-        this.tweens.add({
-            targets: fadeTargets.filter(t => t !== overlay),
-            alpha: 1, duration: 240, delay: 80
-        });
+        const fadeTargets = settingsContainer.list.filter(t => t !== overlay);
+        overlay.setAlpha(0);
+        fadeTargets.forEach(t => { if (t.setAlpha) t.setAlpha(0); });
+        this.tweens.add({ targets: overlay, alpha: 0.72, duration: 220 });
+        this.tweens.add({ targets: fadeTargets, alpha: 1, duration: 260, delay: 60, ease: 'Cubic.easeOut' });
 
-        // 键盘快捷键
         const onLeft  = () => setVolume(settings.volume - 0.05);
         const onRight = () => setVolume(settings.volume + 0.05);
         const onMute  = () => setVolume(settings.volume > 0 ? 0 : 0.8);
