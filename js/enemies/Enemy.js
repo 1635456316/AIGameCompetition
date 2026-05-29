@@ -32,7 +32,8 @@ class Enemy {
         this.patrolOriginX = x;
         this.patrolRange = logic.patrolRange ?? 120;
         this.samePlaneThreshold = logic.samePlaneThreshold ?? 72;
-        this.detectRangeX = logic.detectRangeX ?? 360;
+        this.detectRangeX = spawnCfg.detectRangeX ?? logic.detectRangeX ?? 360;
+        this.detectRangeY = spawnCfg.detectRangeY ?? logic.detectRangeY ?? null;
         this.shootRangeX = logic.shootRangeX ?? 380;
 
         this._platformBounds = null;
@@ -98,6 +99,11 @@ class Enemy {
 
     _isSamePlaneAs(target) {
         return Math.abs(this.y - target.y) <= this.samePlaneThreshold;
+    }
+
+    _isInDetectRangeY(target) {
+        if (this.detectRangeY == null) return true;
+        return Math.abs(this.y - target.y) <= this.detectRangeY;
     }
 
     _edgeTurnDir(dir) {
@@ -166,10 +172,10 @@ class Enemy {
         const samePlane = this._isSamePlaneAs(player);
         const logic = this.config.logic;
 
-        if (this.type === 'melee' && samePlane && distX < this.detectRangeX) {
+        if (this.type === 'melee' && samePlane && distX < this.detectRangeX && this._isInDetectRangeY(player)) {
             this.facing = this._edgeTurnDir(dir);
             this.logic.setVelocityX(this.facing * this.moveSpeed);
-        } else if (this.type === 'ranged' && distX < this.detectRangeX) {
+        } else if (this.type === 'ranged' && distX < this.detectRangeX && this._isInDetectRangeY(player)) {
             this.facing = dir;
             const inShootRange = samePlane
                 ? distX < this.shootRangeX
@@ -205,7 +211,7 @@ class Enemy {
         const dir = dx >= 0 ? 1 : -1;
         const logic = this.config.logic;
 
-        if (distX < this.detectRangeX && time - this.lastAttackAt > this.attackCooldown) {
+        if (distX < this.detectRangeX && this._isInDetectRangeY(player) && time - this.lastAttackAt > this.attackCooldown) {
             this.facing = dir;
             this.logic.setVelocity(0, 0);
             this._beginRayAttack(player, time, logic);

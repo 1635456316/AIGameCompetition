@@ -652,7 +652,10 @@
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.fillStyle = '#aaccff';
                 ctx.font = '11px sans-serif';
-                ctx.fillText(h.dir > 0 ? '→' : '←', h.x - 4, h.y + 4);
+                ctx.textAlign = 'center';
+                const windArrow = { right: '→', left: '←', up: '↑', down: '↓', 1: '→', '-1': '←' };
+                ctx.fillText(windArrow[h.dir] || '→', h.x, h.y + 4);
+                ctx.textAlign = 'left';
             } else if (h.type === 'energy_drain') {
                 ctx.fillStyle = sel ? 'rgba(204,102,238,0.28)' : 'rgba(170,68,204,0.16)';
                 ctx.strokeStyle = sel ? '#ee88ff' : '#cc66ee';
@@ -680,6 +683,60 @@
                 ctx.fillRect(b.x, b.y, b.w, b.h);
                 ctx.strokeStyle = '#cc6600';
                 ctx.strokeRect(b.x, b.y, b.w, b.h);
+            } else if (h.type === 'trigger') {
+                ctx.fillStyle = sel ? 'rgba(255,153,204,0.35)' : 'rgba(255,153,204,0.18)';
+                ctx.strokeStyle = sel ? '#ffbbdd' : '#ff99cc';
+                ctx.lineWidth = sel ? 3 : 2;
+                ctx.setLineDash([4, 4]);
+                ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#ff99cc';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                const modeIcon = h.triggerMode === 'attack' ? '⚔' : '👆';
+                ctx.fillText(`${modeIcon} ${h.triggerId || '?'}`, h.x, h.y + 4);
+                ctx.textAlign = 'left';
+            } else if (h.type === 'moving_platform') {
+                const b = S.getItemBounds('hazards', h, level);
+                ctx.fillStyle = sel ? '#77ddaa' : '#55cc88';
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+                ctx.strokeStyle = '#33aa66';
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                const moveDir = (h.moveAxis || 'x') === 'x' ? '⇔' : '⇕';
+                ctx.fillText(`${moveDir} ${h.moveRange ?? 200}px`, h.x, h.y + 4);
+                ctx.textAlign = 'left';
+                // 绘制移动终点虚线
+                ctx.setLineDash([3, 3]);
+                ctx.strokeStyle = 'rgba(85,204,136,0.5)';
+                if ((h.moveAxis || 'x') === 'x') {
+                    ctx.strokeRect(b.x + (h.moveRange ?? 200), b.y, b.w, b.h);
+                } else {
+                    ctx.strokeRect(b.x, b.y + (h.moveRange ?? 200), b.w, b.h);
+                }
+                ctx.setLineDash([]);
+            } else if (h.type === 'triggered_platform') {
+                const b = S.getItemBounds('hazards', h, level);
+                ctx.fillStyle = sel ? '#77bbdd' : '#55aacc';
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+                ctx.strokeStyle = '#3388aa';
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`→${h.triggerId || '?'}`, h.x, h.y + 4);
+                ctx.textAlign = 'left';
+                ctx.setLineDash([3, 3]);
+                ctx.strokeStyle = 'rgba(85,170,204,0.5)';
+                if ((h.moveAxis || 'x') === 'x') {
+                    ctx.strokeRect(b.x + (h.moveRange ?? 200), b.y, b.w, b.h);
+                } else {
+                    ctx.strokeRect(b.x, b.y + (h.moveRange ?? 200), b.w, b.h);
+                }
+                ctx.setLineDash([]);
             }
             if (sel) {
                 ctx.strokeStyle = '#fff';
@@ -724,6 +781,74 @@
             }
             ctx.textAlign = 'left';
         });
+    }
+
+    /** 选中小怪时绘制检测范围（与游戏内 |Δx|、|Δy| 判定一致） */
+    function drawSpawnDetectRange() {
+        if (selection?.category !== 'spawns') return;
+        const spawn = getSelectionData();
+        if (!spawn) return;
+
+        const feetX = spawn.x;
+        const feetY = S.getSpawnFeetY(level, spawn);
+        const rangeX = S.spawnEffectiveDetectRangeX(spawn);
+        const yUnlimited = S.spawnDetectRangeYUnlimited(spawn);
+        const levelH = getLevelH();
+
+        let topY;
+        let boxH;
+        if (yUnlimited) {
+            topY = 0;
+            boxH = levelH;
+        } else {
+            const rangeY = S.spawnEffectiveDetectRangeY(spawn);
+            topY = feetY - rangeY;
+            boxH = rangeY * 2;
+        }
+
+        const leftX = feetX - rangeX;
+        const boxW = rangeX * 2;
+
+        const typeColors = {
+            melee: { fill: 'rgba(255,85,102,0.1)', stroke: 'rgba(255,119,136,0.75)' },
+            ranged: { fill: 'rgba(255,136,102,0.1)', stroke: 'rgba(255,170,136,0.75)' },
+            flying: { fill: 'rgba(102,187,255,0.1)', stroke: 'rgba(102,187,255,0.75)' }
+        };
+        const colors = typeColors[spawn.type] || typeColors.melee;
+
+        ctx.save();
+        ctx.fillStyle = colors.fill;
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 6]);
+        ctx.fillRect(leftX, topY, boxW, boxH);
+        ctx.strokeRect(leftX + 0.5, topY + 0.5, boxW - 1, boxH - 1);
+
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath();
+        ctx.moveTo(leftX, feetY + 0.5);
+        ctx.lineTo(leftX + boxW, feetY + 0.5);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = colors.stroke;
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        const labelY = Math.max(14, topY + 12);
+        const yLabel = yUnlimited ? 'Y: 无限制' : `Y: ±${S.spawnEffectiveDetectRangeY(spawn)}`;
+        ctx.fillText(`检测 X: ±${rangeX}  ·  ${yLabel}`, feetX, labelY);
+
+        ctx.beginPath();
+        ctx.arc(feetX, feetY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.restore();
     }
 
     function drawMarkers() {
@@ -811,6 +936,7 @@
         drawPickups();
         drawHazards();
         drawSpawns();
+        drawSpawnDetectRange();
         drawMarkers();
         drawSelectionHandles();
     }
@@ -1015,6 +1141,12 @@
                 else if (key === 'hp') {
                     if (v === '' || Number.isNaN(v)) delete item.hp;
                     else item.hp = Math.max(1, Math.round(v));
+                } else if (key === 'detectRangeX') {
+                    if (v === '' || Number.isNaN(v)) delete item.detectRangeX;
+                    else item.detectRangeX = Math.max(0, Math.round(v));
+                } else if (key === 'detectRangeY') {
+                    if (v === '' || Number.isNaN(v)) delete item.detectRangeY;
+                    else item.detectRangeY = Math.max(0, Math.round(v));
                 } else if (key === 'killEnergy') {
                     if (v === '' || Number.isNaN(v)) delete item.killEnergy;
                     else item.killEnergy = Math.max(0, Math.round(v));
@@ -1032,14 +1164,20 @@
                 level.systemWalls[selection.index] = item;
             } else {
                 const item = { ...getSelectionData() };
-                if (key === 'dir') item[key] = parseInt(v, 10);
-                else if (key === 'once') item[key] = v === '1' || v === 1 || v === true;
+                if (key === 'dir') item[key] = v;
+                else if (key === 'once' || key === 'autoReturn') item[key] = v === '1' || v === 1 || v === true;
                 else if (key === 'bindEnemyId') {
                     if (v === '' || v == null) delete item.bindEnemyId;
                     else item.bindEnemyId = String(v);
                 }
-                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id'].includes(key)) {
+                else if (key === 'triggerId' || key === 'bindHintIds' || key === 'bindSystemWallIds' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode') {
+                    item[key] = String(v);
+                }
+                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay'].includes(key)) {
                     item[key] = S.snap(v);
+                }
+                else if (key === 'moveRange' || key === 'moveSpeed' || key === 'maxTriggers' || key === 'returnDelay') {
+                    item[key] = Number.isNaN(v) ? undefined : Math.max(0, v);
                 }
                 else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id') {
                     item[key] = Number.isNaN(v) ? undefined : v;
@@ -1102,8 +1240,13 @@
             });
             const defaultHp = S.spawnDefaultHp(data.type);
             addField(`血量 hp（默认 ${defaultHp}）`, 'hp', 'number', { value: data.hp ?? '' });
+            const defaultDetectX = S.ENEMY_DEFAULT_DETECT_X[data.type] ?? 360;
+            addField(`检测范围 X（默认 ${defaultDetectX}）`, 'detectRangeX', 'number', { value: data.detectRangeX ?? '' });
+            const defaultDetectY = S.ENEMY_DEFAULT_DETECT_Y[data.type] ?? 72;
+            const detectYLabel = defaultDetectY >= 9999 ? '无限' : String(defaultDetectY);
+            addField(`检测范围 Y（默认 ${detectYLabel}）`, 'detectRangeY', 'number', { value: data.detectRangeY ?? '' });
             addField(`击杀回能（默认 ${level.enemyKillEnergy ?? 10}）`, 'killEnergy', 'number', { value: data.killEnergy ?? '' });
-            addField('小怪 id（可选，供系统墙绑定）', 'id', 'text', { value: data.id ?? '' });
+            addField('小怪 id（可选，供系统墙/触发器绑定）', 'id', 'text', { value: data.id ?? '' });
         } else if (selection.category === 'hazards') {
             if (data.type === 'electric') {
                 addField('X', 'x', 'number', { value: data.x });
@@ -1158,7 +1301,15 @@
                 addField('宽 w', 'w', 'number', { value: data.w });
                 addField('高 h', 'h', 'number', { value: data.h });
                 addField('力度 force', 'force', 'number', { value: data.force });
-                addField('方向 dir', 'dir', 'select', { value: data.dir, options: [{ v: '1', t: '向右 →' }, { v: '-1', t: '向左 ←' }] });
+                addField('方向 dir', 'dir', 'select', {
+                    value: data.dir,
+                    options: [
+                        { v: 'right', t: '向右 →' },
+                        { v: 'left', t: '向左 ←' },
+                        { v: 'up', t: '向上 ↑' },
+                        { v: 'down', t: '向下 ↓' }
+                    ]
+                });
             } else if (data.type === 'energy_drain') {
                 addField('X', 'x', 'number', { value: data.x });
                 addField('Y', 'y', 'number', { value: data.y });
@@ -1188,6 +1339,75 @@
                 addField('高 h', 'h', 'number', { value: data.h ?? S.PLATFORM_H });
                 addField('延迟 delay (ms)', 'delay', 'number', { value: data.delay });
                 addField('重生 respawn (ms)', 'respawn', 'number', { value: data.respawn });
+            } else if (data.type === 'trigger') {
+                addField('X', 'x', 'number', { value: data.x });
+                addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 80 });
+                addField('触发器 ID triggerId', 'triggerId', 'text', { value: data.triggerId ?? '' });
+                addField('触发方式', 'triggerMode', 'select', {
+                    value: data.triggerMode || 'touch',
+                    options: [
+                        { v: 'touch', t: '触碰触发' },
+                        { v: 'attack', t: '攻击触发' }
+                    ]
+                });
+                addField('触发次数限制（0=无限）', 'maxTriggers', 'number', { value: data.maxTriggers ?? 1 });
+                addField('绑定提示区 ID（逗号分隔）', 'bindHintIds', 'text', { value: data.bindHintIds ?? '' });
+                addField('绑定系统墙 ID（逗号分隔）', 'bindSystemWallIds', 'text', { value: data.bindSystemWallIds ?? '' });
+                const triggerHint = document.createElement('p');
+                triggerHint.className = 'field-hint';
+                triggerHint.textContent = 'triggerId 用于被移动平台(触发)引用。触碰=玩家进入区域触发；攻击=玩家攻击到区域内触发。绑定提示区/系统墙 ID 可让触发后显示提示/移除墙壁。';
+                form.appendChild(triggerHint);
+            } else if (data.type === 'moving_platform') {
+                addField('X（起点中心）', 'x', 'number', { value: data.x });
+                addField('Y（起点中心）', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? S.PLATFORM_W });
+                addField('高 h', 'h', 'number', { value: data.h ?? S.PLATFORM_H });
+                addField('移动轴', 'moveAxis', 'select', {
+                    value: data.moveAxis || 'x',
+                    options: [
+                        { v: 'x', t: '水平 (X)' },
+                        { v: 'y', t: '垂直 (Y)' }
+                    ]
+                });
+                addField('移动范围 (px)', 'moveRange', 'number', { value: data.moveRange ?? 200 });
+                addField('移动速度 (px/s)', 'moveSpeed', 'number', { value: data.moveSpeed ?? 80 });
+                const mpHint = document.createElement('p');
+                mpHint.className = 'field-hint';
+                mpHint.textContent = '平台会在起点和起点+移动范围之间自动来回移动。玩家可站在上面。';
+                form.appendChild(mpHint);
+            } else if (data.type === 'triggered_platform') {
+                addField('X（起点中心）', 'x', 'number', { value: data.x });
+                addField('Y（起点中心）', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? S.PLATFORM_W });
+                addField('高 h', 'h', 'number', { value: data.h ?? S.PLATFORM_H });
+                addField('绑定触发器 ID triggerId', 'triggerId', 'text', { value: data.triggerId ?? '' });
+                addField('移动轴', 'moveAxis', 'select', {
+                    value: data.moveAxis || 'x',
+                    options: [
+                        { v: 'x', t: '水平 (X)' },
+                        { v: 'y', t: '垂直 (Y)' }
+                    ]
+                });
+                addField('移动范围 (px)', 'moveRange', 'number', { value: data.moveRange ?? 200 });
+                addField('移动速度 (px/s)', 'moveSpeed', 'number', { value: data.moveSpeed ?? 80 });
+                addField('自动回归', 'autoReturn', 'select', {
+                    value: data.autoReturn !== false ? '1' : '0',
+                    options: [{ v: '1', t: '是' }, { v: '0', t: '否' }]
+                });
+                addField('回归方式', 'returnMode', 'select', {
+                    value: data.returnMode || 'reverse',
+                    options: [
+                        { v: 'reverse', t: '原路返回' },
+                        { v: 'instant', t: '瞬间复位' }
+                    ]
+                });
+                addField('回归延迟 (ms)', 'returnDelay', 'number', { value: data.returnDelay ?? 2000 });
+                const tpHint = document.createElement('p');
+                tpHint.className = 'field-hint';
+                tpHint.textContent = '触发器激活后，平台从起点移动到终点。自动回归=到达终点后延迟一段时间返回起点。';
+                form.appendChild(tpHint);
             }
         } else if (selection.category === 'playerStart') {
             addField('X', 'x', 'number', { value: data.x });

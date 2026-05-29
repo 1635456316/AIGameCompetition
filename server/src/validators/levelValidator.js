@@ -281,6 +281,23 @@ export function validateLevel(level) {
         if (rate < 0) errors.push(`能量损失区 #${i + 1} 的 drainRate 不能为负`);
     });
 
+    const triggerIds = new Set();
+    (normalized.hazards || []).forEach((h, i) => {
+        if (h.type !== 'trigger') return;
+        const tid = h.triggerId;
+        if (!tid) errors.push(`触发器 #${i + 1} 未设置 triggerId`);
+        else {
+            if (triggerIds.has(tid)) errors.push(`触发器 triggerId 重复: "${tid}"`);
+            triggerIds.add(tid);
+        }
+    });
+    (normalized.hazards || []).forEach((h, i) => {
+        if (h.type !== 'triggered_platform') return;
+        const tid = h.triggerId;
+        if (!tid) errors.push(`触发移动平台 #${i + 1} 未绑定 triggerId`);
+        else if (!triggerIds.has(tid)) errors.push(`触发移动平台 #${i + 1} 绑定了不存在的触发器: "${tid}"`);
+    });
+
     return errors;
 }
 

@@ -35,7 +35,7 @@ function electricIsActive(time, period, activeDuration) {
 class Hazards {
     static spawn(scene, levelConfig) {
         const hazards = levelConfig.hazards || [];
-        return hazards.map((cfg, index) => {
+        const spawned = hazards.map((cfg, index) => {
             switch (cfg.type) {
                 case 'electric': return new ElectricZone(scene, cfg);
                 case 'missile':  return new MissileStrike(scene, cfg);
@@ -45,9 +45,26 @@ class Hazards {
                 case 'checkpoint': return new CheckpointZone(scene, cfg, index);
                 case 'death':    return new DeathZone(scene, cfg);
                 case 'hint':     return new HintZone(scene, cfg, index);
+                case 'trigger':  return new TriggerZone(scene, cfg, index);
+                case 'moving_platform': return new MovingPlatform(scene, cfg);
+                case 'triggered_platform': return new TriggeredPlatform(scene, cfg);
                 default: return null;
             }
         }).filter(Boolean);
+
+        const triggerMap = {};
+        spawned.forEach(h => {
+            if (h instanceof TriggerZone && h.triggerId) {
+                triggerMap[h.triggerId] = h;
+            }
+        });
+        spawned.forEach(h => {
+            if (h instanceof TriggeredPlatform && h.triggerId) {
+                h.bindTrigger(triggerMap[h.triggerId] || null);
+            }
+        });
+
+        return spawned;
     }
 }
 
@@ -378,14 +395,29 @@ class WindZone {
         this.w = cfg.w || 200;
         this.h = cfg.h || 300;
         this.force = cfg.force || 180;
-        this.dir = cfg.dir || 1;
+
+        const dirMap = { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } };
+        if (typeof cfg.dir === 'string' && dirMap[cfg.dir]) {
+            this.dirX = dirMap[cfg.dir].x;
+            this.dirY = dirMap[cfg.dir].y;
+        } else {
+            this.dirX = (cfg.dir === -1) ? -1 : 1;
+            this.dirY = 0;
+        }
 
         this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xffffff, 0.06)
             .setStrokeStyle(1, 0xffffff, 0.25).setDepth(50);
 
+        const pSpeedX = this.dirX !== 0
+            ? { min: this.force * 0.5 * this.dirX, max: this.force * this.dirX }
+            : { min: -20, max: 20 };
+        const pSpeedY = this.dirY !== 0
+            ? { min: this.force * 0.5 * this.dirY, max: this.force * this.dirY }
+            : { min: -20, max: 20 };
+
         this._particles = scene.add.particles(this.x - this.w / 2, this.y, 'particle_white', {
-            speedX: { min: this.force * 0.5 * this.dir, max: this.force * this.dir },
-            speedY: { min: -20, max: 20 },
+            speedX: pSpeedX,
+            speedY: pSpeedY,
             scale: { start: 0.3, end: 0 },
             alpha: { start: 0.45, end: 0 },
             lifespan: 900,
@@ -404,7 +436,8 @@ class WindZone {
         const pRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
         if (Phaser.Geom.Rectangle.Overlaps(pRect, zBounds)) {
             const pushAmount = this.force * (delta / 1000);
-            player.sprite.x += this.dir * pushAmount;
+            if (this.dirX !== 0) player.sprite.x += this.dirX * pushAmount;
+            if (this.dirY !== 0) player.sprite.y += this.dirY * pushAmount;
             player.syncView?.();
         }
     }
@@ -535,5 +568,256 @@ class CrumblePlatform {
             this.triggered = false;
             this.destroyed = false;
         });
+    }
+}
+
+class TriggerZone {
+    constructor(scene, cfg, index) {
+        this.scene = scene;
+        this.index = index;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 80;
+        this.h = cfg.h || 80;
+        this.triggerId = cfg.triggerId || '';
+        this.triggerMode = cfg.triggerMode || 'touch';
+        this.maxTriggers = hazardNumber(cfg.maxTriggers, 1);
+        this.triggerCount = 0;
+        this.triggered = false;
+        this.removed = false;
+
+        this.bindHintIds = (cfg.bindHintIds || '').split(',').map(s => s.trim()).filter(Boolean);
+        this.bindSystemWallIds = (cfg.bindSystemWallIds || '').split(',').map(s => s.trim()).filter(Boolean);
+
+        this._callbacks = [];
+
+        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff99cc, 0.12)
+            .setStrokeStyle(2, 0xff99cc, 0.5).setDepth(45);
+
+        if (this.triggerMode === 'attack') {
+            this.hitZone = scene.add.zone(this.x, this.y, this.w, this.h);
+            scene.physics.add.existing(this.hitZone, true);
+            this.hitZone.setData('isTriggerZone', true);
+            this.hitZone.setData('triggerOwner', this);
+        }
+    }
+
+    onTriggered(cb) {
+        this._callbacks.push(cb);
+    }
+
+    _fire() {
+        if (this.removed) return;
+        if (this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers) return;
+        this.triggerCount++;
+        this.triggered = true;
+
+        this.visual.setFillStyle(0xff99cc, 0.4);
+        this.scene.tweens.add({
+            targets: this.visual,
+            alpha: { from: 1, to: 0.5 },
+            duration: 200,
+            yoyo: true
+        });
+
+        this.bindHintIds.forEach(id => {
+            (this.scene.hazards || []).forEach(h => {
+                if (h instanceof HintZone && !h.removed) {
+                    const key = `hint-${h.index}`;
+                    if (String(h.index) === id || key === id) {
+                        h.inside = true;
+                        h._bannerShown = true;
+                        this.scene._hintBannerOwner = h;
+                        Effects.cancelHintBannerDismiss(this.scene);
+                        Effects.hintBanner(this.scene, h.text);
+                    }
+                }
+            });
+        });
+
+        this.bindSystemWallIds.forEach(wallId => {
+            (this.scene.systemWalls || []).forEach(wall => {
+                if (!wall.removed && wall.bindEnemyId === wallId) wall.remove();
+            });
+        });
+
+        this._callbacks.forEach(cb => cb());
+
+        if (this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers) {
+            this.removed = true;
+            this.visual.setAlpha(0.15);
+        }
+    }
+
+    /** 被玩家攻击命中时调用 */
+    onAttackHit() {
+        if (this.triggerMode !== 'attack') return;
+        this._fire();
+    }
+
+    update(time, delta, player) {
+        if (this.removed) return;
+        if (this.triggerMode !== 'touch') return;
+        if (player.fsm.is('dead')) return;
+        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
+        this._fire();
+    }
+}
+
+class MovingPlatform {
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.originX = cfg.x;
+        this.originY = cfg.y;
+        this.w = Math.max(16, cfg.w || 96);
+        this.h = Math.max(16, cfg.h || 20);
+        this.moveAxis = cfg.moveAxis || 'x';
+        this.moveRange = cfg.moveRange || 200;
+        this.moveSpeed = cfg.moveSpeed || 80;
+        this._progress = 0;
+        this._direction = 1;
+
+        this.platform = scene.platforms.create(this.originX, this.originY, 'tile_platform');
+        this.platform.setOrigin(0.5, 0.5);
+        this.platform.setDisplaySize(this.w, this.h);
+        this.platform.setData('platHeight', this.h);
+        this.platform.setData('isWall', this.h > 20);
+        this.platform.setData('isMovingPlatform', true);
+        this.platform.setTint(0x55cc88);
+        this.platform.refreshBody();
+    }
+
+    update(time, delta) {
+        const step = this.moveSpeed * (delta / 1000);
+        this._progress += step * this._direction;
+        if (this._progress >= this.moveRange) {
+            this._progress = this.moveRange;
+            this._direction = -1;
+        } else if (this._progress <= 0) {
+            this._progress = 0;
+            this._direction = 1;
+        }
+
+        let nx = this.originX;
+        let ny = this.originY;
+        if (this.moveAxis === 'x') nx = this.originX + this._progress;
+        else ny = this.originY + this._progress;
+
+        const dx = nx - this.platform.x;
+        const dy = ny - this.platform.y;
+        this.platform.x = nx;
+        this.platform.y = ny;
+        if (this.platform.body) {
+            this.platform.body.x = nx - this.w / 2;
+            this.platform.body.y = ny - this.h / 2;
+        }
+
+        const player = this.scene.player;
+        if (player && this.scene._isPlayerSupportedByPlatform?.(player, this.platform)) {
+            player.sprite.x += dx;
+            player.sprite.y += dy;
+            player.syncView?.();
+        }
+    }
+}
+
+class TriggeredPlatform {
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.originX = cfg.x;
+        this.originY = cfg.y;
+        this.w = Math.max(16, cfg.w || 96);
+        this.h = Math.max(16, cfg.h || 20);
+        this.triggerId = cfg.triggerId || '';
+        this.moveAxis = cfg.moveAxis || 'x';
+        this.moveRange = cfg.moveRange || 200;
+        this.moveSpeed = cfg.moveSpeed || 80;
+        this.autoReturn = cfg.autoReturn !== false;
+        this.returnMode = cfg.returnMode || 'reverse';
+        this.returnDelay = hazardNumber(cfg.returnDelay, 2000);
+
+        this._state = 'idle';
+        this._progress = 0;
+        this._returnTimer = 0;
+        this._trigger = null;
+
+        this.platform = scene.platforms.create(this.originX, this.originY, 'tile_platform');
+        this.platform.setOrigin(0.5, 0.5);
+        this.platform.setDisplaySize(this.w, this.h);
+        this.platform.setData('platHeight', this.h);
+        this.platform.setData('isWall', this.h > 20);
+        this.platform.setData('isTriggeredPlatform', true);
+        this.platform.setTint(0x55aacc);
+        this.platform.refreshBody();
+    }
+
+    bindTrigger(trigger) {
+        if (!trigger) return;
+        this._trigger = trigger;
+        trigger.onTriggered(() => this._onTriggered());
+    }
+
+    _onTriggered() {
+        if (this._state === 'moving') return;
+        this._state = 'moving';
+    }
+
+    update(time, delta) {
+        if (this._state === 'idle') return;
+
+        if (this._state === 'moving') {
+            const step = this.moveSpeed * (delta / 1000);
+            this._progress = Math.min(this._progress + step, this.moveRange);
+            this._applyPosition(delta);
+            if (this._progress >= this.moveRange) {
+                if (this.autoReturn) {
+                    this._state = 'waiting';
+                    this._returnTimer = this.returnDelay;
+                } else {
+                    this._state = 'done';
+                }
+            }
+        } else if (this._state === 'waiting') {
+            this._returnTimer -= delta;
+            if (this._returnTimer <= 0) {
+                if (this.returnMode === 'instant') {
+                    this._progress = 0;
+                    this._applyPosition(delta);
+                    this._state = 'idle';
+                } else {
+                    this._state = 'returning';
+                }
+            }
+        } else if (this._state === 'returning') {
+            const step = this.moveSpeed * (delta / 1000);
+            this._progress = Math.max(this._progress - step, 0);
+            this._applyPosition(delta);
+            if (this._progress <= 0) {
+                this._state = 'idle';
+            }
+        }
+    }
+
+    _applyPosition(delta) {
+        let nx = this.originX;
+        let ny = this.originY;
+        if (this.moveAxis === 'x') nx = this.originX + this._progress;
+        else ny = this.originY + this._progress;
+
+        const dx = nx - this.platform.x;
+        const dy = ny - this.platform.y;
+        this.platform.x = nx;
+        this.platform.y = ny;
+        if (this.platform.body) {
+            this.platform.body.x = nx - this.w / 2;
+            this.platform.body.y = ny - this.h / 2;
+        }
+
+        const player = this.scene.player;
+        if (player && this.scene._isPlayerSupportedByPlatform?.(player, this.platform)) {
+            player.sprite.x += dx;
+            player.sprite.y += dy;
+            player.syncView?.();
+        }
     }
 }

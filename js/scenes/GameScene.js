@@ -153,6 +153,7 @@ class GameScene extends Phaser.Scene {
         }, (_bullet, solid) => !this._isWallSolid(solid));
 
         this._bindDestructibleWallHits();
+        this._bindTriggerZoneHits();
         this.pickups = Pickups.spawn(this, this.levelConfig);
 
         // Boss（关卡尾部触发）
@@ -432,7 +433,9 @@ class GameScene extends Phaser.Scene {
             const e = new Enemy(this, s.x, y, s.type, {
                 hp: s.hp,
                 killEnergy: s.killEnergy,
-                id: s.id
+                id: s.id,
+                detectRangeX: s.detectRangeX,
+                detectRangeY: s.detectRangeY
             });
             this.enemies.push(e);
             this.enemySprites.add(e.sprite);
@@ -1088,6 +1091,18 @@ class GameScene extends Phaser.Scene {
                 if (melee._hitDestructible) return;
                 melee._hitDestructible = true;
                 wall.takeHit(1);
+            });
+        });
+    }
+
+    _bindTriggerZoneHits() {
+        if (!this.hazards) return;
+        this.hazards.forEach(h => {
+            if (!h.hitZone || typeof h.onAttackHit !== 'function') return;
+            this.physics.add.overlap(this.playerMelees, h.hitZone, (a, b) => {
+                const melee = this._pickPlayerMelee(a, b);
+                if (!melee?.active) return;
+                h.onAttackHit();
             });
         });
     }

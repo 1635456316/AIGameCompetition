@@ -65,7 +65,10 @@ const LevelEditorSchema = (() => {
                 { kind: 'missile', label: '导弹打击', icon: '🚀', color: '#ff6644' },
                 { kind: 'crumble', label: '坍塌平台', icon: '▧', color: '#ff8800' },
                 { kind: 'death', label: '必死区', icon: '☠', color: '#ff2244' },
-                { kind: 'hint', label: '提示区', icon: '💬', color: '#ffdd44' }
+                { kind: 'hint', label: '提示区', icon: '💬', color: '#ffdd44' },
+                { kind: 'trigger', label: '触发器', icon: '🔔', color: '#ff99cc' },
+                { kind: 'moving_platform', label: '移动平台(自动)', icon: '⇔', color: '#55cc88' },
+                { kind: 'triggered_platform', label: '移动平台(触发)', icon: '⇌', color: '#55aacc' }
             ]
         },
         {
@@ -89,6 +92,8 @@ const LevelEditorSchema = (() => {
     ];
 
     const ENEMY_DEFAULT_HP = { melee: 50, ranged: 35, flying: 30 };
+    const ENEMY_DEFAULT_DETECT_X = { melee: 360, ranged: 420, flying: 400 };
+    const ENEMY_DEFAULT_DETECT_Y = { melee: 72, ranged: 9999, flying: 9999 };
 
     /** 与 js/player/PlayerConfig.js 保持一致的角色默认值 */
     const PLAYER_CONFIG_DEFAULTS = {
@@ -126,6 +131,24 @@ const LevelEditorSchema = (() => {
 
     function spawnDefaultHp(type) {
         return ENEMY_DEFAULT_HP[type] ?? ENEMY_DEFAULT_HP.melee;
+    }
+
+    function spawnEffectiveDetectRangeX(spawn) {
+        if (spawn.detectRangeX != null && !Number.isNaN(spawn.detectRangeX)) {
+            return Math.max(0, spawn.detectRangeX);
+        }
+        return ENEMY_DEFAULT_DETECT_X[spawn.type] ?? ENEMY_DEFAULT_DETECT_X.melee;
+    }
+
+    function spawnEffectiveDetectRangeY(spawn) {
+        if (spawn.detectRangeY != null && !Number.isNaN(spawn.detectRangeY)) {
+            return Math.max(0, spawn.detectRangeY);
+        }
+        return ENEMY_DEFAULT_DETECT_Y[spawn.type] ?? 72;
+    }
+
+    function spawnDetectRangeYUnlimited(spawn) {
+        return spawnEffectiveDetectRangeY(spawn) >= 9999;
     }
 
     function getBossTypeDefaults(type) {
@@ -253,6 +276,8 @@ const LevelEditorSchema = (() => {
                 out.killEnergy = Math.max(0, s.killEnergy);
             }
             if (s.id != null && s.id !== '') out.id = String(s.id);
+            if (s.detectRangeX != null && !Number.isNaN(s.detectRangeX)) out.detectRangeX = Math.max(0, s.detectRangeX);
+            if (s.detectRangeY != null && !Number.isNaN(s.detectRangeY)) out.detectRangeY = Math.max(0, s.detectRangeY);
             return out;
         });
         level.hazards = (raw.hazards || []).map(h => normalizeCheckpoint(normalizeMissile(normalizeCrumble({ ...h }), level)));
@@ -368,7 +393,7 @@ const LevelEditorSchema = (() => {
             case 'electric':
                 return { category: 'hazards', data: { type: 'electric', x: sx, y: sy, w: 140, h: 60, period: 2400, activeDuration: 1000, damage: 6 } };
             case 'wind':
-                return { category: 'hazards', data: { type: 'wind', x: sx, y: sy, w: 200, h: 300, force: 180, dir: 1 } };
+                return { category: 'hazards', data: { type: 'wind', x: sx, y: sy, w: 200, h: 300, force: 180, dir: 'right' } };
             case 'energy_drain':
                 return { category: 'hazards', data: { type: 'energy_drain', x: sx, y: sy, w: 140, h: 80, drainRate: 15 } };
             case 'missile':
@@ -381,6 +406,12 @@ const LevelEditorSchema = (() => {
                 return { category: 'hazards', data: { type: 'hint', x: sx, y: sy, w: 180, h: 100, text: '操作提示', once: true } };
             case 'checkpoint':
                 return { category: 'hazards', data: { type: 'checkpoint', x: sx, y: sy, w: 80, h: 60, feetAnchor: true, respawnHpPercent: 100, respawnEnergyPercent: 100 } };
+            case 'trigger':
+                return { category: 'hazards', data: { type: 'trigger', x: sx, y: sy, w: 80, h: 80, triggerMode: 'touch', maxTriggers: 1, triggerId: '', bindHintIds: '', bindSystemWallIds: '' } };
+            case 'moving_platform':
+                return { category: 'hazards', data: { type: 'moving_platform', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, moveAxis: 'x', moveRange: 200, moveSpeed: 80 } };
+            case 'triggered_platform':
+                return { category: 'hazards', data: { type: 'triggered_platform', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, triggerId: '', moveAxis: 'x', moveRange: 200, moveSpeed: 80, autoReturn: true, returnMode: 'reverse', returnDelay: 2000 } };
             case 'spawn_melee':
                 return { category: 'spawns', data: { type: 'melee', x: sx, y: sy } };
             case 'spawn_ranged':
@@ -434,7 +465,7 @@ const LevelEditorSchema = (() => {
                     const h = data.h ?? 60;
                     return checkpointBounds(data.x, data.y, w, h);
                 }
-                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind' || data.type === 'energy_drain') {
+                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind' || data.type === 'energy_drain' || data.type === 'trigger' || data.type === 'moving_platform' || data.type === 'triggered_platform') {
                     return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
                 }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
@@ -500,7 +531,8 @@ const LevelEditorSchema = (() => {
                 const labels = {
                     electric: '电磁区', wind: '风力区', energy_drain: '能量损失区',
                     missile: '导弹', crumble: '坍塌',
-                    checkpoint: '复活点', death: '必死区', hint: '提示区'
+                    checkpoint: '复活点', death: '必死区', hint: '提示区',
+                    trigger: '触发器', moving_platform: '移动平台', triggered_platform: '触发平台'
                 };
                 const name = labels[data.type] || data.type;
                 if (data.type === 'energy_drain') {
@@ -522,6 +554,18 @@ const LevelEditorSchema = (() => {
                         ? ` → ${data.bindEnemyId}`
                         : '';
                     return `${name} #${index + 1}${preview}${bind}`;
+                }
+                if (data.type === 'trigger') {
+                    const tid = data.triggerId || '?';
+                    const mode = data.triggerMode === 'attack' ? '攻击' : '触碰';
+                    return `${name} #${index + 1} (${mode} · id:${tid})`;
+                }
+                if (data.type === 'moving_platform') {
+                    return `${name} #${index + 1} (${data.moveAxis ?? 'x'} · ${data.moveRange ?? 200}px)`;
+                }
+                if (data.type === 'triggered_platform') {
+                    const tid = data.triggerId || '?';
+                    return `${name} #${index + 1} (→${tid} · ${data.moveAxis ?? 'x'})`;
                 }
                 return `${name} #${index + 1}`;
             }
@@ -748,6 +792,27 @@ const LevelEditorSchema = (() => {
             if (rate < 0) errors.push(`能量损失区 #${i + 1} 的 drainRate 不能为负`);
         });
 
+        const triggerIds = new Set();
+        (normalized.hazards || []).forEach((h, i) => {
+            if (h.type !== 'trigger') return;
+            const tid = h.triggerId;
+            if (!tid) {
+                errors.push(`触发器 #${i + 1} 未设置 triggerId`);
+            } else {
+                if (triggerIds.has(tid)) errors.push(`触发器 triggerId 重复: "${tid}"`);
+                triggerIds.add(tid);
+            }
+        });
+        (normalized.hazards || []).forEach((h, i) => {
+            if (h.type !== 'triggered_platform') return;
+            const tid = h.triggerId;
+            if (!tid) {
+                errors.push(`触发移动平台 #${i + 1} 未绑定 triggerId`);
+            } else if (!triggerIds.has(tid)) {
+                errors.push(`触发移动平台 #${i + 1} 绑定了不存在的触发器: "${tid}"`);
+            }
+        });
+
         return errors;
     }
 
@@ -972,7 +1037,12 @@ const LevelEditorSchema = (() => {
         resolveStandingFeetY,
         electricIsActive,
         spawnDefaultHp,
+        spawnEffectiveDetectRangeX,
+        spawnEffectiveDetectRangeY,
+        spawnDetectRangeYUnlimited,
         ENEMY_DEFAULT_HP,
+        ENEMY_DEFAULT_DETECT_X,
+        ENEMY_DEFAULT_DETECT_Y,
         BOSS_TYPE_OPTIONS,
         getBossTypeDefaults,
         normalizeBoss,
