@@ -38,7 +38,7 @@ const PlayerConfig = {
     maxJumps: 2,
     gravity: 1800,
     maxVelocityX: 800,
-    maxFallVelocity: 1400,
+    maxFallVelocity: 500,
     dashSpeed: 760,
     dashDuration: 200,        // ms
     dashCooldown: 250,        // ms
