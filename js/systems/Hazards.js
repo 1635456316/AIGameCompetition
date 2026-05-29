@@ -428,6 +428,7 @@ class WindZone {
             frequency: 55,
             emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, -this.h / 2, this.w, this.h) }
         }).setDepth(51);
+        this._playerInside = false;
     }
 
     update(time, delta, player) {
@@ -437,7 +438,8 @@ class WindZone {
             this.x - this.w / 2, this.y - this.h / 2, this.w, this.h
         );
         const pRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
-        if (Phaser.Geom.Rectangle.Overlaps(pRect, zBounds)) {
+        const inside = Phaser.Geom.Rectangle.Overlaps(pRect, zBounds);
+        if (inside) {
             const pushAmount = this.force * (delta / 1000);
             if (this.dirX !== 0) player.sprite.x += this.dirX * pushAmount;
             if (this.dirY > 0) {
@@ -451,7 +453,10 @@ class WindZone {
                 body.updateCenter();
             }
             if (this.dirX !== 0 || this.dirY !== 0) player.syncView?.();
+        } else if (this._playerInside && this.dirY < 0 && body.velocity.y > 0) {
+            body.setVelocityY(0);
         }
+        this._playerInside = inside;
     }
 }
 
