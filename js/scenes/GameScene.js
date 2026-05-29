@@ -42,9 +42,7 @@ class GameScene extends Phaser.Scene {
             ? Math.max(0, this.levelConfig.gravity)
             : PlayerConfig.gravity;
         this.physics.world.gravity.y = levelGravity;
-        this.cameras.main.setBounds(0, 0, this.levelWidth, this.levelHeight);
-
-        // 视差背景
+        this._applyCameraBounds();
         this._createParallaxBackground(W, H);
 
         // 地面/墙壁 vs 浮空单向平台
@@ -571,6 +569,19 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    _applyCameraBounds() {
+        const offset = this._getCameraFollowOffset();
+        const W = this.levelWidth;
+        const H = this.levelHeight;
+        // 有偏移的轴向不 clamp，否则 scroll 会被 bounds 锁死（如 X=100 在起点 scrollX 应为负）
+        const FREE = 1e6;
+        const bx = offset.x !== 0 ? -FREE : 0;
+        const by = offset.y !== 0 ? -FREE : 0;
+        const bw = offset.x !== 0 ? W + FREE * 2 : W;
+        const bh = offset.y !== 0 ? H + FREE * 2 : H;
+        this.cameras.main.setBounds(bx, by, bw, bh);
+    }
+
     _getCameraFollowOffset() {
         const ox = typeof this.levelConfig?.cameraOffsetX === 'number'
             ? this.levelConfig.cameraOffsetX
@@ -584,8 +595,10 @@ class GameScene extends Phaser.Scene {
     _applyCameraScrollSnap(cam, target, offset) {
         const originX = cam.width * cam.originX;
         const originY = cam.height * cam.originY;
-        cam.scrollX = cam.clampX(target.x + offset.x - originX);
-        cam.scrollY = cam.clampY(target.y + offset.y - originY);
+        const sx = target.x + offset.x - originX;
+        const sy = target.y + offset.y - originY;
+        cam.scrollX = offset.x !== 0 ? sx : cam.clampX(sx);
+        cam.scrollY = offset.y !== 0 ? sy : cam.clampY(sy);
     }
 
     _startCameraFollow({ instant = false } = {}) {
@@ -595,17 +608,17 @@ class GameScene extends Phaser.Scene {
         const hasCustomOffset = offset.x !== 0 || offset.y !== 0;
         const lerp = instant ? 1 : 0.12;
 
+        this._applyCameraBounds();
         cam.stopFollow();
-        // Phaser 内部用 follow.x - offset 计算焦点，符号与「相对角色偏移」相反
-        cam.setFollowOffset(-offset.x, -offset.y);
         if (hasCustomOffset) {
             cam.setDeadzone();
         } else {
             cam.setDeadzone(120, 80);
         }
-        cam.startFollow(target, true, lerp, lerp);
+        // startFollow 会覆盖 followOffset，必须作为第 5/6 参数传入；符号与「相对角色偏移」相反
+        cam.startFollow(target, true, lerp, lerp, -offset.x, -offset.y);
 
-        if (instant || hasCustomOffset) {
+        if (instant) {
             this._applyCameraScrollSnap(cam, target, offset);
         }
     }
