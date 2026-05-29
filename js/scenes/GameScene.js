@@ -56,6 +56,11 @@ class GameScene extends Phaser.Scene {
 
         // 机关（含坍塌平台）须在玩家碰撞器建立前生成，确保平台已加入 staticGroup
         this.hazards = Hazards.spawn(this, this.levelConfig);
+        this._levelTriggerIds = new Set(
+            (this.levelConfig.hazards || [])
+                .filter(h => h.type === 'trigger' && h.triggerId)
+                .map(h => String(h.triggerId))
+        );
         this.finishZone = this._isFinishLevel() ? new FinishZone(this, this.levelConfig.finish) : null;
 
         // 玩家
@@ -1071,14 +1076,21 @@ class GameScene extends Phaser.Scene {
             || this.player.fsm.is('dead');
     }
 
-    _removeSystemWallsForEnemyId(enemyId) {
-        const id = String(enemyId);
+    /** bindId 绑定：小怪死亡或触发器触发 */
+    _reactToBindId(bindId, source) {
+        const id = String(bindId);
+        if (!id) return;
         (this.systemWalls || []).forEach(wall => {
-            if (!wall.removed && wall.bindEnemyId === id) wall.remove();
+            if (!wall.removed && wall.bindId === id) wall.remove();
         });
         (this.hazards || []).forEach(h => {
-            if (h.bindEnemyId === id && !h.removed && typeof h.remove === 'function') h.remove();
+            if (h.removed || h.bindId !== id) return;
+            if (typeof h.remove === 'function') h.remove();
         });
+    }
+
+    _removeSystemWallsForEnemyId(enemyId) {
+        this._reactToBindId(enemyId, 'enemy');
     }
 
     _bindDestructibleWallHits() {

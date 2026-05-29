@@ -2,6 +2,11 @@ function hazardNumber(value, fallback) {
     return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
 }
 
+function resolveElementBindId(cfg) {
+    const v = cfg?.bindId ?? cfg?.bindEnemyId;
+    return v != null && v !== '' ? String(v) : '';
+}
+
 function playerOverlapsRect(player, x, y, w, h) {
     const body = player.body;
     if (!body) return false;
@@ -259,9 +264,7 @@ class HintZone {
         this.h = cfg.h || 120;
         this.text = cfg.text || '操作提示';
         this.once = cfg.once !== false;
-        this.bindEnemyId = cfg.bindEnemyId != null && cfg.bindEnemyId !== ''
-            ? String(cfg.bindEnemyId)
-            : '';
+        this.bindId = resolveElementBindId(cfg);
         this.inside = false;
         this._bannerShown = false;
         this.removed = false;
@@ -586,9 +589,6 @@ class TriggerZone {
         this.triggered = false;
         this.removed = false;
 
-        this.bindHintIds = (cfg.bindHintIds || '').split(',').map(s => s.trim()).filter(Boolean);
-        this.bindSystemWallIds = (cfg.bindSystemWallIds || '').split(',').map(s => s.trim()).filter(Boolean);
-
         this._callbacks = [];
 
         this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff99cc, 0.12)
@@ -620,26 +620,9 @@ class TriggerZone {
             yoyo: true
         });
 
-        this.bindHintIds.forEach(id => {
-            (this.scene.hazards || []).forEach(h => {
-                if (h instanceof HintZone && !h.removed) {
-                    const key = `hint-${h.index}`;
-                    if (String(h.index) === id || key === id) {
-                        h.inside = true;
-                        h._bannerShown = true;
-                        this.scene._hintBannerOwner = h;
-                        Effects.cancelHintBannerDismiss(this.scene);
-                        Effects.hintBanner(this.scene, h.text);
-                    }
-                }
-            });
-        });
-
-        this.bindSystemWallIds.forEach(wallId => {
-            (this.scene.systemWalls || []).forEach(wall => {
-                if (!wall.removed && wall.bindEnemyId === wallId) wall.remove();
-            });
-        });
+        if (this.triggerId && this.scene._reactToBindId) {
+            this.scene._reactToBindId(this.triggerId, 'trigger');
+        }
 
         this._callbacks.forEach(cb => cb());
 

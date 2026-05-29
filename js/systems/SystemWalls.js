@@ -1,5 +1,5 @@
 /**
- * 系统墙：绑定小怪 id，对应小怪死亡后移除碰撞。
+ * 系统墙：bindId 绑定小怪或触发器全局 id；对应小怪死亡或触发器触发后移除碰撞。
  */
 class SystemWalls {
     static spawn(scene, levelConfig) {
@@ -16,9 +16,8 @@ class SystemWall {
         this.y = cfg.y;
         this.w = cfg.w || 32;
         this.h = cfg.h || 200;
-        this.bindEnemyId = cfg.bindEnemyId != null && cfg.bindEnemyId !== ''
-            ? String(cfg.bindEnemyId)
-            : '';
+        const bind = cfg.bindId ?? cfg.bindEnemyId;
+        this.bindId = bind != null && bind !== '' ? String(bind) : '';
         this.removed = false;
         this._removing = false;
 
@@ -31,7 +30,7 @@ class SystemWall {
         this.sprite.setData('isWall', true);
         this.sprite.setData('systemWallOwner', this);
 
-        const label = this.bindEnemyId ? `⛨${this.bindEnemyId}` : '⛨?';
+        const label = this.bindId ? `⛨${this.bindId}` : '⛨?';
         this.marker = scene.add.text(this.x, this.y, label, {
             font: '12px Arial',
             color: '#eef6ff',

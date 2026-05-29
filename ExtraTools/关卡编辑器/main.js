@@ -561,7 +561,7 @@
             ctx.fillStyle = '#eef6ff';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
-            const bind = w.bindEnemyId != null && w.bindEnemyId !== '' ? w.bindEnemyId : '?';
+            const bind = S.resolveBindId(w) || '?';
             ctx.fillText(`⛨${bind}`, w.x, w.y + 4);
             ctx.textAlign = 'left';
         });
@@ -639,10 +639,11 @@
                 ctx.textAlign = 'center';
                 const preview = (h.text || '提示').slice(0, 16);
                 ctx.fillText(preview, h.x, h.y - 4);
-                if (h.bindEnemyId != null && h.bindEnemyId !== '') {
+                const hintBind = S.resolveBindId(h);
+                if (hintBind) {
                     ctx.font = '10px sans-serif';
                     ctx.fillStyle = '#ffe066';
-                    ctx.fillText(`→ ${h.bindEnemyId}`, h.x, h.y + 12);
+                    ctx.fillText(`→ ${hintBind}`, h.x, h.y + 12);
                 }
                 ctx.textAlign = 'left';
             } else if (h.type === 'wind') {
@@ -1041,6 +1042,15 @@
         refreshAll();
     }
 
+    function appendGlobalIdHint(form, extraText) {
+        const ids = S.listLevelGlobalIdStrings(level);
+        const p = document.createElement('p');
+        p.className = 'field-hint';
+        const list = ids.length ? ids.join('、') : '（暂无，请先为小怪或触发器设置 id）';
+        p.textContent = `${extraText ? extraText + ' ' : ''}当前关卡全局 id：${list}`;
+        form.appendChild(p);
+    }
+
     function buildPropsForm() {
         const form = document.getElementById('props-form');
         const empty = document.getElementById('props-empty');
@@ -1158,19 +1168,21 @@
             } else if (selection.category === 'systemWalls') {
                 const item = { ...level.systemWalls[selection.index] };
                 if (key === 'x' || key === 'y' || key === 'w' || key === 'h') item[key] = S.snap(v);
-                else if (key === 'bindEnemyId') {
-                    item.bindEnemyId = v === '' || v == null ? '' : String(v);
+                else if (key === 'bindId') {
+                    item.bindId = v === '' || v == null ? '' : String(v);
+                    delete item.bindEnemyId;
                 } else item[key] = v;
                 level.systemWalls[selection.index] = item;
             } else {
                 const item = { ...getSelectionData() };
                 if (key === 'dir') item[key] = v;
                 else if (key === 'once' || key === 'autoReturn') item[key] = v === '1' || v === 1 || v === true;
-                else if (key === 'bindEnemyId') {
-                    if (v === '' || v == null) delete item.bindEnemyId;
-                    else item.bindEnemyId = String(v);
+                else if (key === 'bindId') {
+                    if (v === '' || v == null) delete item.bindId;
+                    else item.bindId = String(v);
+                    delete item.bindEnemyId;
                 }
-                else if (key === 'triggerId' || key === 'bindHintIds' || key === 'bindSystemWallIds' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode') {
+                else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode') {
                     item[key] = String(v);
                 }
                 else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay'].includes(key)) {
@@ -1209,11 +1221,8 @@
             addField('Y', 'y', 'number', { value: data.y });
             addField('宽度 w', 'w', 'number', { value: data.w });
             addField('高度 h', 'h', 'number', { value: data.h });
-            addField('绑定小怪 id bindEnemyId', 'bindEnemyId', 'text', { value: data.bindEnemyId ?? '' });
-            const swHint = document.createElement('p');
-            swHint.className = 'field-hint';
-            swHint.textContent = '对应 id 的小怪被击杀后，此墙会消失。小怪在「实体 → 敌人生成点」里设置 id。';
-            form.appendChild(swHint);
+            addField('绑定 id bindId', 'bindId', 'text', { value: data.bindId ?? S.resolveBindId(data) });
+            appendGlobalIdHint(form, '绑定小怪 id 或触发器 triggerId；对应小怪被击杀或触发器触发后，此墙会消失。');
         } else if (selection.category === 'pickups') {
             addField('类型', 'type', 'select', {
                 value: data.type || 'health',
@@ -1246,7 +1255,8 @@
             const detectYLabel = defaultDetectY >= 9999 ? '无限' : String(defaultDetectY);
             addField(`检测范围 Y（默认 ${detectYLabel}）`, 'detectRangeY', 'number', { value: data.detectRangeY ?? '' });
             addField(`击杀回能（默认 ${level.enemyKillEnergy ?? 10}）`, 'killEnergy', 'number', { value: data.killEnergy ?? '' });
-            addField('小怪 id（可选，供系统墙/触发器绑定）', 'id', 'text', { value: data.id ?? '' });
+            addField('全局 id（可选，供系统墙/提示区绑定）', 'id', 'text', { value: data.id ?? '' });
+            appendGlobalIdHint(form, '须与小怪、触发器的全局 id 均不重复。');
         } else if (selection.category === 'hazards') {
             if (data.type === 'electric') {
                 addField('X', 'x', 'number', { value: data.x });
@@ -1290,11 +1300,8 @@
                     value: data.once !== false ? '1' : '0',
                     options: [{ v: '1', t: '是' }, { v: '0', t: '否' }]
                 });
-                addField('绑定小怪 id bindEnemyId（可选）', 'bindEnemyId', 'text', { value: data.bindEnemyId ?? '' });
-                const hintBindNote = document.createElement('p');
-                hintBindNote.className = 'field-hint';
-                hintBindNote.textContent = '若填写 bindEnemyId，对应小怪被击杀后此提示区失效（正在显示的文字也会立即关闭）。';
-                form.appendChild(hintBindNote);
+                addField('绑定 id bindId（可选）', 'bindId', 'text', { value: data.bindId ?? S.resolveBindId(data) });
+                appendGlobalIdHint(form, '绑定小怪 id：击杀后提示区失效；绑定触发器 id：触发器触发后提示区失效（关闭横幅，与系统墙一致）。不填 bindId 则仅进入区域时显示。');
             } else if (data.type === 'wind') {
                 addField('X', 'x', 'number', { value: data.x });
                 addField('Y', 'y', 'number', { value: data.y });
@@ -1344,7 +1351,7 @@
                 addField('Y', 'y', 'number', { value: data.y });
                 addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
                 addField('高 h', 'h', 'number', { value: data.h ?? 80 });
-                addField('触发器 ID triggerId', 'triggerId', 'text', { value: data.triggerId ?? '' });
+                addField('全局 id triggerId', 'triggerId', 'text', { value: data.triggerId ?? '' });
                 addField('触发方式', 'triggerMode', 'select', {
                     value: data.triggerMode || 'touch',
                     options: [
@@ -1353,12 +1360,7 @@
                     ]
                 });
                 addField('触发次数限制（0=无限）', 'maxTriggers', 'number', { value: data.maxTriggers ?? 1 });
-                addField('绑定提示区 ID（逗号分隔）', 'bindHintIds', 'text', { value: data.bindHintIds ?? '' });
-                addField('绑定系统墙 ID（逗号分隔）', 'bindSystemWallIds', 'text', { value: data.bindSystemWallIds ?? '' });
-                const triggerHint = document.createElement('p');
-                triggerHint.className = 'field-hint';
-                triggerHint.textContent = 'triggerId 用于被移动平台(触发)引用。触碰=玩家进入区域触发；攻击=玩家攻击到区域内触发。绑定提示区/系统墙 ID 可让触发后显示提示/移除墙壁。';
-                form.appendChild(triggerHint);
+                appendGlobalIdHint(form, 'triggerId 为全局 id，供移动平台(触发)、系统墙、提示区引用；须与小怪 id 不重复。系统墙/提示区在其自身属性里填写 bindId 指向本 id。');
             } else if (data.type === 'moving_platform') {
                 addField('X（起点中心）', 'x', 'number', { value: data.x });
                 addField('Y（起点中心）', 'y', 'number', { value: data.y });
@@ -1382,7 +1384,8 @@
                 addField('Y（起点中心）', 'y', 'number', { value: data.y });
                 addField('宽 w', 'w', 'number', { value: data.w ?? S.PLATFORM_W });
                 addField('高 h', 'h', 'number', { value: data.h ?? S.PLATFORM_H });
-                addField('绑定触发器 ID triggerId', 'triggerId', 'text', { value: data.triggerId ?? '' });
+                addField('绑定触发器全局 id', 'triggerId', 'text', { value: data.triggerId ?? '' });
+                appendGlobalIdHint(form, '填写机关「触发器」的全局 triggerId。');
                 addField('移动轴', 'moveAxis', 'select', {
                     value: data.moveAxis || 'x',
                     options: [

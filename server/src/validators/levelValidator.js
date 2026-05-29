@@ -24,6 +24,26 @@ function spawnLabel(spawn, index) {
     return spawn.id != null && spawn.id !== '' ? `小怪 "${spawn.id}"` : `小怪 #${index + 1}`;
 }
 
+function resolveBindId(obj) {
+    const v = obj?.bindId ?? obj?.bindEnemyId;
+    return v != null && v !== '' ? String(v) : '';
+}
+
+function collectLevelGlobalIds(level) {
+    const entries = [];
+    (level.spawns || []).forEach((s, i) => {
+        if (s.id != null && s.id !== '') {
+            entries.push({ id: String(s.id), label: `小怪 #${i + 1}` });
+        }
+    });
+    (level.hazards || []).forEach((h, i) => {
+        if (h.type === 'trigger' && h.triggerId != null && h.triggerId !== '') {
+            entries.push({ id: String(h.triggerId), label: `触发器 #${i + 1}` });
+        }
+    });
+    return entries;
+}
+
 function validateSpawnBounds(level, errors) {
     (level.spawns || []).forEach((s, i) => {
         const label = spawnLabel(s, i);
@@ -121,10 +141,32 @@ function normalizeLevel(raw) {
         platforms: (raw.platforms || []).map(p => [...p]),
         walls: (raw.walls || []).map(w => ({ ...w })),
         destructibleWalls: (raw.destructibleWalls || []).map(w => ({ ...w })),
-        systemWalls: (raw.systemWalls || []).map(w => ({ ...w })),
+        systemWalls: (raw.systemWalls || []).map(w => {
+            const out = { ...w };
+            out.bindId = resolveBindId(out);
+            delete out.bindEnemyId;
+            return out;
+        }),
         pickups: (raw.pickups || []).map(p => ({ ...p })),
         spawns: (raw.spawns || []).map(s => ({ ...s })),
-        hazards: (raw.hazards || []).map(h => ({ ...h }))
+        hazards: (raw.hazards || []).map(h => {
+            const out = { ...h };
+            if (out.type === 'hint') {
+                const bind = resolveBindId(out);
+                if (bind) out.bindId = bind;
+                else delete out.bindId;
+                delete out.bindEnemyId;
+            }
+            if (out.type === 'trigger') {
+                if (out.triggerId != null && out.triggerId !== '') out.triggerId = String(out.triggerId);
+                delete out.bindHintIds;
+                delete out.bindSystemWallIds;
+            }
+            if (out.type === 'triggered_platform' && out.triggerId != null && out.triggerId !== '') {
+                out.triggerId = String(out.triggerId);
+            }
+            return out;
+        })
     };
 
     if (isFinishLevel(raw)) {
@@ -250,30 +292,27 @@ export function validateLevel(level) {
         }
     }
 
-    const spawnIds = new Set(
-        (normalized.spawns || [])
-            .map(s => s.id)
-            .filter(id => id != null && id !== '')
-            .map(id => String(id))
-    );
-    const seenSpawnIds = new Set();
-    (normalized.spawns || []).forEach((s, i) => {
-        if (s.id == null || s.id === '') return;
-        const id = String(s.id);
-        if (seenSpawnIds.has(id)) errors.push(`小怪 id 重复: "${id}"（生成点 #${i + 1}）`);
-        seenSpawnIds.add(id);
+    const globalIdOwners = new Map();
+    collectLevelGlobalIds(normalized).forEach(({ id, label }) => {
+        if (globalIdOwners.has(id)) {
+            errors.push(`全局 id 重复: "${id}"（${globalIdOwners.get(id)} 与 ${label}）`);
+        } else {
+            globalIdOwners.set(id, label);
+        }
     });
+    const globalIds = new Set(globalIdOwners.keys());
+
     validateSpawnBounds(normalized, errors);
     (normalized.systemWalls || []).forEach((w, i) => {
-        const bind = w.bindEnemyId != null && w.bindEnemyId !== '' ? String(w.bindEnemyId) : '';
-        if (!bind) errors.push(`系统墙 #${i + 1} 未设置 bindEnemyId`);
-        else if (!spawnIds.has(bind)) errors.push(`系统墙 #${i + 1} 绑定了不存在的小怪 id: "${bind}"`);
+        const bind = resolveBindId(w);
+        if (!bind) errors.push(`系统墙 #${i + 1} 未设置 bindId`);
+        else if (!globalIds.has(bind)) errors.push(`系统墙 #${i + 1} 绑定了不存在的全局 id: "${bind}"`);
     });
     (normalized.hazards || []).forEach((h, i) => {
         if (h.type !== 'hint') return;
-        const bind = h.bindEnemyId != null && h.bindEnemyId !== '' ? String(h.bindEnemyId) : '';
+        const bind = resolveBindId(h);
         if (!bind) return;
-        if (!spawnIds.has(bind)) errors.push(`提示区 #${i + 1} 绑定了不存在的小怪 id: "${bind}"`);
+        if (!globalIds.has(bind)) errors.push(`提示区 #${i + 1} 绑定了不存在的全局 id: "${bind}"`);
     });
     (normalized.hazards || []).forEach((h, i) => {
         if (h.type !== 'energy_drain') return;
@@ -281,21 +320,17 @@ export function validateLevel(level) {
         if (rate < 0) errors.push(`能量损失区 #${i + 1} 的 drainRate 不能为负`);
     });
 
-    const triggerIds = new Set();
     (normalized.hazards || []).forEach((h, i) => {
         if (h.type !== 'trigger') return;
-        const tid = h.triggerId;
-        if (!tid) errors.push(`触发器 #${i + 1} 未设置 triggerId`);
-        else {
-            if (triggerIds.has(tid)) errors.push(`触发器 triggerId 重复: "${tid}"`);
-            triggerIds.add(tid);
-        }
+        if (!h.triggerId) errors.push(`触发器 #${i + 1} 未设置 triggerId（全局 id）`);
     });
     (normalized.hazards || []).forEach((h, i) => {
         if (h.type !== 'triggered_platform') return;
         const tid = h.triggerId;
         if (!tid) errors.push(`触发移动平台 #${i + 1} 未绑定 triggerId`);
-        else if (!triggerIds.has(tid)) errors.push(`触发移动平台 #${i + 1} 绑定了不存在的触发器: "${tid}"`);
+        else if (!globalIds.has(String(tid))) {
+            errors.push(`触发移动平台 #${i + 1} 绑定了不存在的触发器 id: "${tid}"`);
+        }
     });
 
     return errors;
