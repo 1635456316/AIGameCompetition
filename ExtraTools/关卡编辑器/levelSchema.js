@@ -227,6 +227,8 @@ const LevelEditorSchema = (() => {
             width: 2400,
             height: GAME_HEIGHT,
             playerStart: { x: 160, yOffset: 120 },
+            cameraOffsetX: 0,
+            cameraOffsetY: 0,
             energyStartPercent: 0,
             energyRegenRate: 0,
             hpStartPercent: 100,
@@ -255,6 +257,8 @@ const LevelEditorSchema = (() => {
         const level = { ...createEmptyLevel(raw.id || 1), ...raw };
         level.height = hazardNumber(raw.height, GAME_HEIGHT);
         level.playerStart = { x: 160, yOffset: 120, ...(raw.playerStart || {}) };
+        level.cameraOffsetX = hazardNumber(raw.cameraOffsetX, 0);
+        level.cameraOffsetY = hazardNumber(raw.cameraOffsetY, 0);
         level.energyStartPercent = hazardNumber(raw.energyStartPercent, 0);
         level.energyRegenRate = hazardNumber(raw.energyRegenRate, 0);
         level.hpStartPercent = hazardNumber(raw.hpStartPercent, 100);

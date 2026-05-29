@@ -92,6 +92,8 @@ class LevelSelectScene extends Phaser.Scene {
             ease: 'Cubic.easeOut'
         });
 
+        this._attachWorkshopButtonPrompt(workshopBtn, btnW, bottomBtnDelay + bottomBtnDuration + 180);
+
         const hintText = this.add.text(w / 2, h - 18 + bottomEnterOffset, 'ESC 返回主菜单    R 重置存档    ←→ 切换关卡    ENTER 进入', {
             font: 'bold 11px Microsoft YaHei, Arial',
             color: '#7f8998'
@@ -510,7 +512,66 @@ class LevelSelectScene extends Phaser.Scene {
             });
         });
 
+        container.bg = bg;
+        container.text = text;
+        container.hitZone = hitZone;
+
         return container;
+    }
+
+    _attachWorkshopButtonPrompt(container, btnW, startDelay) {
+        const badge = this.add.container(btnW / 2 - 6, -26);
+        const badgeRing = this.add.circle(0, 0, 11, 0xff5fb9, 0.15)
+            .setStrokeStyle(1.5, 0xff5fb9, 0.85);
+        const badgeCore = this.add.circle(0, 0, 7, 0xff5fb9, 0.92);
+        const badgeIcon = this.add.text(0, -1, '✦', {
+            font: 'bold 11px Arial',
+            color: '#ffffff',
+            stroke: '#000',
+            strokeThickness: 2
+        }).setOrigin(0.5);
+        badge.add([badgeRing, badgeCore, badgeIcon]);
+        container.add(badge);
+
+        const promptTweens = [];
+        const startPrompt = () => {
+            promptTweens.push(this.tweens.add({
+                targets: badge,
+                y: -28,
+                duration: 680,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            }));
+            promptTweens.push(this.tweens.add({
+                targets: badgeIcon,
+                angle: { from: -10, to: 10 },
+                duration: 820,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            }));
+            promptTweens.push(this.tweens.add({
+                targets: badgeRing,
+                scale: { from: 1, to: 1.35 },
+                alpha: { from: 0.35, to: 0.05 },
+                duration: 1200,
+                repeat: -1,
+                ease: 'Sine.easeOut'
+            }));
+        };
+
+        this.time.delayedCall(startDelay, startPrompt);
+
+        const pausePrompt = () => promptTweens.forEach(t => t.pause());
+        const resumePrompt = () => promptTweens.forEach(t => t.resume());
+
+        if (container.hitZone) {
+            container.hitZone.on('pointerover', pausePrompt);
+            container.hitZone.on('pointerout', resumePrompt);
+        }
+
+        this.events.once('shutdown', () => promptTweens.forEach(t => t.stop()));
     }
 
     _createPVButton(parent, x, y, width, height, label, action) {

@@ -1740,6 +1740,10 @@
                 ['width', '关卡宽度 (px)', 'number'],
                 ['height', '关卡高度 (px)', 'number']
             ]},
+            { section: '镜头', items: [
+                ['cameraOffsetX', '相对角色 X 偏移 (px)', 'number'],
+                ['cameraOffsetY', '相对角色 Y 偏移 (px)', 'number']
+            ]},
             { section: 'Boss', items: [
                 ['bossTriggerOffset', 'Boss 触发距右边缘 (px)', 'number']
             ]},
@@ -1795,6 +1799,9 @@
                     let v = parsed.value;
                     if (type === 'number' && v !== '' && Number.isNaN(v)) return;
                     if (k === 'enemyKillEnergy') v = Math.max(0, v);
+                    if (k === 'cameraOffsetX' || k === 'cameraOffsetY') {
+                        v = v === '' ? 0 : v;
+                    }
                     if (k === 'height') {
                         v = Math.max(S.MIN_LEVEL_HEIGHT, v);
                         S.setLevelHeight(level, v);
@@ -1809,6 +1816,12 @@
                     refreshAll(false);
                 });
             });
+            if (sec.section === '镜头') {
+                const cameraHint = document.createElement('p');
+                cameraHint.className = 'field-hint';
+                cameraHint.textContent = '镜头跟随焦点相对角色的偏移：X 正数看向角色右侧（角色偏左），Y 正数看向角色下方（角色偏上）。默认 0 为居中跟随。';
+                form.appendChild(cameraHint);
+            }
             if (sec.section === 'Boss') {
                 const triggerHint = document.createElement('p');
                 triggerHint.className = 'field-hint';

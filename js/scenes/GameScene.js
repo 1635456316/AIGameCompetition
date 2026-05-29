@@ -194,8 +194,7 @@ class GameScene extends Phaser.Scene {
         });
 
         // 镜头跟随表现层，与玩家所见一致（坐标每帧 postUpdate 与逻辑体同步）
-        this.cameras.main.startFollow(this.player.viewSprite, true, 0.12, 0.12);
-        this.cameras.main.setDeadzone(120, 80);
+        this._startCameraFollow();
 
         // 玩家击杀回调
         this.onEnemyKilled = (enemy) => {
@@ -569,6 +568,45 @@ class GameScene extends Phaser.Scene {
                 player.setVelocityX(0);
             }
             break;
+        }
+    }
+
+    _getCameraFollowOffset() {
+        const ox = typeof this.levelConfig?.cameraOffsetX === 'number'
+            ? this.levelConfig.cameraOffsetX
+            : 0;
+        const oy = typeof this.levelConfig?.cameraOffsetY === 'number'
+            ? this.levelConfig.cameraOffsetY
+            : 0;
+        return { x: ox, y: oy };
+    }
+
+    _applyCameraScrollSnap(cam, target, offset) {
+        const originX = cam.width * cam.originX;
+        const originY = cam.height * cam.originY;
+        cam.scrollX = cam.clampX(target.x + offset.x - originX);
+        cam.scrollY = cam.clampY(target.y + offset.y - originY);
+    }
+
+    _startCameraFollow({ instant = false } = {}) {
+        const cam = this.cameras.main;
+        const target = this.player.viewSprite;
+        const offset = this._getCameraFollowOffset();
+        const hasCustomOffset = offset.x !== 0 || offset.y !== 0;
+        const lerp = instant ? 1 : 0.12;
+
+        cam.stopFollow();
+        // Phaser 内部用 follow.x - offset 计算焦点，符号与「相对角色偏移」相反
+        cam.setFollowOffset(-offset.x, -offset.y);
+        if (hasCustomOffset) {
+            cam.setDeadzone();
+        } else {
+            cam.setDeadzone(120, 80);
+        }
+        cam.startFollow(target, true, lerp, lerp);
+
+        if (instant || hasCustomOffset) {
+            this._applyCameraScrollSnap(cam, target, offset);
         }
     }
 
@@ -1359,11 +1397,10 @@ class GameScene extends Phaser.Scene {
 
         // 目标瞬移后必须立刻重置镜头；否则 startFollow 的 lerp 会从死亡位置慢慢追，
         // 离复活点越远，画面与角色世界坐标看起来偏差越大。
+        this._startCameraFollow({ instant: true });
+
         const cam = this.cameras.main;
         const target = this.player.viewSprite;
-        cam.stopFollow();
-        cam.centerOn(target.x, target.y);
-        cam.startFollow(target, true, 0.12, 0.12);
 
         GameDebug.respawnLog('scene.respawn.camera', {
             camScroll: { x: Math.round(cam.scrollX), y: Math.round(cam.scrollY) },

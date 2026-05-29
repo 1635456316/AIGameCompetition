@@ -119,6 +119,8 @@ function normalizeLevel(raw) {
         width: raw.width || 2400,
         height: hazardNumber(raw.height, 720),
         playerStart: { x: 160, yOffset: 120, ...(raw.playerStart || {}) },
+        cameraOffsetX: hazardNumber(raw.cameraOffsetX, 0),
+        cameraOffsetY: hazardNumber(raw.cameraOffsetY, 0),
         energyStartPercent: hazardNumber(raw.energyStartPercent, 0),
         energyRegenRate: hazardNumber(raw.energyRegenRate, 0),
         hpStartPercent: hazardNumber(raw.hpStartPercent, 100),
