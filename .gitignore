@@ -51,6 +51,9 @@ out/
 *.pem
 *.key
 
+# ===== 服务端认证绑定（含 IP/用户名，勿提交） =====
+server/data/auth/ip-bindings.json
+
 # ===== 日志 / 临时 =====
 *.log
 logs/

@@ -22,6 +22,8 @@ class WorkshopScene extends Phaser.Scene {
         this.authUser = null;
         this.myLevelsMenuOpen = false;
         this.myLevelsLoading = false;
+        this.loginPanelOpen = false;
+        this.loginPendingReturnTo = null;
         this.levelCards = [];
         this.textResolution = Math.max(2, Math.min(3, (window.devicePixelRatio || 1) * 1.5));
     }
@@ -78,6 +80,8 @@ class WorkshopScene extends Phaser.Scene {
         this.scale.off('resize', this._onScaleResize, this);
         this._closeMyLevelsMenu();
         this._removeMyLevelsMenuDom();
+        this._closeLoginPanel();
+        this._removeLoginPanelDom();
     }
 
     _onScaleResize() {
@@ -382,10 +386,268 @@ class WorkshopScene extends Phaser.Scene {
         }
     }
 
+    _goFeishuLogin(returnTo) {
+        sessionStorage.setItem('boot-scene', 'WorkshopScene');
+        window.location.href = WorkshopApi.getLoginUrl(returnTo || '/');
+    }
+
+    _ensureLoginPanelDom() {
+        if (this.loginPanelBackdropEl) return;
+
+        if (!document.getElementById('workshop-login-panel-styles')) {
+            const style = document.createElement('style');
+            style.id = 'workshop-login-panel-styles';
+            style.textContent = `
+                .workshop-login-backdrop {
+                    position: fixed;
+                    inset: 0;
+                    z-index: 10050;
+                    background: rgba(4, 10, 22, 0.72);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: "Microsoft YaHei", Arial, sans-serif;
+                }
+                .workshop-login-backdrop[hidden] { display: none !important; }
+                .workshop-login-panel {
+                    width: min(360px, calc(100vw - 32px));
+                    padding: 22px 20px 18px;
+                    background: linear-gradient(180deg, rgba(8, 22, 40, 0.98) 0%, rgba(4, 13, 28, 0.99) 100%);
+                    border: 1px solid rgba(95, 234, 255, 0.55);
+                    border-radius: 12px;
+                    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 95, 185, 0.12);
+                }
+                .workshop-login-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 16px;
+                }
+                .workshop-login-title {
+                    font-size: 15px;
+                    font-weight: 700;
+                    color: #5feaff;
+                }
+                .workshop-login-close {
+                    border: none;
+                    background: transparent;
+                    color: #8fbfd6;
+                    font-size: 20px;
+                    line-height: 1;
+                    cursor: pointer;
+                    padding: 0 4px;
+                }
+                .workshop-login-close:hover { color: #ffffff; }
+                .workshop-login-feishu {
+                    width: 100%;
+                    padding: 10px 14px;
+                    border: 1px solid rgba(95, 234, 255, 0.7);
+                    border-radius: 8px;
+                    background: rgba(95, 234, 255, 0.14);
+                    color: #5feaff;
+                    font-size: 14px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: background 0.12s;
+                }
+                .workshop-login-feishu:hover {
+                    background: rgba(95, 234, 255, 0.28);
+                    color: #ffffff;
+                }
+                .workshop-login-divider {
+                    margin: 16px 0 14px;
+                    text-align: center;
+                    font-size: 12px;
+                    color: #6a8aa3;
+                }
+                .workshop-login-label {
+                    display: block;
+                    font-size: 12px;
+                    color: #8fbfd6;
+                    margin-bottom: 6px;
+                }
+                .workshop-login-input {
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: 9px 12px;
+                    border: 1px solid rgba(95, 234, 255, 0.35);
+                    border-radius: 8px;
+                    background: rgba(4, 16, 32, 0.9);
+                    color: #e6eef8;
+                    font-size: 14px;
+                    outline: none;
+                }
+                .workshop-login-input:focus {
+                    border-color: rgba(95, 234, 255, 0.75);
+                    box-shadow: 0 0 0 2px rgba(95, 234, 255, 0.15);
+                }
+                .workshop-login-submit {
+                    width: 100%;
+                    margin-top: 12px;
+                    padding: 10px 14px;
+                    border: 1px solid rgba(255, 95, 185, 0.65);
+                    border-radius: 8px;
+                    background: rgba(255, 95, 185, 0.14);
+                    color: #ff8fbf;
+                    font-size: 14px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: background 0.12s;
+                }
+                .workshop-login-submit:hover:not(:disabled) {
+                    background: rgba(255, 95, 185, 0.28);
+                    color: #ffffff;
+                }
+                .workshop-login-submit:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                .workshop-login-error {
+                    margin-top: 10px;
+                    min-height: 18px;
+                    font-size: 12px;
+                    color: #ff8fbf;
+                    line-height: 1.4;
+                }
+                .workshop-login-hint {
+                    margin-top: 8px;
+                    font-size: 11px;
+                    color: #6a8aa3;
+                    line-height: 1.45;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const backdrop = document.createElement('div');
+        backdrop.id = 'workshop-login-backdrop';
+        backdrop.className = 'workshop-login-backdrop';
+        backdrop.hidden = true;
+        backdrop.innerHTML = `
+            <div class="workshop-login-panel" role="dialog" aria-labelledby="workshop-login-title">
+                <div class="workshop-login-header">
+                    <span class="workshop-login-title" id="workshop-login-title">登录</span>
+                    <button type="button" class="workshop-login-close" aria-label="关闭">×</button>
+                </div>
+                <button type="button" class="workshop-login-feishu">飞书登录(直链可用)</button>
+                <div class="workshop-login-divider">或使用用户名</div>
+                <label class="workshop-login-label" for="workshop-login-username">用户名</label>
+                <input type="text" class="workshop-login-input" id="workshop-login-username"
+                    maxlength="16" autocomplete="username" placeholder="2–16 字符，中文/英文/数字/下划线" />
+                <button type="button" class="workshop-login-submit">使用用户名登录</button>
+                <div class="workshop-login-error"></div>
+                <p class="workshop-login-hint">首次登录将绑定当前 IP；该 IP 与用户名此后不可互换。</p>
+            </div>`;
+        document.body.appendChild(backdrop);
+
+        this.loginPanelBackdropEl = backdrop;
+        this.loginPanelEl = backdrop.querySelector('.workshop-login-panel');
+        this.loginUsernameInputEl = backdrop.querySelector('.workshop-login-input');
+        this.loginErrorEl = backdrop.querySelector('.workshop-login-error');
+        this.loginSubmitBtnEl = backdrop.querySelector('.workshop-login-submit');
+        this.loginFeishuBtnEl = backdrop.querySelector('.workshop-login-feishu');
+
+        backdrop.querySelector('.workshop-login-close').addEventListener('click', () => this._closeLoginPanel());
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) this._closeLoginPanel();
+        });
+        this.loginPanelEl.addEventListener('click', (e) => e.stopPropagation());
+        this.loginFeishuBtnEl.addEventListener('click', () => {
+            this._goFeishuLogin(this.loginPendingReturnTo || '/');
+        });
+        this.loginSubmitBtnEl.addEventListener('click', () => this._submitUsernameLogin());
+        this.loginUsernameInputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this._submitUsernameLogin();
+        });
+
+        this._loginPanelEscHandler = (e) => {
+            if (e.key === 'Escape' && this.loginPanelOpen) this._closeLoginPanel();
+        };
+    }
+
+    _removeLoginPanelDom() {
+        if (this._loginPanelEscHandler) {
+            document.removeEventListener('keydown', this._loginPanelEscHandler);
+            this._loginPanelEscHandler = null;
+        }
+        if (this.loginPanelBackdropEl) {
+            this.loginPanelBackdropEl.remove();
+            this.loginPanelBackdropEl = null;
+            this.loginPanelEl = null;
+            this.loginUsernameInputEl = null;
+            this.loginErrorEl = null;
+            this.loginSubmitBtnEl = null;
+            this.loginFeishuBtnEl = null;
+        }
+    }
+
+    _openLoginPanel(returnTo) {
+        this._closeMyLevelsMenu();
+        this._ensureLoginPanelDom();
+        this.loginPanelOpen = true;
+        this.loginPendingReturnTo = returnTo || null;
+        this.loginPanelBackdropEl.hidden = false;
+        if (this.loginErrorEl) this.loginErrorEl.textContent = '';
+        if (this.loginUsernameInputEl) {
+            this.loginUsernameInputEl.value = '';
+            this.loginUsernameInputEl.disabled = false;
+        }
+        if (this.loginSubmitBtnEl) {
+            this.loginSubmitBtnEl.disabled = false;
+            this.loginSubmitBtnEl.textContent = '使用用户名登录';
+        }
+        document.addEventListener('keydown', this._loginPanelEscHandler);
+        setTimeout(() => this.loginUsernameInputEl?.focus(), 0);
+    }
+
+    _closeLoginPanel() {
+        this.loginPanelOpen = false;
+        this.loginPendingReturnTo = null;
+        if (this.loginPanelBackdropEl) this.loginPanelBackdropEl.hidden = true;
+        if (this._loginPanelEscHandler) {
+            document.removeEventListener('keydown', this._loginPanelEscHandler);
+        }
+    }
+
+    async _submitUsernameLogin() {
+        if (!this.loginUsernameInputEl || this.loginSubmitting) return;
+        const userName = this.loginUsernameInputEl.value.trim();
+        if (!userName) {
+            if (this.loginErrorEl) this.loginErrorEl.textContent = '请输入用户名';
+            return;
+        }
+
+        this.loginSubmitting = true;
+        if (this.loginSubmitBtnEl) {
+            this.loginSubmitBtnEl.disabled = true;
+            this.loginSubmitBtnEl.textContent = '登录中…';
+        }
+        if (this.loginErrorEl) this.loginErrorEl.textContent = '';
+
+        try {
+            const auth = await WorkshopApi.loginWithUsername(userName);
+            this._updateAuthBar(auth);
+            const returnTo = this.loginPendingReturnTo;
+            this._closeLoginPanel();
+            if (returnTo) {
+                window.location.href = returnTo;
+            }
+        } catch (err) {
+            if (this.loginErrorEl) {
+                this.loginErrorEl.textContent = err.message || '登录失败';
+            }
+        } finally {
+            this.loginSubmitting = false;
+            if (this.loginSubmitBtnEl) {
+                this.loginSubmitBtnEl.disabled = false;
+                this.loginSubmitBtnEl.textContent = '使用用户名登录';
+            }
+        }
+    }
+
     async _onAvatarClick() {
         if (!this.authLoggedIn) {
-            sessionStorage.setItem('boot-scene', 'WorkshopScene');
-            window.location.href = WorkshopApi.getLoginUrl('/');
+            this._openLoginPanel('/');
             return;
         }
 
@@ -671,8 +933,7 @@ class WorkshopScene extends Phaser.Scene {
             return;
         }
 
-        sessionStorage.setItem('boot-scene', 'WorkshopScene');
-        window.location.href = WorkshopApi.getLoginUrl('/');
+        this._openLoginPanel('/');
     }
 
     // ============ 数据加载 ============
@@ -1109,8 +1370,7 @@ class WorkshopScene extends Phaser.Scene {
             }
         }
         if (!loggedIn) {
-            sessionStorage.setItem('boot-scene', 'WorkshopScene');
-            window.location.href = WorkshopApi.getLoginUrl('/ExtraTools/关卡编辑器/?mode=player');
+            this._openLoginPanel('/ExtraTools/关卡编辑器/?mode=player');
             return;
         }
         window.location.href = '/ExtraTools/关卡编辑器/?mode=player';

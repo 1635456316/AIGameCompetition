@@ -5,7 +5,10 @@ import { config } from './config.js';
 import { authRoutes } from './routes/auth.js';
 import { levelsRoutes } from './routes/levels.js';
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+    logger: true,
+    trustProxy: process.env.TRUST_PROXY !== 'false'
+});
 
 await app.register(fastifyCookie, {
     secret: config.cookieSecret

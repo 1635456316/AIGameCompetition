@@ -9,6 +9,7 @@ import {
     signSession
 } from '../services/feishuAuth.js';
 import { getSessionUser } from '../middleware/requireAuth.js';
+import { loginWithUsername } from '../services/usernameIpAuth.js';
 import { config } from '../config.js';
 
 export async function authRoutes(fastify) {
@@ -66,6 +67,24 @@ export async function authRoutes(fastify) {
             reply.redirect(buildSafeRedirectUrl(stateEntry.returnTo));
         } catch (err) {
             reply.code(500).send({ error: err.message || '飞书登录失败' });
+        }
+    });
+
+    fastify.post('/api/auth/username', async (request, reply) => {
+        try {
+            const user = await loginWithUsername(request);
+            const token = signSession(user);
+            reply.setCookie(getCookieName(), token, getCookieOptions());
+            return {
+                loggedIn: true,
+                userId: user.userId,
+                userName: user.userName,
+                avatarUrl: user.avatarUrl || ''
+            };
+        } catch (err) {
+            const message = err.message || '用户名登录失败';
+            const status = message.includes('已绑定') ? 403 : 400;
+            reply.code(status).send({ error: message });
         }
     });
 

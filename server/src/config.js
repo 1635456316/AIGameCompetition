@@ -20,5 +20,6 @@ export const config = {
     jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
     cookieSecret: process.env.COOKIE_SECRET || 'dev-cookie-secret',
     ugcRoot: path.join(__dirname, '..', 'data', 'ugc'),
+    authBindingsPath: path.join(__dirname, '..', 'data', 'auth', 'ip-bindings.json'),
     projectRoot: path.join(__dirname, '..', '..')
 };

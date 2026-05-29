@@ -20,7 +20,10 @@ class WorkshopApi {
         }
 
         if (!res.ok) {
-            const message = data?.error || `请求失败 (${res.status})`;
+            let message = data?.error || `请求失败 (${res.status})`;
+            if (res.status === 404 && message === 'Not Found' && String(url).startsWith('/api/')) {
+                message = '接口不存在，请重启 server（npm run dev 或 .\\server.ps1 restart dev）后重试';
+            }
             throw new Error(message);
         }
 
@@ -34,6 +37,13 @@ class WorkshopApi {
     static getLoginUrl(returnTo) {
         const encoded = encodeURIComponent(returnTo || '/ExtraTools/关卡编辑器/?mode=player');
         return `/api/auth/feishu?returnTo=${encoded}`;
+    }
+
+    static async loginWithUsername(userName) {
+        return this.fetchJson('/api/auth/username', {
+            method: 'POST',
+            body: JSON.stringify({ userName })
+        });
     }
 
     static async logout() {
