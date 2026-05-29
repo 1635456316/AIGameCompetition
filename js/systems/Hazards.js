@@ -1,13 +1,13 @@
-function hazardNumber(value, fallback) {
+function hazardNumber (value, fallback) {
     return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
 }
 
-function resolveElementBindId(cfg) {
+function resolveElementBindId (cfg) {
     const v = cfg?.bindId ?? cfg?.bindEnemyId;
     return v != null && v !== '' ? String(v) : '';
 }
 
-function playerOverlapsRect(player, x, y, w, h) {
+function playerOverlapsRect (player, x, y, w, h) {
     const body = player.body;
     if (!body) return false;
     const pRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
@@ -16,41 +16,41 @@ function playerOverlapsRect(player, x, y, w, h) {
 }
 
 /** 矩形区域（中心坐标）的底边中心 = 玩家脚底落点 */
-function zoneFeetPoint(x, y, w, h) {
+function zoneFeetPoint (x, y, w, h) {
     return { x, y: y + h / 2 };
 }
 
 /** 复活点：x,y 为脚底；触发区向上延伸 h */
-function checkpointTriggerFromFeet(feetX, feetY, w, h) {
+function checkpointTriggerFromFeet (feetX, feetY, w, h) {
     return { cx: feetX, cy: feetY - h / 2, w, h };
 }
 
-function playerOverlapsFeetZone(player, feetX, feetY, w, h) {
+function playerOverlapsFeetZone (player, feetX, feetY, w, h) {
     const t = checkpointTriggerFromFeet(feetX, feetY, w, h);
     return playerOverlapsRect(player, t.cx, t.cy, t.w, t.h);
 }
 
 /** period <= 0 表示常开；否则按周期与激活时长切换 */
-function electricIsActive(time, period, activeDuration) {
+function electricIsActive (time, period, activeDuration) {
     if (period <= 0) return true;
     const duration = Math.min(activeDuration, period);
     return (time % period) < duration;
 }
 
 class Hazards {
-    static spawn(scene, levelConfig) {
+    static spawn (scene, levelConfig) {
         const hazards = levelConfig.hazards || [];
         const spawned = hazards.map((cfg, index) => {
             switch (cfg.type) {
                 case 'electric': return new ElectricZone(scene, cfg);
-                case 'missile':  return new MissileStrike(scene, cfg);
-                case 'wind':     return new WindZone(scene, cfg);
+                case 'missile': return new MissileStrike(scene, cfg);
+                case 'wind': return new WindZone(scene, cfg);
                 case 'energy_drain': return new EnergyDrainZone(scene, cfg);
-                case 'crumble':  return new CrumblePlatform(scene, cfg);
+                case 'crumble': return new CrumblePlatform(scene, cfg);
                 case 'checkpoint': return new CheckpointZone(scene, cfg, index);
-                case 'death':    return new DeathZone(scene, cfg);
-                case 'hint':     return new HintZone(scene, cfg, index);
-                case 'trigger':  return new TriggerZone(scene, cfg, index);
+                case 'death': return new DeathZone(scene, cfg);
+                case 'hint': return new HintZone(scene, cfg, index);
+                case 'trigger': return new TriggerZone(scene, cfg, index);
                 case 'moving_platform': return new MovingPlatform(scene, cfg);
                 case 'triggered_platform': return new TriggeredPlatform(scene, cfg);
                 default: return null;
@@ -93,7 +93,7 @@ class ElectricZone {
         scene.physics.add.existing(this.zone, true);
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         const shouldActive = electricIsActive(time, this.period, this.activeDuration);
 
         if (shouldActive !== this.active) {
@@ -151,7 +151,7 @@ class CheckpointZone {
         });
     }
 
-    _spawnPoint() {
+    _spawnPoint () {
         return {
             x: this.feetX,
             y: this.feetY,
@@ -161,7 +161,7 @@ class CheckpointZone {
         };
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         if (player.fsm.is('dead')) return;
         if (!playerOverlapsFeetZone(player, this.feetX, this.feetY, this.w, this.h)) return;
 
@@ -208,7 +208,7 @@ class FinishZone {
         }).setOrigin(0.5).setDepth(46);
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         if (this.triggered || player.fsm.is('dead')) return;
         if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
 
@@ -232,7 +232,7 @@ class DeathZone {
         this._drawStripes();
     }
 
-    _drawStripes() {
+    _drawStripes () {
         const g = this.stripes;
         g.clear();
         g.lineStyle(2, 0xff8899, 0.45);
@@ -244,7 +244,7 @@ class DeathZone {
         }
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         if (player.fsm.is('dead')) return;
         if (time < player.invulnerableUntil) return;
         if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
@@ -270,7 +270,7 @@ class HintZone {
         this.removed = false;
     }
 
-    remove() {
+    remove () {
         if (this.removed) return;
         this.removed = true;
         if (this.scene._hintBannerOwner === this) {
@@ -281,7 +281,7 @@ class HintZone {
         this._bannerShown = false;
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         if (this.removed) return;
         if (player.fsm.is('dead')) return;
 
@@ -311,7 +311,7 @@ class HintZone {
     }
 }
 
-function resolveMissileConfig(cfg, scene) {
+function resolveMissileConfig (cfg, scene) {
     const groundY = scene.levelHeight - 64;
     if (typeof cfg.x === 'number' && typeof cfg.w === 'number') {
         return {
@@ -352,7 +352,7 @@ class MissileStrike {
         this.lastPeriod = -1;
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         if (this.interval <= 0) return;
         if (time < this.startDelay) return;
         const period = Math.floor((time - this.startDelay) / this.interval);
@@ -428,10 +428,9 @@ class WindZone {
             frequency: 55,
             emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, -this.h / 2, this.w, this.h) }
         }).setDepth(51);
-        this._playerInside = false;
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         const body = player.sprite.body;
         if (!body) return;
         const zBounds = new Phaser.Geom.Rectangle(
@@ -445,18 +444,14 @@ class WindZone {
             if (this.dirY > 0) {
                 player.sprite.y += this.dirY * pushAmount;
             } else if (this.dirY < 0) {
-                const deltaY = this.dirY * pushAmount;
-                const savedBodyX = body.x;
-                player.sprite.y += deltaY;
-                body.updateFromGameObject();
-                body.x = savedBodyX;
-                body.updateCenter();
+                const maxFallVelocity = hazardNumber(player.maxFallVelocity, body.maxVelocity?.y || PlayerConfig.maxFallVelocity);
+                const effectiveMaxFallVelocity = maxFallVelocity - this.force;
+                if (body.velocity.y > effectiveMaxFallVelocity) {
+                    body.setVelocityY(effectiveMaxFallVelocity);
+                }
             }
             if (this.dirX !== 0 || this.dirY !== 0) player.syncView?.();
-        } else if (this._playerInside && this.dirY < 0 && body.velocity.y > 0) {
-            body.setVelocityY(0);
         }
-        this._playerInside = inside;
     }
 }
 
@@ -488,7 +483,7 @@ class EnergyDrainZone {
         }
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         if (player.fsm.is('dead')) return;
         if (this.drainRate <= 0) return;
         if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
@@ -516,7 +511,7 @@ class CrumblePlatform {
         this.platform.setData('crumbleOwner', this);
     }
 
-    _syncPlatformBody() {
+    _syncPlatformBody () {
         const w = this.w;
         const h = this.h;
         this.platform.setDisplaySize(w, h);
@@ -533,7 +528,7 @@ class CrumblePlatform {
     }
 
     /** 由 GameScene 在碰撞/贴地/overlap 后回调，避免仅靠 update 轮询漏判 */
-    onPlayerStand(player) {
+    onPlayerStand (player) {
         if (this.destroyed || this.triggered || !player?.body) return;
         if (this.platform.getData('crumbleDisabled')) return;
         if (!this.platform?.body?.enable) return;
@@ -553,7 +548,7 @@ class CrumblePlatform {
         });
     }
 
-    _collapse() {
+    _collapse () {
         this.destroyed = true;
         Effects.explosion(this.scene, this.x, this.y, 0.5);
 
@@ -616,11 +611,11 @@ class TriggerZone {
         }
     }
 
-    onTriggered(cb) {
+    onTriggered (cb) {
         this._callbacks.push(cb);
     }
 
-    _fire() {
+    _fire () {
         if (this.removed) return;
         if (this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers) return;
         this.triggerCount++;
@@ -647,12 +642,12 @@ class TriggerZone {
     }
 
     /** 被玩家攻击命中时调用 */
-    onAttackHit() {
+    onAttackHit () {
         if (this.triggerMode !== 'attack') return;
         this._fire();
     }
 
-    update(time, delta, player) {
+    update (time, delta, player) {
         if (this.removed) return;
         if (this.triggerMode !== 'touch') return;
         if (player.fsm.is('dead')) return;
@@ -684,7 +679,7 @@ class MovingPlatform {
         this.platform.refreshBody();
     }
 
-    update(time, delta) {
+    update (time, delta) {
         const step = this.moveSpeed * (delta / 1000);
         this._progress += step * this._direction;
         if (this._progress >= this.moveRange) {
@@ -748,18 +743,18 @@ class TriggeredPlatform {
         this.platform.refreshBody();
     }
 
-    bindTrigger(trigger) {
+    bindTrigger (trigger) {
         if (!trigger) return;
         this._trigger = trigger;
         trigger.onTriggered(() => this._onTriggered());
     }
 
-    _onTriggered() {
+    _onTriggered () {
         if (this._state === 'moving') return;
         this._state = 'moving';
     }
 
-    update(time, delta) {
+    update (time, delta) {
         if (this._state === 'idle') return;
 
         if (this._state === 'moving') {
@@ -795,7 +790,7 @@ class TriggeredPlatform {
         }
     }
 
-    _applyPosition(delta) {
+    _applyPosition (delta) {
         let nx = this.originX;
         let ny = this.originY;
         if (this.moveAxis === 'x') nx = this.originX + this._progress;
