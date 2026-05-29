@@ -61,14 +61,38 @@ class WorkshopScene extends Phaser.Scene {
         this._createPagination(w);
         this._createBottomBar(w, h);
 
-        this.input.keyboard.on('keydown-ESC', () => this.scene.start('LevelSelectScene'));
-        this.input.keyboard.on('keydown-LEFT', () => this._moveFocus(-1));
-        this.input.keyboard.on('keydown-RIGHT', () => this._moveFocus(1));
-        this.input.keyboard.on('keydown-UP', () => this._moveFocus(-3));
-        this.input.keyboard.on('keydown-DOWN', () => this._moveFocus(3));
-        this.input.keyboard.on('keydown-PAGE_UP', () => this._gotoPage(this.pageIndex - 1));
-        this.input.keyboard.on('keydown-PAGE_DOWN', () => this._gotoPage(this.pageIndex + 1));
-        this.input.keyboard.on('keydown-ENTER', () => this._enterFocusedLevel());
+        this.input.keyboard.on('keydown-ESC', () => {
+            if (this.loginPanelOpen) return;
+            this.scene.start('LevelSelectScene');
+        });
+        this.input.keyboard.on('keydown-LEFT', () => {
+            if (this.loginPanelOpen) return;
+            this._moveFocus(-1);
+        });
+        this.input.keyboard.on('keydown-RIGHT', () => {
+            if (this.loginPanelOpen) return;
+            this._moveFocus(1);
+        });
+        this.input.keyboard.on('keydown-UP', () => {
+            if (this.loginPanelOpen) return;
+            this._moveFocus(-3);
+        });
+        this.input.keyboard.on('keydown-DOWN', () => {
+            if (this.loginPanelOpen) return;
+            this._moveFocus(3);
+        });
+        this.input.keyboard.on('keydown-PAGE_UP', () => {
+            if (this.loginPanelOpen) return;
+            this._gotoPage(this.pageIndex - 1);
+        });
+        this.input.keyboard.on('keydown-PAGE_DOWN', () => {
+            if (this.loginPanelOpen) return;
+            this._gotoPage(this.pageIndex + 1);
+        });
+        this.input.keyboard.on('keydown-ENTER', () => {
+            if (this.loginPanelOpen) return;
+            this._enterFocusedLevel();
+        });
 
         this._loadAuth();
         this._loadLevels();
@@ -407,11 +431,14 @@ class WorkshopScene extends Phaser.Scene {
                     align-items: center;
                     justify-content: center;
                     font-family: "Microsoft YaHei", Arial, sans-serif;
+                    pointer-events: auto;
+                    touch-action: none;
                 }
                 .workshop-login-backdrop[hidden] { display: none !important; }
                 .workshop-login-panel {
                     width: min(360px, calc(100vw - 32px));
                     padding: 22px 20px 18px;
+                    pointer-events: auto;
                     background: linear-gradient(180deg, rgba(8, 22, 40, 0.98) 0%, rgba(4, 13, 28, 0.99) 100%);
                     border: 1px solid rgba(95, 234, 255, 0.55);
                     border-radius: 12px;
@@ -551,6 +578,12 @@ class WorkshopScene extends Phaser.Scene {
         backdrop.addEventListener('click', (e) => {
             if (e.target === backdrop) this._closeLoginPanel();
         });
+        const blockPointerToGame = (e) => {
+            e.stopPropagation();
+        };
+        backdrop.addEventListener('pointerdown', blockPointerToGame, true);
+        backdrop.addEventListener('mousedown', blockPointerToGame, true);
+        backdrop.addEventListener('touchstart', blockPointerToGame, { capture: true, passive: false });
         this.loginPanelEl.addEventListener('click', (e) => e.stopPropagation());
         this.loginFeishuBtnEl.addEventListener('click', () => {
             this._goFeishuLogin(this.loginPendingReturnTo || '/');
@@ -581,12 +614,36 @@ class WorkshopScene extends Phaser.Scene {
         }
     }
 
+    _setLoginPanelInputBlock(blocked) {
+        if (blocked) {
+            if (this._loginPanelInputBlocked) return;
+            this._loginPanelInputBlocked = true;
+            this._loginPanelPrevInputEnabled = this.input.enabled;
+            this.input.enabled = false;
+            if (this.game?.canvas) {
+                this._loginPanelPrevCanvasPointerEvents = this.game.canvas.style.pointerEvents;
+                this.game.canvas.style.pointerEvents = 'none';
+            }
+            return;
+        }
+
+        if (!this._loginPanelInputBlocked) return;
+        this._loginPanelInputBlocked = false;
+        this.input.enabled = this._loginPanelPrevInputEnabled ?? true;
+        if (this.game?.canvas) {
+            this.game.canvas.style.pointerEvents = this._loginPanelPrevCanvasPointerEvents || '';
+        }
+        this._loginPanelPrevInputEnabled = undefined;
+        this._loginPanelPrevCanvasPointerEvents = undefined;
+    }
+
     _openLoginPanel(returnTo) {
         this._closeMyLevelsMenu();
         this._ensureLoginPanelDom();
         this.loginPanelOpen = true;
         this.loginPendingReturnTo = returnTo || null;
         this.loginPanelBackdropEl.hidden = false;
+        this._setLoginPanelInputBlock(true);
         if (this.loginErrorEl) this.loginErrorEl.textContent = '';
         if (this.loginUsernameInputEl) {
             this.loginUsernameInputEl.value = '';
@@ -603,6 +660,7 @@ class WorkshopScene extends Phaser.Scene {
     _closeLoginPanel() {
         this.loginPanelOpen = false;
         this.loginPendingReturnTo = null;
+        this._setLoginPanelInputBlock(false);
         if (this.loginPanelBackdropEl) this.loginPanelBackdropEl.hidden = true;
         if (this._loginPanelEscHandler) {
             document.removeEventListener('keydown', this._loginPanelEscHandler);
@@ -629,7 +687,7 @@ class WorkshopScene extends Phaser.Scene {
             this._updateAuthBar(auth);
             const returnTo = this.loginPendingReturnTo;
             this._closeLoginPanel();
-            if (returnTo) {
+            if (returnTo && returnTo !== '/') {
                 window.location.href = returnTo;
             }
         } catch (err) {
@@ -647,7 +705,7 @@ class WorkshopScene extends Phaser.Scene {
 
     async _onAvatarClick() {
         if (!this.authLoggedIn) {
-            this._openLoginPanel('/');
+            this._openLoginPanel();
             return;
         }
 
@@ -933,7 +991,7 @@ class WorkshopScene extends Phaser.Scene {
             return;
         }
 
-        this._openLoginPanel('/');
+        this._openLoginPanel();
     }
 
     // ============ 数据加载 ============
