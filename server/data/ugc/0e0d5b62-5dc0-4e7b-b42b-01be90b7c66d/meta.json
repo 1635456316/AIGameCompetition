@@ -6,5 +6,9 @@
   "authorName": "龙心",
   "authorAvatar": "",
   "createdAt": 1780066391879,
-  "updatedAt": 1780066391879
+  "updatedAt": 1780066391879,
+  "likedBy": [
+    "local:龙心"
+  ],
+  "likeCount": 1
 }

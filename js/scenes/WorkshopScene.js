@@ -24,6 +24,8 @@ class WorkshopScene extends Phaser.Scene {
         this.myLevelsLoading = false;
         this.loginPanelOpen = false;
         this.loginPendingReturnTo = null;
+        this.detailPanelOpen = false;
+        this.detailLevel = null;
         this.levelCards = [];
         this.textResolution = Math.max(2, Math.min(3, (window.devicePixelRatio || 1) * 1.5));
     }
@@ -62,36 +64,40 @@ class WorkshopScene extends Phaser.Scene {
         this._createBottomBar(w, h);
 
         this.input.keyboard.on('keydown-ESC', () => {
+            if (this.detailPanelOpen) {
+                this._closeLevelDetailPanel();
+                return;
+            }
             if (this.loginPanelOpen) return;
             this.scene.start('LevelSelectScene');
         });
         this.input.keyboard.on('keydown-LEFT', () => {
-            if (this.loginPanelOpen) return;
+            if (this.detailPanelOpen || this.loginPanelOpen) return;
             this._moveFocus(-1);
         });
         this.input.keyboard.on('keydown-RIGHT', () => {
-            if (this.loginPanelOpen) return;
+            if (this.detailPanelOpen || this.loginPanelOpen) return;
             this._moveFocus(1);
         });
         this.input.keyboard.on('keydown-UP', () => {
-            if (this.loginPanelOpen) return;
+            if (this.detailPanelOpen || this.loginPanelOpen) return;
             this._moveFocus(-3);
         });
         this.input.keyboard.on('keydown-DOWN', () => {
-            if (this.loginPanelOpen) return;
+            if (this.detailPanelOpen || this.loginPanelOpen) return;
             this._moveFocus(3);
         });
         this.input.keyboard.on('keydown-PAGE_UP', () => {
-            if (this.loginPanelOpen) return;
+            if (this.detailPanelOpen || this.loginPanelOpen) return;
             this._gotoPage(this.pageIndex - 1);
         });
         this.input.keyboard.on('keydown-PAGE_DOWN', () => {
-            if (this.loginPanelOpen) return;
+            if (this.detailPanelOpen || this.loginPanelOpen) return;
             this._gotoPage(this.pageIndex + 1);
         });
         this.input.keyboard.on('keydown-ENTER', () => {
-            if (this.loginPanelOpen) return;
-            this._enterFocusedLevel();
+            if (this.detailPanelOpen || this.loginPanelOpen) return;
+            this._openFocusedLevelDetail();
         });
 
         this._loadAuth();
@@ -104,6 +110,8 @@ class WorkshopScene extends Phaser.Scene {
         this.scale.off('resize', this._onScaleResize, this);
         this._closeMyLevelsMenu();
         this._removeMyLevelsMenuDom();
+        this._closeLevelDetailPanel();
+        this._removeLevelDetailPanelDom();
         this._closeLoginPanel();
         this._removeLoginPanelDom();
     }
@@ -371,7 +379,7 @@ class WorkshopScene extends Phaser.Scene {
             this.scene.restart();
         }, { color: 0x5feaff });
 
-        this._addText(w / 2, h - 18, '← →  切换    ↑ ↓  翻页    ENTER  游玩    ESC  返回', {
+        this._addText(w / 2, h - 18, '← →  切换    ↑ ↓  翻页    ENTER  详情    ESC  返回', {
             font: 'bold 11px Microsoft YaHei, Arial',
             color: '#7f99b3'
         }).setOrigin(0.5).setDepth(20);
@@ -639,6 +647,7 @@ class WorkshopScene extends Phaser.Scene {
 
     _openLoginPanel(returnTo) {
         this._closeMyLevelsMenu();
+        this._closeLevelDetailPanel();
         this._ensureLoginPanelDom();
         this.loginPanelOpen = true;
         this.loginPendingReturnTo = returnTo || null;
@@ -664,6 +673,312 @@ class WorkshopScene extends Phaser.Scene {
         if (this.loginPanelBackdropEl) this.loginPanelBackdropEl.hidden = true;
         if (this._loginPanelEscHandler) {
             document.removeEventListener('keydown', this._loginPanelEscHandler);
+        }
+    }
+
+    // ============ 关卡详情面板 ============
+
+    _ensureLevelDetailPanelDom() {
+        if (this.detailPanelBackdropEl) return;
+
+        if (!document.getElementById('workshop-detail-panel-styles')) {
+            const style = document.createElement('style');
+            style.id = 'workshop-detail-panel-styles';
+            style.textContent = `
+                .workshop-detail-backdrop {
+                    position: fixed;
+                    inset: 0;
+                    z-index: 10000;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(4, 8, 20, 0.72);
+                    backdrop-filter: blur(4px);
+                }
+                .workshop-detail-backdrop[hidden] { display: none !important; }
+                .workshop-detail-panel {
+                    width: min(420px, calc(100vw - 32px));
+                    padding: 22px 24px 20px;
+                    border-radius: 10px;
+                    border: 1px solid rgba(95, 234, 255, 0.55);
+                    background: linear-gradient(180deg, rgba(8, 22, 40, 0.96) 0%, rgba(4, 13, 28, 0.98) 100%);
+                    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 95, 185, 0.12) inset;
+                    color: #cfe6f5;
+                    font-family: "Microsoft YaHei", Arial, sans-serif;
+                }
+                .workshop-detail-header {
+                    display: flex;
+                    align-items: flex-start;
+                    justify-content: space-between;
+                    gap: 12px;
+                    margin-bottom: 10px;
+                }
+                .workshop-detail-title {
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #5feaff;
+                    line-height: 1.3;
+                }
+                .workshop-detail-close {
+                    border: none;
+                    background: transparent;
+                    color: #8fbfd6;
+                    font-size: 24px;
+                    line-height: 1;
+                    cursor: pointer;
+                    padding: 0 4px;
+                }
+                .workshop-detail-close:hover { color: #ffffff; }
+                .workshop-detail-meta {
+                    font-size: 13px;
+                    color: #8fbfd6;
+                    margin-bottom: 8px;
+                }
+                .workshop-detail-desc {
+                    font-size: 13px;
+                    color: #9fb0c8;
+                    line-height: 1.5;
+                    margin-bottom: 14px;
+                    min-height: 20px;
+                }
+                .workshop-detail-stats {
+                    font-size: 12px;
+                    color: #ffd76b;
+                    margin-bottom: 18px;
+                }
+                .workshop-detail-actions {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 10px;
+                }
+                .workshop-detail-btn {
+                    height: 40px;
+                    border-radius: 6px;
+                    border: 1px solid rgba(95, 234, 255, 0.65);
+                    background: rgba(95, 234, 255, 0.12);
+                    color: #cfe6f5;
+                    font-size: 14px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: background 0.15s, color 0.15s, border-color 0.15s;
+                }
+                .workshop-detail-btn:hover:not(:disabled) {
+                    background: rgba(95, 234, 255, 0.28);
+                    color: #ffffff;
+                }
+                .workshop-detail-btn:disabled {
+                    opacity: 0.55;
+                    cursor: not-allowed;
+                }
+                .workshop-detail-btn.primary {
+                    border-color: rgba(255, 95, 185, 0.8);
+                    background: rgba(255, 95, 185, 0.18);
+                    color: #ffffff;
+                }
+                .workshop-detail-btn.primary:hover:not(:disabled) {
+                    background: rgba(255, 95, 185, 0.32);
+                }
+                .workshop-detail-btn.liked {
+                    border-color: rgba(255, 143, 191, 0.9);
+                    background: rgba(255, 95, 185, 0.24);
+                    color: #ffffff;
+                }
+                .workshop-detail-error {
+                    margin-top: 12px;
+                    font-size: 12px;
+                    color: #ff8fbf;
+                    min-height: 16px;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const backdrop = document.createElement('div');
+        backdrop.id = 'workshop-detail-backdrop';
+        backdrop.className = 'workshop-detail-backdrop';
+        backdrop.hidden = true;
+        backdrop.innerHTML = `
+            <div class="workshop-detail-panel" role="dialog" aria-labelledby="workshop-detail-title">
+                <div class="workshop-detail-header">
+                    <div class="workshop-detail-title" id="workshop-detail-title">关卡详情</div>
+                    <button type="button" class="workshop-detail-close" aria-label="关闭">×</button>
+                </div>
+                <div class="workshop-detail-meta"></div>
+                <div class="workshop-detail-desc"></div>
+                <div class="workshop-detail-stats"></div>
+                <div class="workshop-detail-actions">
+                    <button type="button" class="workshop-detail-btn primary" data-action="start">开始</button>
+                    <button type="button" class="workshop-detail-btn" data-action="import">导入编辑器</button>
+                    <button type="button" class="workshop-detail-btn" data-action="like">点赞</button>
+                </div>
+                <div class="workshop-detail-error"></div>
+            </div>`;
+        document.body.appendChild(backdrop);
+
+        this.detailPanelBackdropEl = backdrop;
+        this.detailPanelEl = backdrop.querySelector('.workshop-detail-panel');
+        this.detailTitleEl = backdrop.querySelector('.workshop-detail-title');
+        this.detailMetaEl = backdrop.querySelector('.workshop-detail-meta');
+        this.detailDescEl = backdrop.querySelector('.workshop-detail-desc');
+        this.detailStatsEl = backdrop.querySelector('.workshop-detail-stats');
+        this.detailErrorEl = backdrop.querySelector('.workshop-detail-error');
+        this.detailStartBtnEl = backdrop.querySelector('[data-action="start"]');
+        this.detailImportBtnEl = backdrop.querySelector('[data-action="import"]');
+        this.detailLikeBtnEl = backdrop.querySelector('[data-action="like"]');
+
+        backdrop.querySelector('.workshop-detail-close').addEventListener('click', () => this._closeLevelDetailPanel());
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) this._closeLevelDetailPanel();
+        });
+        this.detailStartBtnEl.addEventListener('click', () => this._onDetailStart());
+        this.detailImportBtnEl.addEventListener('click', () => this._onDetailImport());
+        this.detailLikeBtnEl.addEventListener('click', () => this._onDetailLike());
+    }
+
+    _removeLevelDetailPanelDom() {
+        if (this.detailPanelBackdropEl) {
+            this.detailPanelBackdropEl.remove();
+            this.detailPanelBackdropEl = null;
+            this.detailPanelEl = null;
+            this.detailTitleEl = null;
+            this.detailMetaEl = null;
+            this.detailDescEl = null;
+            this.detailStatsEl = null;
+            this.detailErrorEl = null;
+            this.detailStartBtnEl = null;
+            this.detailImportBtnEl = null;
+            this.detailLikeBtnEl = null;
+        }
+    }
+
+    _updateLevelDetailPanel() {
+        const level = this.detailLevel;
+        if (!level || !this.detailTitleEl) return;
+
+        this.detailTitleEl.textContent = level.title || '未命名关卡';
+        this.detailMetaEl.textContent = `${level.authorName || '未知作者'}  ·  ${this._formatDate(level.createdAt) || '未知日期'}`;
+        this.detailDescEl.textContent = (level.description || '').trim() || '暂无简介';
+        this.detailStatsEl.textContent = `♥ ${level.likeCount || 0} 点赞${level.likedByMe ? '（已赞）' : ''}`;
+
+        if (this.detailLikeBtnEl) {
+            this.detailLikeBtnEl.textContent = level.likedByMe ? '已点赞' : '点赞';
+            this.detailLikeBtnEl.classList.toggle('liked', !!level.likedByMe);
+            this.detailLikeBtnEl.disabled = false;
+        }
+        if (this.detailErrorEl) this.detailErrorEl.textContent = '';
+    }
+
+    _syncLevelInList(updatedLevel) {
+        const idx = this.levels.findIndex(item => item.id === updatedLevel.id);
+        if (idx >= 0) {
+            this.levels[idx] = { ...this.levels[idx], ...updatedLevel };
+        }
+        const card = this.levelCards.find(item => item.level.id === updatedLevel.id);
+        if (card) {
+            card.level = { ...card.level, ...updatedLevel };
+            const cached = LevelThumbnail.cache.get(updatedLevel.id);
+            const info = cached?.level ? LevelThumbnail.analyze(cached.level) : null;
+            card.statText.setText(this._formatStatLine(card.level, info));
+            if (info) card.statText.setColor('#ffd76b');
+        }
+    }
+
+    _openLevelDetailPanel(level) {
+        if (!level) return;
+        this._closeMyLevelsMenu();
+        this._closeLoginPanel();
+        this._ensureLevelDetailPanelDom();
+        this.detailPanelOpen = true;
+        this.detailLevel = { ...level };
+        this.detailPanelBackdropEl.hidden = false;
+        this._setLoginPanelInputBlock(true);
+        this._updateLevelDetailPanel();
+    }
+
+    _closeLevelDetailPanel() {
+        this.detailPanelOpen = false;
+        this.detailLevel = null;
+        this._setLoginPanelInputBlock(false);
+        if (this.detailPanelBackdropEl) this.detailPanelBackdropEl.hidden = true;
+    }
+
+    async _onDetailStart() {
+        const level = this.detailLevel;
+        if (!level) return;
+        this._closeLevelDetailPanel();
+        await this._enterLevel(level.id);
+    }
+
+    async _onDetailImport() {
+        const level = this.detailLevel;
+        if (!level) return;
+
+        let loggedIn = this.authLoggedIn;
+        if (!loggedIn) {
+            try {
+                const auth = await WorkshopApi.checkAuth();
+                loggedIn = !!auth.loggedIn;
+                if (loggedIn) this._updateAuthBar(auth);
+            } catch {
+                loggedIn = false;
+            }
+        }
+        if (!loggedIn) {
+            this._openLoginPanel('/ExtraTools/关卡编辑器/?mode=player');
+            return;
+        }
+
+        if (this.detailImportBtnEl) this.detailImportBtnEl.disabled = true;
+        if (this.detailErrorEl) this.detailErrorEl.textContent = '';
+
+        try {
+            await WorkshopApi.importToEditor(level.id);
+        } catch (err) {
+            if (this.detailErrorEl) {
+                this.detailErrorEl.textContent = err.message || '导入失败';
+            }
+            if (this.detailImportBtnEl) this.detailImportBtnEl.disabled = false;
+        }
+    }
+
+    async _onDetailLike() {
+        const level = this.detailLevel;
+        if (!level) return;
+
+        let loggedIn = this.authLoggedIn;
+        if (!loggedIn) {
+            try {
+                const auth = await WorkshopApi.checkAuth();
+                loggedIn = !!auth.loggedIn;
+                if (loggedIn) this._updateAuthBar(auth);
+            } catch {
+                loggedIn = false;
+            }
+        }
+        if (!loggedIn) {
+            this._openLoginPanel(window.location.pathname + window.location.search);
+            return;
+        }
+
+        if (this.detailLikeBtnEl) this.detailLikeBtnEl.disabled = true;
+        if (this.detailErrorEl) this.detailErrorEl.textContent = '';
+
+        try {
+            const data = await WorkshopApi.likeLevel(level.id);
+            const updated = {
+                id: level.id,
+                likeCount: data.likeCount,
+                likedByMe: !!data.liked
+            };
+            this.detailLevel = { ...this.detailLevel, ...updated };
+            this._syncLevelInList(updated);
+            this._updateLevelDetailPanel();
+        } catch (err) {
+            if (this.detailErrorEl) {
+                this.detailErrorEl.textContent = err.message || '点赞失败';
+            }
+        } finally {
+            if (this.detailLikeBtnEl) this.detailLikeBtnEl.disabled = false;
         }
     }
 
@@ -1198,7 +1513,7 @@ class WorkshopScene extends Phaser.Scene {
         );
 
         const statY = halfH - 12;
-        const statText = this._addText(0, statY, '— 关卡详情加载中 —', {
+        const statText = this._addText(0, statY, this._formatStatLine(level, null), {
             font: '11px Microsoft YaHei, Arial',
             color: '#5a7080'
         }).setOrigin(0.5);
@@ -1232,7 +1547,7 @@ class WorkshopScene extends Phaser.Scene {
         hit.on('pointerdown', () => {
             this.focusIndex = localIndex;
             this._updateCardFocus();
-            this._enterLevel(level.id);
+            this._openLevelDetailPanel(level);
         });
 
         this._loadCardThumbnail(card);
@@ -1251,9 +1566,7 @@ class WorkshopScene extends Phaser.Scene {
             this.tweens.add({ targets: card.thumbLoading, alpha: 0, duration: 200, onComplete: () => card.thumbLoading.setVisible(false) });
 
             const info = LevelThumbnail.analyze(level || {});
-            const stars = '★'.repeat(info.difficulty) + '☆'.repeat(5 - info.difficulty);
-            const counts = `${stars}    平台 ${info.platformCount}  ·  敌人 ${info.enemyCount}`;
-            card.statText.setText(counts);
+            card.statText.setText(this._formatStatLine(card.level, info));
             card.statText.setColor('#ffd76b');
 
             this._appendModeTag(card, info);
@@ -1268,7 +1581,7 @@ class WorkshopScene extends Phaser.Scene {
         if (!info.isBoss && !info.isFinish) return;
         const tag = info.isBoss
             ? { label: 'BOSS', fg: '#ffffff', bg: 0xff2b2b, bgAlpha: 0.85, border: 0xff5fb9 }
-            : { label: '通关', fg: '#001a33', bg: 0xffd400, bgAlpha: 0.9, border: 0xffd400 };
+            : { label: '终点', fg: '#001a33', bg: 0xffd400, bgAlpha: 0.9, border: 0xffd400 };
 
         const tagText = this._addText(0, 0, tag.label, {
             font: 'bold 10px Microsoft YaHei, Arial',
@@ -1296,9 +1609,9 @@ class WorkshopScene extends Phaser.Scene {
 
     _buildTagsForLevel(level) {
         const tags = [];
-        const now = Date.now();
+        const createdAt = Number(level.createdAt);
         const sevenDays = 7 * 24 * 3600 * 1000;
-        if (level.createdAt && now - level.createdAt < sevenDays) {
+        if (Number.isFinite(createdAt) && createdAt > 0 && Date.now() - createdAt < sevenDays) {
             tags.push({
                 label: '新作',
                 fg: '#ffffff',
@@ -1307,7 +1620,23 @@ class WorkshopScene extends Phaser.Scene {
                 border: 0xff5fb9
             });
         }
+        if ((level.likeCount || 0) >= 10) {
+            tags.push({
+                label: '热门',
+                fg: '#001a33',
+                bg: 0xffd400,
+                bgAlpha: 0.9,
+                border: 0xffd400
+            });
+        }
         return tags;
+    }
+
+    _formatStatLine(level, info) {
+        const likePart = `♥ ${level.likeCount || 0}`;
+        if (!info) return likePart;
+        const stars = '★'.repeat(info.difficulty) + '☆'.repeat(5 - info.difficulty);
+        return `${stars}    平台 ${info.platformCount}  ·  敌人 ${info.enemyCount}  ·  ${likePart}`;
     }
 
     _showEmpty(title, desc) {
@@ -1396,9 +1725,9 @@ class WorkshopScene extends Phaser.Scene {
         bg.fillRect(-halfW + 1, halfH - 2, cardW - 2, 1);
     }
 
-    _enterFocusedLevel() {
+    _openFocusedLevelDetail() {
         const card = this.levelCards[this.focusIndex];
-        if (card) this._enterLevel(card.level.id);
+        if (card) this._openLevelDetailPanel(card.level);
     }
 
     async _enterLevel(levelId) {

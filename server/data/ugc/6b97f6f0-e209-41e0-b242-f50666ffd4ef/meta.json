@@ -5,5 +5,9 @@
   "authorId": "eb7fg858",
   "authorName": "龙心",
   "createdAt": 1779970417814,
-  "updatedAt": 1779970417814
+  "updatedAt": 1779970417814,
+  "likedBy": [
+    "local:龙心"
+  ],
+  "likeCount": 1
 }

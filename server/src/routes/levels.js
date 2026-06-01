@@ -5,15 +5,23 @@ import {
     deleteLevel,
     getLevel,
     getLevelFilePath,
+    getLikeInfo,
     listLevels,
-    listLevelsByAuthor
+    listLevelsByAuthor,
+    toggleLike
 } from '../services/ugcStorage.js';
-import { requireAuth } from '../middleware/requireAuth.js';
+import { requireAuth, getSessionUser } from '../middleware/requireAuth.js';
 
 export async function levelsRoutes(fastify) {
-    fastify.get('/api/levels', async () => {
+    fastify.get('/api/levels', async (request) => {
+        const user = getSessionUser(request);
         const levels = await listLevels();
-        return { levels };
+        return {
+            levels: levels.map(({ likedBy, ...level }) => ({
+                ...level,
+                likedByMe: user ? likedBy.includes(user.userId) : false
+            }))
+        };
     });
 
     fastify.get('/api/levels/mine', async (request, reply) => {
@@ -29,10 +37,28 @@ export async function levelsRoutes(fastify) {
             reply.code(404).send({ error: '关卡不存在' });
             return;
         }
+        const user = getSessionUser(request);
+        const likeInfo = getLikeInfo(data.meta, user?.userId);
+        const { likedBy, ...metaPublic } = data.meta;
         return {
-            meta: data.meta,
+            meta: {
+                ...metaPublic,
+                likeCount: likeInfo.likeCount,
+                likedByMe: likeInfo.likedByMe
+            },
             level: data.level
         };
+    });
+
+    fastify.post('/api/levels/:id/like', async (request, reply) => {
+        if (!(await requireAuth(request, reply))) return;
+
+        const result = await toggleLike(request.params.id, request.user.userId);
+        if (!result.ok) {
+            reply.code(result.error === '关卡不存在' ? 404 : 400).send({ error: result.error });
+            return;
+        }
+        return { likeCount: result.likeCount, liked: result.liked };
     });
 
     fastify.post('/api/levels', async (request, reply) => {

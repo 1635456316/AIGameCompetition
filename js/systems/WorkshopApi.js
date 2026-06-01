@@ -68,6 +68,43 @@ class WorkshopApi {
         return this.fetchJson(`/api/levels/${encodeURIComponent(levelId)}`, { method: 'DELETE' });
     }
 
+    static async likeLevel(levelId) {
+        return this.fetchJson(`/api/levels/${encodeURIComponent(levelId)}/like`, { method: 'POST' });
+    }
+
+    static async importToEditor(levelId) {
+        const data = await this.fetchLevel(levelId);
+        const draftId = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `draft_${Date.now()}`;
+        const levelJson = data.level || {};
+
+        await new Promise((resolve, reject) => {
+            const req = indexedDB.open('workshop-editor', 1);
+            req.onupgradeneeded = () => req.result.createObjectStore('drafts');
+            req.onsuccess = () => {
+                const db = req.result;
+                const tx = db.transaction('drafts', 'readwrite');
+                tx.objectStore('drafts').put({
+                    draftId,
+                    levelJson,
+                    updatedAt: Date.now()
+                }, draftId);
+                tx.oncomplete = () => {
+                    db.close();
+                    resolve();
+                };
+                tx.onerror = () => reject(tx.error);
+            };
+            req.onerror = () => reject(req.error);
+        });
+
+        sessionStorage.setItem('editor-draft-id', draftId);
+        sessionStorage.removeItem('editor-test-pass');
+        sessionStorage.setItem('boot-scene', 'WorkshopScene');
+        window.location.href = '/ExtraTools/关卡编辑器/?mode=player';
+    }
+
     static async publishLevel({ title, description, levelData, testPass }) {
         return this.fetchJson('/api/levels', {
             method: 'POST',

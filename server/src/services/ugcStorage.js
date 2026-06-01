@@ -31,6 +31,7 @@ export async function listLevels() {
         const metaPath = path.join(config.ugcRoot, entry.name, META_FILE);
         try {
             const meta = await readJson(metaPath);
+            const likedBy = Array.isArray(meta.likedBy) ? meta.likedBy : [];
             levels.push({
                 id: meta.id || entry.name,
                 title: meta.title || '未命名关卡',
@@ -39,7 +40,9 @@ export async function listLevels() {
                 authorName: meta.authorName || '未知作者',
                 authorAvatar: meta.authorAvatar || '',
                 createdAt: meta.createdAt || 0,
-                updatedAt: meta.updatedAt || 0
+                updatedAt: meta.updatedAt || 0,
+                likeCount: typeof meta.likeCount === 'number' ? meta.likeCount : likedBy.length,
+                likedBy
             });
         } catch {
             // skip invalid folders
@@ -264,6 +267,46 @@ export async function updateLevel({ levelId, authorId, authorName, authorAvatar,
 export async function listLevelsByAuthor(authorId) {
     const levels = await listLevels();
     return levels.filter(l => l.authorId === authorId);
+}
+
+function normalizeLikedBy(meta) {
+    const likedBy = Array.isArray(meta.likedBy) ? meta.likedBy.filter(id => typeof id === 'string' && id) : [];
+    meta.likedBy = likedBy;
+    meta.likeCount = likedBy.length;
+    return meta;
+}
+
+export async function toggleLike(levelId, userId) {
+    if (!isUuidLike(levelId)) return { ok: false, error: '关卡不存在' };
+    if (!userId) return { ok: false, error: '未登录' };
+
+    const data = await getLevel(levelId);
+    if (!data) return { ok: false, error: '关卡不存在' };
+
+    const meta = normalizeLikedBy({ ...data.meta });
+    const idx = meta.likedBy.indexOf(userId);
+    let liked;
+    if (idx >= 0) {
+        meta.likedBy.splice(idx, 1);
+        liked = false;
+    } else {
+        meta.likedBy.push(userId);
+        liked = true;
+    }
+    meta.likeCount = meta.likedBy.length;
+
+    const metaPath = path.join(config.ugcRoot, levelId, META_FILE);
+    await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+
+    return { ok: true, likeCount: meta.likeCount, liked };
+}
+
+export function getLikeInfo(meta, userId) {
+    const normalized = normalizeLikedBy({ ...(meta || {}) });
+    return {
+        likeCount: normalized.likeCount,
+        likedByMe: !!(userId && normalized.likedBy.includes(userId))
+    };
 }
 
 export async function deleteLevel(levelId, authorId) {
