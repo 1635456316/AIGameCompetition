@@ -1410,6 +1410,9 @@ class GameScene extends Phaser.Scene {
 
         // 目标瞬移后必须立刻重置镜头；否则 startFollow 的 lerp 会从死亡位置慢慢追，
         // 离复活点越远，画面与角色世界坐标看起来偏差越大。
+        this.hazards?.forEach(h => {
+            if (typeof h.resetCameraCut === 'function') h.resetCameraCut();
+        });
         this._startCameraFollow({ instant: true });
 
         const cam = this.cameras.main;

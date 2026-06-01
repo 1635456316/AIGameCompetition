@@ -66,7 +66,7 @@ const LevelEditorSchema = (() => {
                 { kind: 'crumble', label: '坍塌平台', icon: '▧', color: '#ff8800' },
                 { kind: 'death', label: '必死区', icon: '☠', color: '#ff2244' },
                 { kind: 'hint', label: '提示区', icon: '💬', color: '#ffdd44' },
-                { kind: 'trigger', label: '触发器', icon: '🔔', color: '#ff99cc' },
+                { kind: 'trigger', label: '触发器', icon: '👆', color: '#ff99cc' },
                 { kind: 'moving_platform', label: '移动平台(自动)', icon: '⇔', color: '#55cc88' },
                 { kind: 'triggered_platform', label: '移动平台(触发)', icon: '⇌', color: '#55aacc' }
             ]
@@ -86,7 +86,8 @@ const LevelEditorSchema = (() => {
                 { kind: 'checkpoint', label: '复活点', icon: '⛳', color: '#44cc88' },
                 { kind: 'boss', label: 'Boss 位置', icon: '👹', color: '#cc44ff' },
                 { kind: 'boss_trigger', label: 'Boss 触发框', icon: '⬚', color: '#ff6688' },
-                { kind: 'finish', label: '终点', icon: '🏁', color: '#ffcc44' }
+                { kind: 'finish', label: '终点', icon: '🏁', color: '#ffcc44' },
+                { kind: 'camera_cut', label: '镜头 Cut', icon: '🎬', color: '#aa88ff' }
             ]
         }
     ];
@@ -325,18 +326,56 @@ const LevelEditorSchema = (() => {
                 delete out.bindEnemyId;
             }
             if (out.type === 'trigger') {
-                if (out.triggerId != null && out.triggerId !== '') {
-                    out.triggerId = String(out.triggerId);
-                }
-                delete out.bindHintIds;
-                delete out.bindSystemWallIds;
+                out = normalizeTrigger(out);
             }
             if (out.type === 'triggered_platform' && out.triggerId != null && out.triggerId !== '') {
                 out.triggerId = String(out.triggerId);
             }
+            if (out.type === 'camera_cut') {
+                out = normalizeCameraCut(out);
+            }
             return out;
         });
         return level;
+    }
+
+    /** 触碰 👆，攻击 ⚔（与运行时 Hazards.js 一致） */
+    function triggerModeIcon(mode) {
+        return mode === 'attack' ? '⚔' : '👆';
+    }
+
+    function normalizeTrigger(h) {
+        const out = { ...h };
+        if (out.triggerId != null && out.triggerId !== '') {
+            out.triggerId = String(out.triggerId);
+        }
+        out.triggerMode = out.triggerMode === 'attack' ? 'attack' : 'touch';
+        if (out.triggerMode === 'attack') {
+            delete out.showVisual;
+        } else if (out.showVisual === false) {
+            out.showVisual = false;
+        } else {
+            delete out.showVisual;
+        }
+        delete out.bindHintIds;
+        delete out.bindSystemWallIds;
+        return out;
+    }
+
+    /** 镜头 Cut：绑定触发器后切换镜头焦点；玩家离开区域时按退出方式恢复跟随 */
+    function normalizeCameraCut(h) {
+        return {
+            type: 'camera_cut',
+            x: h.x,
+            y: h.y,
+            w: Math.max(16, h.w ?? 320),
+            h: Math.max(16, h.h ?? 240),
+            triggerId: h.triggerId != null && h.triggerId !== '' ? String(h.triggerId) : '',
+            enterMode: h.enterMode === 'move' ? 'move' : 'instant',
+            enterDuration: Math.max(0, hazardNumber(h.enterDuration, 800)),
+            exitMode: h.exitMode === 'move' ? 'move' : 'instant',
+            exitDuration: Math.max(0, hazardNumber(h.exitDuration, 500))
+        };
     }
 
     /** 坍塌平台：x,y 为中心，w/h 可调整 */
@@ -467,6 +506,8 @@ const LevelEditorSchema = (() => {
                 return { category: 'hazards', data: { type: 'moving_platform', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, moveAxis: 'x', moveRange: 200, moveSpeed: 80 } };
             case 'triggered_platform':
                 return { category: 'hazards', data: { type: 'triggered_platform', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, triggerId: '', moveAxis: 'x', moveRange: 200, moveSpeed: 80, autoReturn: true, returnMode: 'reverse', returnDelay: 2000 } };
+            case 'camera_cut':
+                return { category: 'hazards', data: { type: 'camera_cut', x: sx, y: sy, w: 320, h: 240, triggerId: '', enterMode: 'move', enterDuration: 800, exitMode: 'instant', exitDuration: 500 } };
             case 'spawn_melee':
                 return { category: 'spawns', data: { type: 'melee', x: sx, y: sy } };
             case 'spawn_ranged':
@@ -520,7 +561,7 @@ const LevelEditorSchema = (() => {
                     const h = data.h ?? 60;
                     return checkpointBounds(data.x, data.y, w, h);
                 }
-                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind' || data.type === 'energy_drain' || data.type === 'trigger' || data.type === 'moving_platform' || data.type === 'triggered_platform') {
+                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind' || data.type === 'energy_drain' || data.type === 'trigger' || data.type === 'moving_platform' || data.type === 'triggered_platform' || data.type === 'camera_cut') {
                     return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
                 }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
@@ -586,7 +627,8 @@ const LevelEditorSchema = (() => {
                     electric: '电磁区', wind: '风力区', energy_drain: '能量损失区',
                     missile: '导弹', crumble: '坍塌',
                     checkpoint: '复活点', death: '必死区', hint: '提示区',
-                    trigger: '触发器', moving_platform: '移动平台', triggered_platform: '触发平台'
+                    trigger: '触发器', moving_platform: '移动平台', triggered_platform: '触发平台',
+                    camera_cut: '镜头 Cut'
                 };
                 const name = labels[data.type] || data.type;
                 if (data.type === 'energy_drain') {
@@ -611,7 +653,8 @@ const LevelEditorSchema = (() => {
                 if (data.type === 'trigger') {
                     const tid = data.triggerId || '?';
                     const mode = data.triggerMode === 'attack' ? '攻击' : '触碰';
-                    return `${name} #${index + 1} (${mode} · id:${tid})`;
+                    const hideSuffix = data.triggerMode !== 'attack' && data.showVisual === false ? ' · 运行时隐藏' : '';
+                    return `${name} #${index + 1} (${mode} · id:${tid}${hideSuffix})`;
                 }
                 if (data.type === 'moving_platform') {
                     return `${name} #${index + 1} (${data.moveAxis ?? 'x'} · ${data.moveRange ?? 200}px)`;
@@ -619,6 +662,16 @@ const LevelEditorSchema = (() => {
                 if (data.type === 'triggered_platform') {
                     const tid = data.triggerId || '?';
                     return `${name} #${index + 1} (→${tid} · ${data.moveAxis ?? 'x'})`;
+                }
+                if (data.type === 'camera_cut') {
+                    const tid = data.triggerId || '?';
+                    const enter = data.enterMode === 'move'
+                        ? `入移${data.enterDuration ?? 800}ms`
+                        : '入瞬切';
+                    const exit = data.exitMode === 'move'
+                        ? `出移${data.exitDuration ?? 500}ms`
+                        : '出瞬切';
+                    return `${name} #${index + 1} (→${tid} · ${enter} · ${exit})`;
                 }
                 return `${name} #${index + 1}`;
             }
@@ -863,6 +916,21 @@ const LevelEditorSchema = (() => {
                 errors.push(`触发移动平台 #${i + 1} 绑定了不存在的触发器 id: "${tid}"`);
             }
         });
+        (normalized.hazards || []).forEach((h, i) => {
+            if (h.type !== 'camera_cut') return;
+            const tid = h.triggerId;
+            if (!tid) {
+                errors.push(`镜头 Cut #${i + 1} 未绑定 triggerId`);
+            } else if (!globalIds.has(String(tid))) {
+                errors.push(`镜头 Cut #${i + 1} 绑定了不存在的触发器 id: "${tid}"`);
+            }
+            if (h.enterMode === 'move' && (h.enterDuration == null || h.enterDuration < 0)) {
+                errors.push(`镜头 Cut #${i + 1} 的 enterDuration 无效`);
+            }
+            if (h.exitMode === 'move' && (h.exitDuration == null || h.exitDuration < 0)) {
+                errors.push(`镜头 Cut #${i + 1} 的 exitDuration 无效`);
+            }
+        });
 
         return errors;
     }
@@ -1085,6 +1153,9 @@ const LevelEditorSchema = (() => {
         normalizeCheckpoint,
         normalizeMissile,
         normalizeCrumble,
+        normalizeCameraCut,
+        normalizeTrigger,
+        triggerModeIcon,
         resolveStandingFeetY,
         electricIsActive,
         spawnDefaultHp,

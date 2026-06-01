@@ -161,11 +161,26 @@ function normalizeLevel(raw) {
             }
             if (out.type === 'trigger') {
                 if (out.triggerId != null && out.triggerId !== '') out.triggerId = String(out.triggerId);
+                out.triggerMode = out.triggerMode === 'attack' ? 'attack' : 'touch';
+                if (out.triggerMode === 'attack') {
+                    delete out.showVisual;
+                } else if (out.showVisual === false) {
+                    out.showVisual = false;
+                } else {
+                    delete out.showVisual;
+                }
                 delete out.bindHintIds;
                 delete out.bindSystemWallIds;
             }
             if (out.type === 'triggered_platform' && out.triggerId != null && out.triggerId !== '') {
                 out.triggerId = String(out.triggerId);
+            }
+            if (out.type === 'camera_cut') {
+                out.enterMode = out.enterMode === 'move' ? 'move' : 'instant';
+                out.enterDuration = Math.max(0, hazardNumber(out.enterDuration, 800));
+                out.exitMode = out.exitMode === 'move' ? 'move' : 'instant';
+                out.exitDuration = Math.max(0, hazardNumber(out.exitDuration, 500));
+                if (out.triggerId != null && out.triggerId !== '') out.triggerId = String(out.triggerId);
             }
             return out;
         })
@@ -332,6 +347,14 @@ export function validateLevel(level) {
         if (!tid) errors.push(`触发移动平台 #${i + 1} 未绑定 triggerId`);
         else if (!globalIds.has(String(tid))) {
             errors.push(`触发移动平台 #${i + 1} 绑定了不存在的触发器 id: "${tid}"`);
+        }
+    });
+    (normalized.hazards || []).forEach((h, i) => {
+        if (h.type !== 'camera_cut') return;
+        const tid = h.triggerId;
+        if (!tid) errors.push(`镜头 Cut #${i + 1} 未绑定 triggerId`);
+        else if (!globalIds.has(String(tid))) {
+            errors.push(`镜头 Cut #${i + 1} 绑定了不存在的触发器 id: "${tid}"`);
         }
     });
 

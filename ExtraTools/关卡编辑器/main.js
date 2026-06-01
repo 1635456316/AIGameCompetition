@@ -719,10 +719,11 @@
                 ctx.strokeStyle = '#cc6600';
                 ctx.strokeRect(b.x, b.y, b.w, b.h);
             } else if (h.type === 'trigger') {
-                ctx.fillStyle = sel ? 'rgba(255,153,204,0.35)' : 'rgba(255,153,204,0.18)';
+                const touchHidden = h.triggerMode !== 'attack' && h.showVisual === false;
+                ctx.fillStyle = sel ? 'rgba(255,153,204,0.35)' : (touchHidden ? 'rgba(255,153,204,0.1)' : 'rgba(255,153,204,0.18)');
                 ctx.strokeStyle = sel ? '#ffbbdd' : '#ff99cc';
                 ctx.lineWidth = sel ? 3 : 2;
-                ctx.setLineDash([4, 4]);
+                ctx.setLineDash(touchHidden ? [6, 4] : [4, 4]);
                 ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.setLineDash([]);
@@ -730,17 +731,17 @@
                 ctx.font = `${iconSize}px sans-serif`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.globalAlpha = 0.75;
+                ctx.globalAlpha = touchHidden ? 0.45 : 0.75;
                 ctx.fillStyle = '#ff99cc';
-                ctx.fillText('🔔', h.x, h.y);
+                ctx.fillText(S.triggerModeIcon(h.triggerMode), h.x, h.y);
                 ctx.globalAlpha = 1;
                 ctx.textBaseline = 'alphabetic';
                 ctx.textAlign = 'left';
                 ctx.fillStyle = '#ff99cc';
                 ctx.font = '11px sans-serif';
                 ctx.textAlign = 'center';
-                const modeIcon = h.triggerMode === 'attack' ? '⚔' : '👆';
-                ctx.fillText(`${modeIcon} ${h.triggerId || '?'}`, h.x, h.y + iconSize * 0.55 + 6);
+                const idLine = `${h.triggerId || '?'}` + (touchHidden ? ' · 运行时隐藏' : '');
+                ctx.fillText(idLine, h.x, h.y + iconSize * 0.55 + 6);
                 ctx.textAlign = 'left';
             } else if (h.type === 'moving_platform') {
                 const b = S.getItemBounds('hazards', h, level);
@@ -782,6 +783,28 @@
                     ctx.strokeRect(b.x, b.y + (h.moveRange ?? 200), b.w, b.h);
                 }
                 ctx.setLineDash([]);
+            } else if (h.type === 'camera_cut') {
+                const b = S.getItemBounds('hazards', h, level);
+                ctx.fillStyle = sel ? 'rgba(170,136,255,0.28)' : 'rgba(170,136,255,0.12)';
+                ctx.strokeStyle = sel ? '#ccaaFF' : '#aa88ff';
+                ctx.lineWidth = sel ? 3 : 2;
+                ctx.setLineDash([6, 4]);
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
+                ctx.setLineDash([]);
+                const iconSize = Math.min(28, Math.max(14, Math.min(h.w, h.h) * 0.28));
+                ctx.font = `${iconSize}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#aa88ff';
+                ctx.fillText('🎬', h.x, h.y - 8);
+                ctx.textBaseline = 'alphabetic';
+                ctx.font = '10px sans-serif';
+                ctx.fillStyle = '#ddccff';
+                const enterLabel = h.enterMode === 'move' ? `入${h.enterDuration ?? 800}ms` : '入瞬切';
+                const exitLabel = h.exitMode === 'move' ? `出${h.exitDuration ?? 500}ms` : '出瞬切';
+                ctx.fillText(`→${h.triggerId || '?'} · ${enterLabel} · ${exitLabel}`, h.x, h.y + iconSize * 0.4 + 4);
+                ctx.textAlign = 'left';
             }
             if (sel) {
                 ctx.strokeStyle = '#fff';
@@ -1220,19 +1243,19 @@
             } else {
                 const item = { ...getSelectionData() };
                 if (key === 'dir') item[key] = v;
-                else if (key === 'once' || key === 'autoReturn') item[key] = v === '1' || v === 1 || v === true;
+                else if (key === 'once' || key === 'autoReturn' || key === 'showVisual') item[key] = v === '1' || v === 1 || v === true;
                 else if (key === 'bindId') {
                     if (v === '' || v == null) delete item.bindId;
                     else item.bindId = String(v);
                     delete item.bindEnemyId;
                 }
-                else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode') {
+                else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode' || key === 'enterMode' || key === 'exitMode') {
                     item[key] = String(v);
                 }
-                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay'].includes(key)) {
+                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay', 'enterDuration', 'exitDuration'].includes(key)) {
                     item[key] = S.snap(v);
                 }
-                else if (key === 'moveRange' || key === 'moveSpeed' || key === 'maxTriggers' || key === 'returnDelay') {
+                else if (key === 'moveRange' || key === 'moveSpeed' || key === 'maxTriggers' || key === 'returnDelay' || key === 'enterDuration' || key === 'exitDuration') {
                     item[key] = Number.isNaN(v) ? undefined : Math.max(0, v);
                 }
                 else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id') {
@@ -1245,6 +1268,9 @@
                 setSelectionData(item);
             }
             refreshAll(false);
+            if (selection?.category === 'hazards' && key === 'triggerMode') {
+                buildPropsForm();
+            }
         };
 
         if (selection.category === 'platforms') {
@@ -1403,7 +1429,16 @@
                     ]
                 });
                 addField('触发次数限制（0=无限）', 'maxTriggers', 'number', { value: data.maxTriggers ?? 1 });
-                appendGlobalIdHint(form, 'triggerId 为全局 id，供移动平台(触发)、系统墙、提示区引用；须与小怪 id 不重复。系统墙/提示区在其自身属性里填写 bindId 指向本 id。');
+                if ((data.triggerMode || 'touch') !== 'attack') {
+                    addField('运行时显示', 'showVisual', 'select', {
+                        value: data.showVisual !== false ? '1' : '0',
+                        options: [
+                            { v: '1', t: '显示区域与图标' },
+                            { v: '0', t: '完全隐藏（无样式）' }
+                        ]
+                    });
+                }
+                appendGlobalIdHint(form, 'triggerId 为全局 id，供移动平台(触发)、镜头 Cut、系统墙、提示区引用；须与小怪 id 不重复。触碰模式可设为运行时完全隐藏。');
             } else if (data.type === 'moving_platform') {
                 addField('X（起点中心）', 'x', 'number', { value: data.x });
                 addField('Y（起点中心）', 'y', 'number', { value: data.y });
@@ -1454,6 +1489,33 @@
                 tpHint.className = 'field-hint';
                 tpHint.textContent = '触发器激活后，平台从起点移动到终点。自动回归=到达终点后延迟一段时间返回起点。';
                 form.appendChild(tpHint);
+            } else if (data.type === 'camera_cut') {
+                addField('焦点 X', 'x', 'number', { value: data.x });
+                addField('焦点 Y', 'y', 'number', { value: data.y });
+                addField('保持区域宽 w', 'w', 'number', { value: data.w ?? 320 });
+                addField('保持区域高 h', 'h', 'number', { value: data.h ?? 240 });
+                addField('绑定触发器全局 id', 'triggerId', 'text', { value: data.triggerId ?? '' });
+                appendGlobalIdHint(form, '填写机关「触发器」的全局 triggerId；触发后镜头切到焦点位置。');
+                addField('切入方式', 'enterMode', 'select', {
+                    value: data.enterMode || 'move',
+                    options: [
+                        { v: 'instant', t: '镜头瞬切' },
+                        { v: 'move', t: '镜头移动' }
+                    ]
+                });
+                addField('切入移动时间 (ms)', 'enterDuration', 'number', { value: data.enterDuration ?? 800 });
+                addField('切出方式', 'exitMode', 'select', {
+                    value: data.exitMode || 'instant',
+                    options: [
+                        { v: 'instant', t: '镜头瞬切' },
+                        { v: 'move', t: '镜头移动' }
+                    ]
+                });
+                addField('切出移动时间 (ms)', 'exitDuration', 'number', { value: data.exitDuration ?? 500 });
+                const ccHint = document.createElement('p');
+                ccHint.className = 'field-hint';
+                ccHint.textContent = '绑定触发器触发后，镜头切到焦点 (X,Y)；玩家离开保持区域后按切出方式恢复跟随。切入/切出选「镜头移动」时使用对应移动时间。';
+                form.appendChild(ccHint);
             }
         } else if (selection.category === 'playerStart') {
             addField('X', 'x', 'number', { value: data.x });

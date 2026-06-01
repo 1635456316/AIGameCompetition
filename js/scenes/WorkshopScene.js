@@ -485,9 +485,16 @@ class WorkshopScene extends Phaser.Scene {
                     cursor: pointer;
                     transition: background 0.12s;
                 }
-                .workshop-login-feishu:hover {
+                .workshop-login-feishu:hover:not(:disabled) {
                     background: rgba(95, 234, 255, 0.28);
                     color: #ffffff;
+                }
+                .workshop-login-feishu:disabled {
+                    border-color: rgba(106, 138, 163, 0.35);
+                    background: rgba(76, 96, 115, 0.12);
+                    color: #6a8aa3;
+                    cursor: not-allowed;
+                    opacity: 0.65;
                 }
                 .workshop-login-divider {
                     margin: 16px 0 14px;
@@ -564,7 +571,7 @@ class WorkshopScene extends Phaser.Scene {
                     <span class="workshop-login-title" id="workshop-login-title">登录</span>
                     <button type="button" class="workshop-login-close" aria-label="关闭">×</button>
                 </div>
-                <button type="button" class="workshop-login-feishu">飞书登录(直链可用)</button>
+                <button type="button" class="workshop-login-feishu" disabled>飞书登录(不可用)</button>
                 <div class="workshop-login-divider">或使用用户名</div>
                 <label class="workshop-login-label" for="workshop-login-username">用户名</label>
                 <input type="text" class="workshop-login-input" id="workshop-login-username"
@@ -593,9 +600,6 @@ class WorkshopScene extends Phaser.Scene {
         backdrop.addEventListener('mousedown', blockPointerToGame, true);
         backdrop.addEventListener('touchstart', blockPointerToGame, { capture: true, passive: false });
         this.loginPanelEl.addEventListener('click', (e) => e.stopPropagation());
-        this.loginFeishuBtnEl.addEventListener('click', () => {
-            this._goFeishuLogin(this.loginPendingReturnTo || '/');
-        });
         this.loginSubmitBtnEl.addEventListener('click', () => this._submitUsernameLogin());
         this.loginUsernameInputEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this._submitUsernameLogin();
@@ -1006,8 +1010,13 @@ class WorkshopScene extends Phaser.Scene {
                 window.location.href = returnTo;
             }
         } catch (err) {
+            const message = err.message || '登录失败';
             if (this.loginErrorEl) {
-                this.loginErrorEl.textContent = err.message || '登录失败';
+                this.loginErrorEl.textContent = message;
+            }
+            const boundMatch = message.match(/此 IP 已绑定用户「(.+?)」，请使用该用户名登录/);
+            if (boundMatch && this.loginUsernameInputEl) {
+                this.loginUsernameInputEl.value = boundMatch[1];
             }
         } finally {
             this.loginSubmitting = false;

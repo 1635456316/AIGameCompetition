@@ -30,6 +30,11 @@ function playerOverlapsFeetZone (player, feetX, feetY, w, h) {
     return playerOverlapsRect(player, t.cx, t.cy, t.w, t.h);
 }
 
+/** 与关卡编辑器一致：触碰 👆，攻击 ⚔ */
+function triggerModeIcon (mode) {
+    return mode === 'attack' ? '⚔' : '👆';
+}
+
 /** period <= 0 表示常开；否则按周期与激活时长切换 */
 function electricIsActive (time, period, activeDuration) {
     if (period <= 0) return true;
@@ -53,6 +58,7 @@ class Hazards {
                 case 'trigger': return new TriggerZone(scene, cfg, index);
                 case 'moving_platform': return new MovingPlatform(scene, cfg);
                 case 'triggered_platform': return new TriggeredPlatform(scene, cfg);
+                case 'camera_cut': return new CameraCutZone(scene, cfg);
                 default: return null;
             }
         }).filter(Boolean);
@@ -65,6 +71,11 @@ class Hazards {
         });
         spawned.forEach(h => {
             if (h instanceof TriggeredPlatform && h.triggerId) {
+                h.bindTrigger(triggerMap[h.triggerId] || null);
+            }
+        });
+        spawned.forEach(h => {
+            if (h instanceof CameraCutZone && h.triggerId) {
                 h.bindTrigger(triggerMap[h.triggerId] || null);
             }
         });
@@ -599,21 +610,27 @@ class TriggerZone {
         this.w = cfg.w || 80;
         this.h = cfg.h || 80;
         this.triggerId = cfg.triggerId || '';
-        this.triggerMode = cfg.triggerMode || 'touch';
+        this.triggerMode = cfg.triggerMode === 'attack' ? 'attack' : 'touch';
         this.maxTriggers = hazardNumber(cfg.maxTriggers, 1);
+        this.showVisual = this.triggerMode === 'attack' || cfg.showVisual !== false;
         this.triggerCount = 0;
         this.triggered = false;
         this.removed = false;
+        this._playerInside = false;
+        this.visual = null;
+        this.marker = null;
 
         this._callbacks = [];
 
-        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff99cc, 0.12)
-            .setStrokeStyle(2, 0xff99cc, 0.5).setDepth(45);
-        const iconSize = Math.min(28, Math.max(14, Math.min(this.w, this.h) * 0.28));
-        this.marker = scene.add.text(this.x, this.y, '🔔', {
-            font: `${iconSize}px Arial`,
-            color: '#ff99cc'
-        }).setOrigin(0.5).setDepth(46).setAlpha(0.75);
+        if (this.showVisual) {
+            this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff99cc, 0.07)
+                .setDepth(45);
+            const iconSize = Math.min(26, Math.max(14, Math.min(this.w, this.h) * 0.26));
+            this.marker = scene.add.text(this.x, this.y, triggerModeIcon(this.triggerMode), {
+                font: `${iconSize}px Arial`,
+                color: '#ff99cc'
+            }).setOrigin(0.5).setDepth(46).setAlpha(0.55);
+        }
 
         if (this.triggerMode === 'attack') {
             this.hitZone = scene.add.zone(this.x, this.y, this.w, this.h);
@@ -633,14 +650,24 @@ class TriggerZone {
         this.triggerCount++;
         this.triggered = true;
 
-        this.visual.setFillStyle(0xff99cc, 0.4);
-        this.marker?.setAlpha(0.35).setScale(0.9);
-        this.scene.tweens.add({
-            targets: this.visual,
-            alpha: { from: 1, to: 0.5 },
-            duration: 200,
-            yoyo: true
-        });
+        if (this.visual) {
+            this.visual.setFillStyle(0xff99cc, 0.22);
+            this.scene.tweens.add({
+                targets: this.visual,
+                alpha: { from: 1, to: 0.5 },
+                duration: 220,
+                yoyo: true
+            });
+        }
+        if (this.marker) {
+            this.marker.setAlpha(0.85).setScale(1.08);
+            this.scene.tweens.add({
+                targets: this.marker,
+                scale: { from: 1.12, to: 1 },
+                duration: 280,
+                ease: 'Quad.easeOut'
+            });
+        }
 
         if (this.triggerId && this.scene._reactToBindId) {
             this.scene._reactToBindId(this.triggerId, 'trigger');
@@ -650,8 +677,8 @@ class TriggerZone {
 
         if (this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers) {
             this.removed = true;
-            this.visual.setAlpha(0.15);
-            this.marker?.setAlpha(0.15).setScale(0.85);
+            this.visual?.setFillStyle(0xff99cc, 0.04).setAlpha(0.35);
+            this.marker?.setAlpha(0.2).setScale(0.88);
         }
     }
 
@@ -664,8 +691,16 @@ class TriggerZone {
     update (time, delta, player) {
         if (this.removed) return;
         if (this.triggerMode !== 'touch') return;
+
+        const overlapping = playerOverlapsRect(player, this.x, this.y, this.w, this.h);
+        if (!overlapping) {
+            this._playerInside = false;
+            return;
+        }
         if (player.fsm.is('dead')) return;
-        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) return;
+
+        if (this._playerInside) return;
+        this._playerInside = true;
         this._fire();
     }
 }
@@ -824,6 +859,148 @@ class TriggeredPlatform {
             player.sprite.x += dx;
             player.sprite.y += dy;
             player.syncView?.();
+        }
+    }
+}
+
+class CameraCutZone {
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = Math.max(16, cfg.w || 320);
+        this.h = Math.max(16, cfg.h || 240);
+        this.triggerId = cfg.triggerId || '';
+        this.enterMode = cfg.enterMode === 'move' ? 'move' : 'instant';
+        this.enterDuration = hazardNumber(cfg.enterDuration, 800);
+        this.exitMode = cfg.exitMode === 'move' ? 'move' : 'instant';
+        this.exitDuration = hazardNumber(cfg.exitDuration, 500);
+
+        this._active = false;
+        this._entering = false;
+        this._exiting = false;
+        this._scrollTween = null;
+
+        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xaa88ff, 0.06)
+            .setStrokeStyle(2, 0xaa88ff, 0.25).setDepth(44);
+        const iconSize = Math.min(24, Math.max(12, Math.min(this.w, this.h) * 0.22));
+        this.marker = scene.add.text(this.x, this.y, '🎬', {
+            font: `${iconSize}px Arial`,
+            color: '#aa88ff'
+        }).setOrigin(0.5).setDepth(45).setAlpha(0.45);
+    }
+
+    bindTrigger(trigger) {
+        if (!trigger) return;
+        trigger.onTriggered(() => this._onTriggered());
+    }
+
+    resetCameraCut() {
+        this._killScrollTween();
+        this._active = false;
+        this._entering = false;
+        this._exiting = false;
+        this.visual?.setAlpha(0.06);
+        this.marker?.setAlpha(0.45);
+    }
+
+    _killScrollTween() {
+        if (this._scrollTween) {
+            this._scrollTween.stop();
+            this._scrollTween = null;
+        }
+    }
+
+    _getTargetScroll() {
+        const cam = this.scene.cameras.main;
+        const originX = cam.width * cam.originX;
+        const originY = cam.height * cam.originY;
+        return {
+            x: this.x - originX,
+            y: this.y - originY
+        };
+    }
+
+    _getFollowScroll() {
+        const cam = this.scene.cameras.main;
+        const target = this.scene.player?.viewSprite;
+        if (!target) return { x: cam.scrollX, y: cam.scrollY };
+        const offset = this.scene._getCameraFollowOffset?.() || { x: 0, y: 0 };
+        const originX = cam.width * cam.originX;
+        const originY = cam.height * cam.originY;
+        return {
+            x: target.x + offset.x - originX,
+            y: target.y + offset.y - originY
+        };
+    }
+
+    _tweenScroll(toX, toY, duration, onComplete) {
+        const cam = this.scene.cameras.main;
+        this._killScrollTween();
+        if (duration <= 0) {
+            cam.scrollX = toX;
+            cam.scrollY = toY;
+            onComplete?.();
+            return;
+        }
+        this._scrollTween = this.scene.tweens.add({
+            targets: cam,
+            scrollX: toX,
+            scrollY: toY,
+            duration,
+            ease: 'Sine.easeInOut',
+            onComplete: () => {
+                this._scrollTween = null;
+                onComplete?.();
+            }
+        });
+    }
+
+    _onTriggered() {
+        if (this._active || this._entering || this._exiting) return;
+        this._enterCameraCut();
+    }
+
+    _enterCameraCut() {
+        const cam = this.scene.cameras.main;
+        cam.stopFollow();
+        this._entering = true;
+        this.visual?.setFillStyle(0xaa88ff, 0.14);
+        this.marker?.setAlpha(0.75);
+
+        const target = this._getTargetScroll();
+        const duration = this.enterMode === 'move' ? this.enterDuration : 0;
+
+        this._tweenScroll(target.x, target.y, duration, () => {
+            this._entering = false;
+            this._active = true;
+        });
+    }
+
+    _exitCameraCut() {
+        if (!this._active && !this._entering) return;
+        if (this._exiting) return;
+
+        this._active = false;
+        this._entering = false;
+        this._exiting = true;
+        this.visual?.setFillStyle(0xaa88ff, 0.06);
+        this.marker?.setAlpha(0.45);
+
+        const duration = this.exitMode === 'move' ? this.exitDuration : 0;
+        const target = this._getFollowScroll();
+
+        this._tweenScroll(target.x, target.y, duration, () => {
+            this.scene._startCameraFollow?.({ instant: true });
+            this._exiting = false;
+        });
+    }
+
+    update(time, delta, player) {
+        if (!this._active || this._exiting || this._entering) return;
+        if (player.fsm?.is('dead')) return;
+        if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) {
+            this._exitCameraCut();
         }
     }
 }
