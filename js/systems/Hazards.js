@@ -89,6 +89,11 @@ class ElectricZone {
 
         this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0x00e5ff, 0.08)
             .setStrokeStyle(2, 0x00e5ff, 0.4).setDepth(50);
+        const iconSize = Math.min(28, Math.max(14, Math.min(this.w, this.h) * 0.28));
+        this.marker = scene.add.text(this.x, this.y, '⚡', {
+            font: `${iconSize}px Arial`,
+            color: '#00e5ff'
+        }).setOrigin(0.5).setDepth(51).setAlpha(0.55);
         this.zone = scene.add.zone(this.x, this.y, this.w, this.h);
         scene.physics.add.existing(this.zone, true);
     }
@@ -101,9 +106,11 @@ class ElectricZone {
             if (this.active) {
                 this.visual.setFillStyle(0x00e5ff, 0.35);
                 this.visual.setStrokeStyle(3, 0x66ffff, 0.9);
+                this.marker.setAlpha(1).setScale(1.15).setColor('#ffffff');
             } else {
                 this.visual.setFillStyle(0x00e5ff, 0.08);
                 this.visual.setStrokeStyle(2, 0x00e5ff, 0.4);
+                this.marker.setAlpha(0.55).setScale(1).setColor('#00e5ff');
             }
         }
 
@@ -602,6 +609,11 @@ class TriggerZone {
 
         this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff99cc, 0.12)
             .setStrokeStyle(2, 0xff99cc, 0.5).setDepth(45);
+        const iconSize = Math.min(28, Math.max(14, Math.min(this.w, this.h) * 0.28));
+        this.marker = scene.add.text(this.x, this.y, '🔔', {
+            font: `${iconSize}px Arial`,
+            color: '#ff99cc'
+        }).setOrigin(0.5).setDepth(46).setAlpha(0.75);
 
         if (this.triggerMode === 'attack') {
             this.hitZone = scene.add.zone(this.x, this.y, this.w, this.h);
@@ -622,6 +634,7 @@ class TriggerZone {
         this.triggered = true;
 
         this.visual.setFillStyle(0xff99cc, 0.4);
+        this.marker?.setAlpha(0.35).setScale(0.9);
         this.scene.tweens.add({
             targets: this.visual,
             alpha: { from: 1, to: 0.5 },
@@ -638,6 +651,7 @@ class TriggerZone {
         if (this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers) {
             this.removed = true;
             this.visual.setAlpha(0.15);
+            this.marker?.setAlpha(0.15).setScale(0.85);
         }
     }
 

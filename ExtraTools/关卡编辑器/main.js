@@ -622,6 +622,16 @@
                 ctx.lineWidth = sel ? 3 : 2;
                 ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
+                const iconSize = Math.min(28, Math.max(14, Math.min(h.w, h.h) * 0.28));
+                ctx.font = `bold ${iconSize}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = active ? 1 : 0.55;
+                ctx.fillStyle = active ? '#ffffff' : '#00e5ff';
+                ctx.fillText('⚡', h.x, h.y);
+                ctx.globalAlpha = 1;
+                ctx.textBaseline = 'alphabetic';
+                ctx.textAlign = 'left';
             } else if (h.type === 'checkpoint') {
                 const b = S.checkpointBounds(h.x, h.y, h.w ?? 80, h.h ?? 60);
                 ctx.fillStyle = '#66ffaa';
@@ -716,11 +726,21 @@
                 ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.setLineDash([]);
+                const iconSize = Math.min(28, Math.max(14, Math.min(h.w, h.h) * 0.28));
+                ctx.font = `${iconSize}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 0.75;
+                ctx.fillStyle = '#ff99cc';
+                ctx.fillText('🔔', h.x, h.y);
+                ctx.globalAlpha = 1;
+                ctx.textBaseline = 'alphabetic';
+                ctx.textAlign = 'left';
                 ctx.fillStyle = '#ff99cc';
                 ctx.font = '11px sans-serif';
                 ctx.textAlign = 'center';
                 const modeIcon = h.triggerMode === 'attack' ? '⚔' : '👆';
-                ctx.fillText(`${modeIcon} ${h.triggerId || '?'}`, h.x, h.y + 4);
+                ctx.fillText(`${modeIcon} ${h.triggerId || '?'}`, h.x, h.y + iconSize * 0.55 + 6);
                 ctx.textAlign = 'left';
             } else if (h.type === 'moving_platform') {
                 const b = S.getItemBounds('hazards', h, level);
