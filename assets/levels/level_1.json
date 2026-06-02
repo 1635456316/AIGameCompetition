@@ -3,21 +3,27 @@
   "title": "第 1 关 · 钢 甲 要 塞",
   "subtitle": "教学关：电磁机关与钢甲三角龙",
   "width": 11416,
+  "height": 720,
   "playerStart": {
     "x": 128,
     "yOffset": 96,
     "h": 16,
     "y": 584
   },
+  "cameraOffsetX": 0,
+  "cameraOffsetY": 0,
   "energyStartPercent": 0,
   "energyRegenRate": 0,
   "hpStartPercent": 10,
   "enemyKillEnergy": 10,
   "bossTriggerOffset": 900,
+  "bossTriggerZone": null,
   "boss": {
     "type": "steelTriceratops",
     "xOffset": 176,
-    "yOffset": 272
+    "yOffset": 272,
+    "hp": null,
+    "damageMult": null
   },
   "startVideoUrl": "assets/video/第一关Boss出场.mp4",
   "endVideoUrl": "assets/video/第一关Boss处决.mp4",
@@ -137,21 +143,21 @@
       "y": 488,
       "w": 32,
       "h": 329,
-      "bindEnemyId": "wall_guard",
-      "id": "wall_guard"
+      "id": "wall_guard",
+      "bindId": "wall_guard"
     },
     {
       "x": 6488,
       "y": 430,
       "w": 32,
       "h": 452,
-      "bindEnemyId": "wall_guard2"
+      "bindId": "wall_guard2"
     }
   ],
   "pickups": [
     {
       "type": "energy",
-      "amount": 5,
+      "amount": 10,
       "x": 1872,
       "y": 640
     },
@@ -330,7 +336,7 @@
       "text": "前方有一个小怪躲在了墙后面，试着按下K蓄力把它打死！",
       "once": false,
       "respawnEnergyPercent": 80,
-      "bindEnemyId": "wall_guard"
+      "bindId": "wall_guard"
     },
     {
       "type": "hint",
@@ -340,7 +346,7 @@
       "h": 100,
       "text": "需要先击败守护怪物哦！",
       "once": false,
-      "bindEnemyId": "wall_guard"
+      "bindId": "wall_guard"
     },
     {
       "type": "hint",
@@ -422,6 +428,8 @@
       "type": "crumble",
       "x": 8752,
       "y": 368,
+      "w": 96,
+      "h": 20,
       "delay": 800,
       "respawn": 4000
     },
@@ -429,6 +437,8 @@
       "type": "crumble",
       "x": 8976,
       "y": 312,
+      "w": 96,
+      "h": 20,
       "delay": 800,
       "respawn": 4000
     },
@@ -436,6 +446,8 @@
       "type": "crumble",
       "x": 9248,
       "y": 360,
+      "w": 96,
+      "h": 20,
       "delay": 800,
       "respawn": 4000
     },
@@ -443,6 +455,8 @@
       "type": "crumble",
       "x": 9536,
       "y": 384,
+      "w": 96,
+      "h": 20,
       "delay": 800,
       "respawn": 4000
     },
@@ -450,6 +464,8 @@
       "type": "crumble",
       "x": 9832,
       "y": 384,
+      "w": 96,
+      "h": 20,
       "delay": 800,
       "respawn": 4000
     },
@@ -475,10 +491,12 @@
     },
     {
       "type": "missile",
-      "xMin": 7200,
-      "xMax": 7360,
+      "x": 7280,
       "y": 608,
+      "w": 160,
+      "h": 60,
       "interval": 3000,
+      "startDelay": 0,
       "damage": 12
     },
     {
@@ -536,5 +554,11 @@
       "text": "上方有一个怪物被困住了，尝试使用K+W往上发射剑气击败它！",
       "once": false
     }
-  ]
+  ],
+  "maxJumps": null,
+  "jumpVelocity": null,
+  "secondJumpVelocity": null,
+  "moveSpeed": null,
+  "gravity": null,
+  "maxFallVelocity": null
 }

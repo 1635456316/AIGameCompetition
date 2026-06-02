@@ -8,8 +8,10 @@
     "x": 160,
     "yOffset": 120
   },
+  "cameraOffsetX": 0,
+  "cameraOffsetY": 0,
   "energyStartPercent": 50,
-  "energyRegenRate": 5,
+  "energyRegenRate": 1,
   "hpStartPercent": 100,
   "enemyKillEnergy": 10,
   "bossTriggerOffset": 800,
@@ -279,113 +281,113 @@
       "y": 130,
       "w": 120,
       "h": 348,
-      "bindEnemyId": "255",
-      "id": "255"
+      "id": "255",
+      "bindId": "255"
     },
     {
       "x": 1768,
       "y": 472,
       "w": 292,
       "h": 44,
-      "bindEnemyId": "1"
+      "bindId": "1"
     },
     {
       "x": 1776,
       "y": 472,
       "w": 292,
       "h": 44,
-      "bindEnemyId": "5"
+      "bindId": "5"
     },
     {
       "x": 1776,
       "y": 472,
       "w": 292,
       "h": 44,
-      "bindEnemyId": "4"
+      "bindId": "4"
     },
     {
       "x": 1768,
       "y": 472,
       "w": 292,
       "h": 44,
-      "bindEnemyId": "3"
+      "bindId": "3"
     },
     {
       "x": 1776,
       "y": 472,
       "w": 292,
       "h": 44,
-      "bindEnemyId": "2"
+      "bindId": "2"
     },
     {
       "x": 1776,
       "y": 472,
       "w": 292,
       "h": 44,
-      "bindEnemyId": "6"
+      "bindId": "6"
     },
     {
       "x": 1776,
       "y": 472,
       "w": 292,
       "h": 44,
-      "bindEnemyId": "7"
+      "bindId": "7"
     },
     {
       "x": 3392,
       "y": 766,
       "w": 1056,
       "h": 84,
-      "bindEnemyId": "128"
+      "bindId": "128"
     },
     {
       "x": 5456,
       "y": 776,
       "w": 328,
       "h": 156,
-      "bindEnemyId": "999"
+      "bindId": "999"
     },
     {
       "x": 5664,
       "y": 320,
       "w": 128,
       "h": 858,
-      "bindEnemyId": "999"
+      "bindId": "999"
     },
     {
       "x": 5456,
       "y": 784,
       "w": 336,
       "h": 60,
-      "bindEnemyId": "25"
+      "bindId": "25"
     },
     {
       "x": 5456,
       "y": 784,
       "w": 328,
       "h": 44,
-      "bindEnemyId": "24"
+      "bindId": "24"
     },
     {
       "x": 5456,
       "y": 776,
       "w": 336,
       "h": 68,
-      "bindEnemyId": "23"
+      "bindId": "23"
     },
     {
       "x": 5448,
       "y": 784,
       "w": 296,
       "h": 84,
-      "bindEnemyId": "21"
+      "bindId": "21"
     },
     {
       "x": 5456,
       "y": 784,
       "w": 304,
       "h": 68,
-      "bindEnemyId": "22"
+      "bindId": "22"
     }
   ],
   "pickups": [
