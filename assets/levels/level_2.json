@@ -13,7 +13,7 @@
   "energyStartPercent": 50,
   "energyRegenRate": 1,
   "hpStartPercent": 100,
-  "enemyKillEnergy": 10,
+  "enemyKillEnergy": 5,
   "bossTriggerOffset": 800,
   "bossTriggerZone": {
     "x": 5456,
