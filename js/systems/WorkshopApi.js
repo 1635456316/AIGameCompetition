@@ -2,14 +2,47 @@
  * 创意工坊 API 封装（与 server 同域）
  */
 class WorkshopApi {
+    static TOKEN_KEY = 'aigc_session_token';
+
+    static getStoredToken() {
+        try {
+            return localStorage.getItem(this.TOKEN_KEY) || '';
+        } catch {
+            return '';
+        }
+    }
+
+    static saveToken(token) {
+        try {
+            if (token) localStorage.setItem(this.TOKEN_KEY, token);
+        } catch {
+            /* ignore */
+        }
+    }
+
+    static clearToken() {
+        try {
+            localStorage.removeItem(this.TOKEN_KEY);
+        } catch {
+            /* ignore */
+        }
+    }
+
+    static authHeaders(extra = {}) {
+        const headers = { ...extra };
+        const token = this.getStoredToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        return headers;
+    }
+
     static async fetchJson(url, options = {}) {
         const res = await fetch(url, {
             credentials: 'include',
             ...options,
-            headers: {
+            headers: this.authHeaders({
                 ...(options.body ? { 'Content-Type': 'application/json' } : {}),
                 ...(options.headers || {})
-            }
+            })
         });
 
         let data = null;
@@ -40,14 +73,20 @@ class WorkshopApi {
     }
 
     static async loginWithUsername(userName) {
-        return this.fetchJson('/api/auth/username', {
+        const data = await this.fetchJson('/api/auth/username', {
             method: 'POST',
             body: JSON.stringify({ userName })
         });
+        if (data.token) this.saveToken(data.token);
+        return data;
     }
 
     static async logout() {
-        return this.fetchJson('/api/auth/logout', { method: 'POST' });
+        try {
+            await this.fetchJson('/api/auth/logout', { method: 'POST' });
+        } finally {
+            this.clearToken();
+        }
     }
 
     static async fetchLevels() {

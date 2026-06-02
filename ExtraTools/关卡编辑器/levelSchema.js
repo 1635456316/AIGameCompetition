@@ -6,6 +6,7 @@ const LevelEditorSchema = (() => {
     const GROUND_TILE = 64;
     const GROUND_Y = GAME_HEIGHT - GROUND_TILE;
     const MIN_LEVEL_HEIGHT = 480;
+    const MIN_LEVEL_WIDTH = 200;
 
     function levelHeight(level) {
         return level?.height || GAME_HEIGHT;
@@ -839,7 +840,9 @@ const LevelEditorSchema = (() => {
         const normalized = normalizeLevel(level);
 
         if (!normalized.id) errors.push('缺少关卡 id');
-        if (!normalized.width || normalized.width < 800) errors.push('关卡宽度 width 应 >= 800');
+        if (!normalized.width || normalized.width < MIN_LEVEL_WIDTH) {
+            errors.push(`关卡宽度 width 应 >= ${MIN_LEVEL_WIDTH}`);
+        }
         if (!normalized.height || normalized.height < MIN_LEVEL_HEIGHT) {
             errors.push(`关卡高度 height 应 >= ${MIN_LEVEL_HEIGHT}`);
         }
@@ -1187,6 +1190,7 @@ const LevelEditorSchema = (() => {
     return {
         GAME_HEIGHT,
         MIN_LEVEL_HEIGHT,
+        MIN_LEVEL_WIDTH,
         levelHeight,
         groundY,
         GROUND_TILE,

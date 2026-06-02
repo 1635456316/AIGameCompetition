@@ -78,7 +78,7 @@ class LevelThumbnail {
     static _render(scene, key, level) {
         const W = this.WIDTH;
         const H = this.HEIGHT;
-        const levelW = Math.max(800, level.width || 2400);
+        const levelW = Math.max(200, level.width || 2400);
         const levelH = level.height || GAME_HEIGHT;
         const sx = W / levelW;
         const sy = H / levelH;

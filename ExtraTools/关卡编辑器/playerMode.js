@@ -219,9 +219,7 @@ const LevelEditorPlayerMode = (() => {
 
             publishedSelectEl.disabled = false;
             try {
-                const res = await fetch('/api/levels/mine', { credentials: 'include' });
-                const data = await res.json();
-                const levels = data.levels || [];
+                const levels = await WorkshopApi.fetchMyLevels();
                 publishedLevelsCache = levels;
                 placeholder.textContent = levels.length ? '选择已发布关卡…' : '暂无发布';
                 publishedSelectEl.appendChild(placeholder);
@@ -244,7 +242,10 @@ const LevelEditorPlayerMode = (() => {
                 return;
             }
             try {
-                const res = await fetch(`/api/levels/${encodeURIComponent(item.id)}`, { credentials: 'include' });
+                const res = await fetch(`/api/levels/${encodeURIComponent(item.id)}`, {
+                    credentials: 'include',
+                    headers: WorkshopApi.authHeaders()
+                });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || '加载关卡失败');
                 await ctx.loadPublishedLevel(data.level, item);
@@ -268,7 +269,7 @@ const LevelEditorPlayerMode = (() => {
 
     async function refreshAuth(userSpan) {
         try {
-            const auth = await fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json());
+            const auth = await WorkshopApi.checkAuth();
             if (auth.loggedIn) {
                 userSpan.textContent = auth.userName || '已登录';
                 return auth;

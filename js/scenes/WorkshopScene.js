@@ -571,7 +571,7 @@ class WorkshopScene extends Phaser.Scene {
                     <span class="workshop-login-title" id="workshop-login-title">登录</span>
                     <button type="button" class="workshop-login-close" aria-label="关闭">×</button>
                 </div>
-                <button type="button" class="workshop-login-feishu" disabled>飞书登录(不可用)</button>
+                <button type="button" class="workshop-login-feishu">飞书登录</button>
                 <div class="workshop-login-divider">或使用用户名</div>
                 <label class="workshop-login-label" for="workshop-login-username">用户名</label>
                 <input type="text" class="workshop-login-input" id="workshop-login-username"
@@ -601,6 +601,9 @@ class WorkshopScene extends Phaser.Scene {
         backdrop.addEventListener('touchstart', blockPointerToGame, { capture: true, passive: false });
         this.loginPanelEl.addEventListener('click', (e) => e.stopPropagation());
         this.loginSubmitBtnEl.addEventListener('click', () => this._submitUsernameLogin());
+        this.loginFeishuBtnEl.addEventListener('click', () => {
+            this._goFeishuLogin(this.loginPendingReturnTo);
+        });
         this.loginUsernameInputEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this._submitUsernameLogin();
         });

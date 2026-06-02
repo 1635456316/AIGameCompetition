@@ -1,8 +1,11 @@
-import jwt from 'jsonwebtoken';
-import { config } from '../config.js';
-import { verifySession, getCookieName } from '../services/feishuAuth.js';
+import { verifySession, getCookieName, extractBearerToken } from '../services/feishuAuth.js';
 
 export function getSessionUser(request) {
+    const bearer = extractBearerToken(request);
+    if (bearer) {
+        const user = verifySession(bearer);
+        if (user) return user;
+    }
     const token = request.cookies[getCookieName()];
     return verifySession(token);
 }

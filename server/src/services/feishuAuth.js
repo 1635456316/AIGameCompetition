@@ -31,6 +31,14 @@ export function getCookieName() {
     return COOKIE_NAME;
 }
 
+/** 从 Authorization: Bearer 头读取 JWT（代理/iframe 下 Cookie 不可用时由前端携带） */
+export function extractBearerToken(request) {
+    const header = request.headers.authorization || request.headers.Authorization;
+    if (!header || typeof header !== 'string') return null;
+    const match = header.match(/^Bearer\s+(\S+)$/i);
+    return match ? match[1] : null;
+}
+
 export function getCookieOptions() {
     return {
         httpOnly: true,

@@ -79,7 +79,8 @@ export async function authRoutes(fastify) {
                 loggedIn: true,
                 userId: user.userId,
                 userName: user.userName,
-                avatarUrl: user.avatarUrl || ''
+                avatarUrl: user.avatarUrl || '',
+                token
             };
         } catch (err) {
             const message = err.message || '用户名登录失败';

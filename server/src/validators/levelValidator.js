@@ -10,6 +10,7 @@ const MEDIA_KEYS = [
 ];
 
 const MIN_LEVEL_HEIGHT = 480;
+const MIN_LEVEL_WIDTH = 200;
 const GROUND_TILE = 64;
 
 function resolveSpawnWorldY(level, spawn) {
@@ -222,7 +223,9 @@ export function validateLevel(level) {
     const normalized = normalizeLevel(level);
 
     if (!normalized.id) errors.push('缺少关卡 id');
-    if (!normalized.width || normalized.width < 800) errors.push('关卡宽度 width 应 >= 800');
+    if (!normalized.width || normalized.width < MIN_LEVEL_WIDTH) {
+        errors.push(`关卡宽度 width 应 >= ${MIN_LEVEL_WIDTH}`);
+    }
     if (!normalized.height || normalized.height < MIN_LEVEL_HEIGHT) {
         errors.push(`关卡高度 height 应 >= ${MIN_LEVEL_HEIGHT}`);
     }

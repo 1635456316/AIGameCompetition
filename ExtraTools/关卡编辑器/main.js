@@ -1884,6 +1884,9 @@
                         refreshAll(false);
                         return;
                     }
+                    if (k === 'width') {
+                        v = Math.max(S.MIN_LEVEL_WIDTH, v);
+                    }
                     if (v === '' && k.includes('Url')) level[k] = null;
                     else level[k] = v;
                     if (k === 'bgUrl') loadBgForLevel();
