@@ -66,7 +66,7 @@ const LevelEditorSchema = (() => {
                 { kind: 'crumble', label: '坍塌平台', icon: '▧', color: '#ff8800' },
                 { kind: 'death', label: '必死区', icon: '☠', color: '#ff2244' },
                 { kind: 'hint', label: '提示区', icon: '💬', color: '#ffdd44' },
-                { kind: 'trigger', label: '触发器', icon: '👆', color: '#ff99cc' },
+                { kind: 'trigger', label: '触发器', icon: '🔘', color: '#ff99cc' },
                 { kind: 'moving_platform', label: '移动平台(自动)', icon: '⇔', color: '#55cc88' },
                 { kind: 'triggered_platform', label: '移动平台(触发)', icon: '⇌', color: '#55aacc' }
             ]
@@ -339,9 +339,77 @@ const LevelEditorSchema = (() => {
         return level;
     }
 
-    /** 触碰 👆，攻击 ⚔（与运行时 Hazards.js 一致） */
+    /** 触碰=圆点按钮，攻击=十字准星按钮（与运行时 TextureFactory 一致） */
     function triggerModeIcon(mode) {
-        return mode === 'attack' ? '⚔' : '👆';
+        return mode === 'attack' ? '⊕' : '🔘';
+    }
+
+    function drawTriggerButtonIcon(ctx, x, y, size, mode, alpha = 0.75) {
+        const scale = size / 32;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        ctx.globalAlpha = alpha;
+
+        const bx = -12;
+        const by = -8;
+        const bw = 24;
+        const bh = 16;
+        const r = 3;
+
+        const roundRect = (rx, ry, rw, rh, rad) => {
+            ctx.beginPath();
+            ctx.moveTo(rx + rad, ry);
+            ctx.lineTo(rx + rw - rad, ry);
+            ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + rad);
+            ctx.lineTo(rx + rw, ry + rh - rad);
+            ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - rad, ry + rh);
+            ctx.lineTo(rx + rad, ry + rh);
+            ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - rad);
+            ctx.lineTo(rx, ry + rad);
+            ctx.quadraticCurveTo(rx, ry, rx + rad, ry);
+            ctx.closePath();
+        };
+
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        roundRect(bx + 1, by + 2, bw, bh, r);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,153,204,0.92)';
+        roundRect(bx, by, bw, bh, r);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,204,224,0.88)';
+        roundRect(bx, by, bw, Math.ceil(bh * 0.42), r);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,102,153,0.75)';
+        ctx.lineWidth = 1;
+        roundRect(bx, by, bw, bh, r);
+        ctx.stroke();
+
+        if (mode === 'attack') {
+            ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(0, 6);
+            ctx.moveTo(-5, -2);
+            ctx.lineTo(5, -2);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255,34,68,0.85)';
+            ctx.beginPath();
+            ctx.arc(0, -2, 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath();
+            ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,102,153,0.55)';
+            ctx.beginPath();
+            ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
     }
 
     function normalizeTrigger(h) {
@@ -1156,6 +1224,7 @@ const LevelEditorSchema = (() => {
         normalizeCameraCut,
         normalizeTrigger,
         triggerModeIcon,
+        drawTriggerButtonIcon,
         resolveStandingFeetY,
         electricIsActive,
         spawnDefaultHp,

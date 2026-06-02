@@ -727,15 +727,8 @@
                 ctx.fillRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.strokeRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h);
                 ctx.setLineDash([]);
-                const iconSize = Math.min(28, Math.max(14, Math.min(h.w, h.h) * 0.28));
-                ctx.font = `${iconSize}px sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.globalAlpha = touchHidden ? 0.45 : 0.75;
-                ctx.fillStyle = '#ff99cc';
-                ctx.fillText(S.triggerModeIcon(h.triggerMode), h.x, h.y);
-                ctx.globalAlpha = 1;
-                ctx.textBaseline = 'alphabetic';
+                const iconSize = Math.min(32, Math.max(14, Math.min(h.w, h.h) * 0.32));
+                S.drawTriggerButtonIcon(ctx, h.x, h.y, iconSize, h.triggerMode, touchHidden ? 0.45 : 0.75);
                 ctx.textAlign = 'left';
                 ctx.fillStyle = '#ff99cc';
                 ctx.font = '11px sans-serif';

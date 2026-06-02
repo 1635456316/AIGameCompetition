@@ -30,9 +30,11 @@ function playerOverlapsFeetZone (player, feetX, feetY, w, h) {
     return playerOverlapsRect(player, t.cx, t.cy, t.w, t.h);
 }
 
-/** 与关卡编辑器一致：触碰 👆，攻击 ⚔ */
-function triggerModeIcon (mode) {
-    return mode === 'attack' ? '⚔' : '👆';
+function triggerIconKey (mode, active = false) {
+    if (active) {
+        return mode === 'attack' ? 'trigger_icon_attack_active' : 'trigger_icon_touch_active';
+    }
+    return mode === 'attack' ? 'trigger_icon_attack' : 'trigger_icon_touch';
 }
 
 /** period <= 0 表示常开；否则按周期与激活时长切换 */
@@ -617,19 +619,18 @@ class TriggerZone {
         this.triggered = false;
         this.removed = false;
         this._playerInside = false;
-        this.visual = null;
+        this._visualState = 'default';
+        this._markerSize = 0;
         this.marker = null;
 
         this._callbacks = [];
 
         if (this.showVisual) {
-            this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff99cc, 0.07)
-                .setDepth(45);
-            const iconSize = Math.min(26, Math.max(14, Math.min(this.w, this.h) * 0.26));
-            this.marker = scene.add.text(this.x, this.y, triggerModeIcon(this.triggerMode), {
-                font: `${iconSize}px Arial`,
-                color: '#ff99cc'
-            }).setOrigin(0.5).setDepth(46).setAlpha(0.55);
+            this._markerSize = Math.min(32, Math.max(16, Math.min(this.w, this.h) * 0.32));
+            this.marker = scene.add.image(this.x, this.y, triggerIconKey(this.triggerMode))
+                .setDisplaySize(this._markerSize, this._markerSize)
+                .setOrigin(0.5).setDepth(46);
+            this._applyVisualState('default');
         }
 
         if (this.triggerMode === 'attack') {
@@ -644,30 +645,31 @@ class TriggerZone {
         this._callbacks.push(cb);
     }
 
+    _canTriggerAgain () {
+        return this.maxTriggers === 0 || this.triggerCount < this.maxTriggers;
+    }
+
+    _isPermanentlyTriggered () {
+        return this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers;
+    }
+
+    _applyVisualState (state) {
+        if (!this.showVisual || !this.marker) return;
+        this._visualState = state;
+        const active = state === 'triggered';
+
+        this.scene.tweens.killTweensOf(this.marker);
+        this.marker.setTexture(triggerIconKey(this.triggerMode, active));
+        this.marker.setDisplaySize(this._markerSize, this._markerSize);
+        this.marker.setAlpha(active ? 0.95 : 0.62).setScale(1).clearTint();
+    }
+
     _fire () {
         if (this.removed) return;
-        if (this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers) return;
+        if (!this._canTriggerAgain()) return;
         this.triggerCount++;
         this.triggered = true;
-
-        if (this.visual) {
-            this.visual.setFillStyle(0xff99cc, 0.22);
-            this.scene.tweens.add({
-                targets: this.visual,
-                alpha: { from: 1, to: 0.5 },
-                duration: 220,
-                yoyo: true
-            });
-        }
-        if (this.marker) {
-            this.marker.setAlpha(0.85).setScale(1.08);
-            this.scene.tweens.add({
-                targets: this.marker,
-                scale: { from: 1.12, to: 1 },
-                duration: 280,
-                ease: 'Quad.easeOut'
-            });
-        }
+        this._applyVisualState('triggered');
 
         if (this.triggerId && this.scene._reactToBindId) {
             this.scene._reactToBindId(this.triggerId, 'trigger');
@@ -675,10 +677,8 @@ class TriggerZone {
 
         this._callbacks.forEach(cb => cb());
 
-        if (this.maxTriggers > 0 && this.triggerCount >= this.maxTriggers) {
+        if (this._isPermanentlyTriggered()) {
             this.removed = true;
-            this.visual?.setFillStyle(0xff99cc, 0.04).setAlpha(0.35);
-            this.marker?.setAlpha(0.2).setScale(0.88);
         }
     }
 
@@ -690,18 +690,28 @@ class TriggerZone {
 
     update (time, delta, player) {
         if (this.removed) return;
-        if (this.triggerMode !== 'touch') return;
 
         const overlapping = playerOverlapsRect(player, this.x, this.y, this.w, this.h);
+
         if (!overlapping) {
-            this._playerInside = false;
+            if (this._playerInside) {
+                this._playerInside = false;
+                if (!this._isPermanentlyTriggered()) {
+                    this._applyVisualState('default');
+                }
+            }
             return;
         }
+
         if (player.fsm.is('dead')) return;
 
-        if (this._playerInside) return;
-        this._playerInside = true;
-        this._fire();
+        if (this.triggerMode === 'touch') {
+            if (this._playerInside) return;
+            this._playerInside = true;
+            this._fire();
+        } else {
+            this._playerInside = true;
+        }
     }
 }
 

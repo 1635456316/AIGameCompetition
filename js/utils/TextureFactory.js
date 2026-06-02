@@ -3,7 +3,7 @@
  */
 class TextureFactory {
     static bakeAll(scene) {
-        ['tile_ground', 'tile_wall', 'tile_destructible', 'tile_platform'].forEach((key) => {
+        ['tile_ground', 'tile_wall', 'tile_destructible', 'tile_platform', 'trigger_icon_touch', 'trigger_icon_attack', 'trigger_icon_touch_active', 'trigger_icon_attack_active'].forEach((key) => {
             if (scene.textures.exists(key)) scene.textures.remove(key);
         });
 
@@ -24,6 +24,10 @@ class TextureFactory {
         TextureFactory.tileWall(scene, 'tile_wall');
         TextureFactory.tileDestructible(scene, 'tile_destructible');
         TextureFactory.tilePlatform(scene, 'tile_platform');
+        TextureFactory.triggerIcon(scene, 'trigger_icon_touch', 'touch', false);
+        TextureFactory.triggerIcon(scene, 'trigger_icon_attack', 'attack', false);
+        TextureFactory.triggerIcon(scene, 'trigger_icon_touch_active', 'touch', true);
+        TextureFactory.triggerIcon(scene, 'trigger_icon_attack_active', 'attack', true);
 
         TextureFactory.bgFar(scene, 'bg_far', 1280, 720);
         TextureFactory.bgMid(scene, 'bg_mid', 1280, 720);
@@ -245,6 +249,52 @@ class TextureFactory {
                 }
             }
             g.strokePath();
+        }
+    }
+
+    /** 触发器中心按钮图标：触碰=圆点按钮，攻击=十字准星按钮；active=按下/已触发 */
+    static triggerIcon(scene, key, mode, active = false) {
+        TextureFactory._bake(scene, key, 32, 32, g => {
+            TextureFactory._drawTriggerButton(g, mode, active);
+        });
+    }
+
+    static _drawTriggerButton(g, mode, active = false) {
+        const bx = 4;
+        const by = active ? 10 : 8;
+        const bw = 24;
+        const bh = 16;
+        const r = 3;
+
+        if (!active) {
+            g.fillStyle(0x000000, 0.22);
+            g.fillRoundedRect(bx + 1, by + 2, bw, bh, r);
+        }
+        g.fillStyle(active ? 0xff6699 : 0xff99cc, active ? 0.98 : 0.92);
+        g.fillRoundedRect(bx, by, bw, bh, r);
+        if (active) {
+            g.fillStyle(0xff4477, 0.35);
+            g.fillRoundedRect(bx, by + Math.floor(bh * 0.55), bw, Math.ceil(bh * 0.45), r);
+        } else {
+            g.fillStyle(0xffcce0, 0.88);
+            g.fillRoundedRect(bx, by, bw, Math.ceil(bh * 0.42), r);
+        }
+        g.lineStyle(1, active ? 0xff3366 : 0xff6699, active ? 0.9 : 0.75);
+        g.strokeRoundedRect(bx, by, bw, bh, r);
+
+        if (mode === 'attack') {
+            g.lineStyle(2, 0xffffff, active ? 1 : 0.92);
+            g.lineBetween(16, by + 2, 16, by + bh - 2);
+            g.lineBetween(11, by + 6, 21, by + 6);
+            g.fillStyle(active ? 0xffeedd : 0xff2244, active ? 1 : 0.85);
+            g.fillCircle(16, by + 6, active ? 2.5 : 2);
+        } else {
+            g.fillStyle(active ? 0xffeedd : 0xffffff, active ? 1 : 0.9);
+            g.fillCircle(16, by + bh / 2, active ? 4 : 3.5);
+            if (!active) {
+                g.fillStyle(0xff6699, 0.55);
+                g.fillCircle(16, by + bh / 2, 1.5);
+            }
         }
     }
 
