@@ -302,38 +302,6 @@
         return { x: 0, y: 0 };
     }
 
-    function rectsOverlap(a, b) {
-        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-    }
-
-    function pastedBoundsOverlapLevel(category, pastedData) {
-        const pastedBounds = S.getItemBounds(category, pastedData, level);
-        const items = S.listAllItems(level);
-        for (const item of items) {
-            if (item.category === category && category === 'playerStart') continue;
-            if (item.category === category && category === 'boss') continue;
-            if (item.category === category && category === 'bossTriggerZone') continue;
-            if (item.category === category && category === 'finish') continue;
-            const bounds = S.getItemBounds(item.category, item.data, level);
-            if (rectsOverlap(pastedBounds, bounds)) return true;
-        }
-        return false;
-    }
-
-    function resolvePasteOffset(category, data, baseDx, baseDy) {
-        const step = S.getGridSize();
-        let dx = baseDx;
-        let dy = baseDy;
-        for (let i = 0; i < 256; i++) {
-            const copy = applyOffsetToData(data, category, dx, dy);
-            if (!pastedBoundsOverlapLevel(category, copy)) {
-                return { dx, dy, copy };
-            }
-            dx += step;
-        }
-        return { dx: baseDx, dy: baseDy, copy: applyOffsetToData(data, category, baseDx, baseDy) };
-    }
-
     function insertPastedCopy(category, copy) {
         if (category === 'playerStart') {
             level.playerStart = copy;
@@ -362,7 +330,7 @@
         const anchor = clipboard.anchor || getDataAnchor(category, data);
         const baseDx = S.snap(worldX) - anchor.x;
         const baseDy = S.snap(worldY) - anchor.y;
-        const { copy } = resolvePasteOffset(category, data, baseDx, baseDy);
+        const copy = applyOffsetToData(data, category, baseDx, baseDy);
         return insertPastedCopy(category, copy);
     }
 
