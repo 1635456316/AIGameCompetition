@@ -449,7 +449,7 @@ const LevelEditorPlayerMode = (() => {
                 const res = await fetch('/api/levels', {
                     method: 'POST',
                     credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: WorkshopApi.authHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
