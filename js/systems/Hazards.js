@@ -74,7 +74,7 @@ class Hazards {
             }
         });
         spawned.forEach(h => {
-            if (h instanceof TriggeredPlatform && h.triggerId) {
+            if (h instanceof TriggeredPlatform && h.activateMode === 'trigger' && h.triggerId) {
                 h.bindTrigger(triggerMap[h.triggerId] || null);
             }
         });
@@ -781,12 +781,15 @@ class TriggeredPlatform {
         this.originY = cfg.y;
         this.w = Math.max(16, cfg.w || 96);
         this.h = Math.max(16, cfg.h || 20);
-        this.triggerId = cfg.triggerId || '';
+        this.activateMode = cfg.activateMode === 'stand' ? 'stand' : 'trigger';
+        this.triggerId = this.activateMode === 'trigger' ? (cfg.triggerId || '') : '';
         this.moveAxis = cfg.moveAxis || 'x';
         this.moveRange = cfg.moveRange || 200;
         this.moveSpeed = cfg.moveSpeed || 80;
         this.autoReturn = cfg.autoReturn !== false;
-        this.returnMode = cfg.returnMode || 'reverse';
+        this.returnMode = this.activateMode === 'stand'
+            ? 'reverse'
+            : (cfg.returnMode || 'reverse');
         this.returnDelay = hazardNumber(cfg.returnDelay, 2000);
 
         this._state = 'idle';
@@ -800,6 +803,9 @@ class TriggeredPlatform {
         this.platform.setData('platHeight', this.h);
         this.platform.setData('isWall', this.h > 20);
         this.platform.setData('isTriggeredPlatform', true);
+        if (this.activateMode === 'stand') {
+            this.platform.setData('platformStandOwner', this);
+        }
         this.platform.setTint(0x55aacc);
         this.platform.refreshBody();
     }
@@ -811,8 +817,16 @@ class TriggeredPlatform {
     }
 
     _onTriggered () {
-        if (this._state === 'moving') return;
+        if (this._state !== 'idle') return;
         this._state = 'moving';
+    }
+
+    /** 踩上触发：仅 idle 时启动；启动后无论角色是否离开都走完整个行程 */
+    onPlayerStand (player) {
+        if (this.activateMode !== 'stand') return;
+        if (this._state !== 'idle') return;
+        if (!this.scene._isPlayerSupportedByPlatform?.(player, this.platform)) return;
+        this._onTriggered();
     }
 
     update (time, delta) {

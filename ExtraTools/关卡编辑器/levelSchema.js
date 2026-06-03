@@ -343,8 +343,8 @@ const LevelEditorSchema = (() => {
             if (out.type === 'trigger') {
                 out = normalizeTrigger(out);
             }
-            if (out.type === 'triggered_platform' && out.triggerId != null && out.triggerId !== '') {
-                out.triggerId = String(out.triggerId);
+            if (out.type === 'triggered_platform') {
+                out = normalizeTriggeredPlatform(out);
             }
             if (out.type === 'camera_cut') {
                 out = normalizeCameraCut(out);
@@ -499,6 +499,31 @@ const LevelEditorSchema = (() => {
         }
         delete out.bindHintIds;
         delete out.bindSystemWallIds;
+        return out;
+    }
+
+    /** 触发移动平台：可绑定触发器，或角色踩上触发；踩上模式禁止瞬间复位 */
+    function normalizeTriggeredPlatform(h) {
+        const activateMode = h.activateMode === 'stand' ? 'stand' : 'trigger';
+        const out = {
+            type: 'triggered_platform',
+            x: h.x,
+            y: h.y,
+            w: Math.max(16, h.w ?? PLATFORM_W),
+            h: Math.max(16, h.h ?? PLATFORM_H),
+            moveAxis: h.moveAxis === 'y' ? 'y' : 'x',
+            moveRange: Math.max(0, hazardNumber(h.moveRange, 200)),
+            moveSpeed: Math.max(1, hazardNumber(h.moveSpeed, 80)),
+            autoReturn: h.autoReturn !== false,
+            returnDelay: Math.max(0, hazardNumber(h.returnDelay, 2000))
+        };
+        if (activateMode === 'stand') {
+            out.activateMode = 'stand';
+            out.returnMode = 'reverse';
+        } else {
+            if (h.triggerId != null && h.triggerId !== '') out.triggerId = String(h.triggerId);
+            out.returnMode = h.returnMode === 'instant' ? 'instant' : 'reverse';
+        }
         return out;
     }
 
@@ -694,7 +719,7 @@ const LevelEditorSchema = (() => {
             case 'moving_platform':
                 return { category: 'hazards', data: { type: 'moving_platform', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, moveAxis: 'x', moveRange: 200, moveSpeed: 80 } };
             case 'triggered_platform':
-                return { category: 'hazards', data: { type: 'triggered_platform', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, triggerId: '', moveAxis: 'x', moveRange: 200, moveSpeed: 80, autoReturn: true, returnMode: 'reverse', returnDelay: 2000 } };
+                return { category: 'hazards', data: { type: 'triggered_platform', x: sx, y: sy, w: PLATFORM_W, h: PLATFORM_H, activateMode: 'trigger', triggerId: '', moveAxis: 'x', moveRange: 200, moveSpeed: 80, autoReturn: true, returnMode: 'reverse', returnDelay: 2000 } };
             case 'camera_cut':
                 return { category: 'hazards', data: { type: 'camera_cut', x: sx, y: sy, w: 320, h: 240, triggerId: '', enterMode: 'move', enterDuration: 800, exitMode: 'instant', exitDuration: 500 } };
             case 'spawn_melee':
@@ -902,8 +927,8 @@ const LevelEditorSchema = (() => {
                     return `${name} #${index + 1} (${data.moveAxis ?? 'x'} · ${data.moveRange ?? 200}px)`;
                 }
                 if (data.type === 'triggered_platform') {
-                    const tid = data.triggerId || '?';
-                    return `${name} #${index + 1} (→${tid} · ${data.moveAxis ?? 'x'})`;
+                    const mode = data.activateMode === 'stand' ? '踩上' : `→${data.triggerId || '?'}`;
+                    return `${name} #${index + 1} (${mode} · ${data.moveAxis ?? 'x'})`;
                 }
                 if (data.type === 'camera_cut') {
                     const tid = data.triggerId || '?';
@@ -1165,6 +1190,7 @@ const LevelEditorSchema = (() => {
         });
         (normalized.hazards || []).forEach((h, i) => {
             if (h.type !== 'triggered_platform') return;
+            if (h.activateMode === 'stand') return;
             const tid = h.triggerId;
             if (!tid) {
                 errors.push(`触发移动平台 #${i + 1} 未绑定 triggerId`);
@@ -1434,6 +1460,7 @@ const LevelEditorSchema = (() => {
         normalizeSpawnZone,
         normalizeCameraCut,
         normalizeTrigger,
+        normalizeTriggeredPlatform,
         triggerModeIcon,
         drawTriggerButtonIcon,
         drawSpringCoilCanvas,

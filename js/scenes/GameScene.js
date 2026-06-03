@@ -1177,6 +1177,10 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    _platformStandOwner(platform) {
+        return platform?.getData?.('platformStandOwner') || platform?.getData?.('crumbleOwner') || null;
+    }
+
     _bindCrumblePlatformOverlaps() {
         if (!this.hazards || !this.player) return;
         this.hazards.forEach(h => {
@@ -1221,8 +1225,7 @@ class GameScene extends Phaser.Scene {
     }
 
     _onPlayerPlatformCollide(playerSpr, platform) {
-        if (!platform?.getData?.('isCrumble')) return;
-        const owner = platform.getData('crumbleOwner');
+        const owner = this._platformStandOwner(platform);
         if (owner && this.player) owner.onPlayerStand(this.player);
     }
 
@@ -1231,9 +1234,10 @@ class GameScene extends Phaser.Scene {
         if (!player?.body || this.time.now < player.platformDropUntil) return;
 
         this.platforms.children.iterate((plat) => {
-            if (!plat?.getData?.('isCrumble')) return;
+            const owner = this._platformStandOwner(plat);
+            if (!owner) return;
             if (!this._isPlayerSupportedByPlatform(player, plat)) return;
-            plat.getData('crumbleOwner')?.onPlayerStand(player);
+            owner.onPlayerStand(player);
         });
     }
 
@@ -1346,9 +1350,8 @@ class GameScene extends Phaser.Scene {
                 player.setVelocityY(0);
                 pb.updateFromGameObject();
             }
-            if (plat.getData('isCrumble')) {
-                plat.getData('crumbleOwner')?.onPlayerStand(player);
-            }
+            const owner = this._platformStandOwner(plat);
+            if (owner) owner.onPlayerStand(player);
         });
     }
 

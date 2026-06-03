@@ -842,7 +842,7 @@
                 ctx.fillStyle = '#fff';
                 ctx.font = '10px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(`→${h.triggerId || '?'}`, h.x, h.y + 4);
+                ctx.fillText((h.activateMode === 'stand') ? '踩' : `→${h.triggerId || '?'}`, h.x, h.y + 4);
                 ctx.textAlign = 'left';
                 ctx.setLineDash([3, 3]);
                 ctx.strokeStyle = 'rgba(85,170,204,0.5)';
@@ -1423,8 +1423,12 @@
                     else item.bindId = String(v);
                     delete item.bindEnemyId;
                 }
-                else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode' || key === 'enterMode' || key === 'exitMode' || key === 'enemyType') {
+                else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode' || key === 'enterMode' || key === 'exitMode' || key === 'enemyType' || key === 'activateMode') {
                     item[key] = String(v);
+                    if (key === 'activateMode' && v === 'stand') {
+                        delete item.triggerId;
+                        if (item.returnMode === 'instant') item.returnMode = 'reverse';
+                    }
                 }
                 else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay', 'enterDuration', 'exitDuration', 'cooldown', 'maxAlive', 'maxUses', 'duration'].includes(key)) {
                     item[key] = S.snap(v);
@@ -1453,7 +1457,7 @@
                 setSelectionData(item);
             }
             refreshAll(false);
-            if (selection?.category === 'hazards' && key === 'triggerMode') {
+            if (selection?.category === 'hazards' && (key === 'triggerMode' || key === 'activateMode')) {
                 buildPropsForm();
             }
         };
@@ -1659,8 +1663,17 @@
                 addField('Y（起点中心）', 'y', 'number', { value: data.y });
                 addField('宽 w', 'w', 'number', { value: data.w ?? S.PLATFORM_W });
                 addField('高 h', 'h', 'number', { value: data.h ?? S.PLATFORM_H });
-                addField('绑定触发器全局 id', 'triggerId', 'text', { value: data.triggerId ?? '' });
-                appendGlobalIdHint(form, '填写机关「触发器」的全局 triggerId。');
+                addField('激活方式', 'activateMode', 'select', {
+                    value: data.activateMode || 'trigger',
+                    options: [
+                        { v: 'trigger', t: '绑定触发器' },
+                        { v: 'stand', t: '角色站上去触发' }
+                    ]
+                });
+                if ((data.activateMode || 'trigger') === 'trigger') {
+                    addField('绑定触发器全局 id', 'triggerId', 'text', { value: data.triggerId ?? '' });
+                    appendGlobalIdHint(form, '填写机关「触发器」的全局 triggerId。');
+                }
                 addField('移动轴', 'moveAxis', 'select', {
                     value: data.moveAxis || 'x',
                     options: [
@@ -1674,17 +1687,22 @@
                     value: data.autoReturn !== false ? '1' : '0',
                     options: [{ v: '1', t: '是' }, { v: '0', t: '否' }]
                 });
-                addField('回归方式', 'returnMode', 'select', {
-                    value: data.returnMode || 'reverse',
-                    options: [
+                const returnOptions = (data.activateMode || 'trigger') === 'stand'
+                    ? [{ v: 'reverse', t: '原路返回' }]
+                    : [
                         { v: 'reverse', t: '原路返回' },
                         { v: 'instant', t: '瞬间复位' }
-                    ]
+                    ];
+                addField('回归方式', 'returnMode', 'select', {
+                    value: (data.activateMode || 'trigger') === 'stand' ? 'reverse' : (data.returnMode || 'reverse'),
+                    options: returnOptions
                 });
                 addField('回归延迟 (ms)', 'returnDelay', 'number', { value: data.returnDelay ?? 2000 });
                 const tpHint = document.createElement('p');
                 tpHint.className = 'field-hint';
-                tpHint.textContent = '触发器激活后，平台从起点移动到终点。自动回归=到达终点后延迟一段时间返回起点。';
+                const hintStand = '角色站上去触发后平台开始移动；中途离开也会走完行程。踩上模式仅支持原路返回。';
+                const hintTrigger = '触发器激活后，平台从起点移动到终点。自动回归=到达终点后延迟一段时间返回起点。';
+                tpHint.textContent = (data.activateMode || 'trigger') === 'stand' ? hintStand : hintTrigger;
                 form.appendChild(tpHint);
             } else if (data.type === 'camera_cut') {
                 addField('焦点 X', 'x', 'number', { value: data.x });

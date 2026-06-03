@@ -173,8 +173,23 @@ function normalizeLevel(raw) {
                 delete out.bindHintIds;
                 delete out.bindSystemWallIds;
             }
-            if (out.type === 'triggered_platform' && out.triggerId != null && out.triggerId !== '') {
-                out.triggerId = String(out.triggerId);
+            if (out.type === 'triggered_platform') {
+                const activateMode = out.activateMode === 'stand' ? 'stand' : 'trigger';
+                out.moveAxis = out.moveAxis === 'y' ? 'y' : 'x';
+                out.moveRange = Math.max(0, hazardNumber(out.moveRange, 200));
+                out.moveSpeed = Math.max(1, hazardNumber(out.moveSpeed, 80));
+                out.autoReturn = out.autoReturn !== false;
+                out.returnDelay = Math.max(0, hazardNumber(out.returnDelay, 2000));
+                if (activateMode === 'stand') {
+                    out.activateMode = 'stand';
+                    delete out.triggerId;
+                    out.returnMode = 'reverse';
+                } else {
+                    delete out.activateMode;
+                    if (out.triggerId != null && out.triggerId !== '') out.triggerId = String(out.triggerId);
+                    else delete out.triggerId;
+                    out.returnMode = out.returnMode === 'instant' ? 'instant' : 'reverse';
+                }
             }
             if (out.type === 'camera_cut') {
                 out.enterMode = out.enterMode === 'move' ? 'move' : 'instant';
@@ -369,6 +384,7 @@ export function validateLevel(level) {
     });
     (normalized.hazards || []).forEach((h, i) => {
         if (h.type !== 'triggered_platform') return;
+        if (h.activateMode === 'stand') return;
         const tid = h.triggerId;
         if (!tid) errors.push(`触发移动平台 #${i + 1} 未绑定 triggerId`);
         else if (!globalIds.has(String(tid))) {
