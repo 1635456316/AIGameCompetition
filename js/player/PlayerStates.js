@@ -65,9 +65,13 @@ const RunState = {
 };
 
 const JumpState = {
-    enter(player) {
+    enter(player, params = {}) {
         player.playHeroAnim('hero_idle');
-        player.performJump();
+        if (params.fromSpring && typeof params.springVelocity === 'number') {
+            player.setVelocityY(-Math.abs(params.springVelocity));
+        } else {
+            player.performJump();
+        }
     },
     update(player, time, delta) {
         const dir = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);

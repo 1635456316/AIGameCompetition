@@ -423,8 +423,8 @@ class GameScene extends Phaser.Scene {
     }
 
     _spawnEnemies() {
-        const groundY = this.levelHeight - 64;
         (this.levelConfig.spawns || []).forEach((s, i) => {
+            const groundY = this.levelHeight - 64;
             const y = s.y || groundY - 4;
             if (!this._isSpawnInsideMap(s.x, y)) {
                 console.warn(
@@ -432,16 +432,23 @@ class GameScene extends Phaser.Scene {
                 );
                 return;
             }
-            const e = new Enemy(this, s.x, y, s.type, {
-                hp: s.hp,
-                killEnergy: s.killEnergy,
-                id: s.id,
-                detectRangeX: s.detectRangeX,
-                detectRangeY: s.detectRangeY
-            });
-            this.enemies.push(e);
-            this.enemySprites.add(e.sprite);
+            this._spawnEnemyAt(s.x, y, s);
         });
+    }
+
+    _spawnEnemyAt(x, y, spawnCfg = {}) {
+        const type = spawnCfg.type || 'melee';
+        if (!this._isSpawnInsideMap(x, y)) return null;
+        const e = new Enemy(this, x, y, type, {
+            hp: spawnCfg.hp,
+            killEnergy: spawnCfg.killEnergy,
+            id: spawnCfg.id,
+            detectRangeX: spawnCfg.detectRangeX,
+            detectRangeY: spawnCfg.detectRangeY
+        });
+        this.enemies.push(e);
+        this.enemySprites.add(e.sprite);
+        return e;
     }
 
     update(time, delta) {

@@ -3,7 +3,7 @@
  */
 class TextureFactory {
     static bakeAll(scene) {
-        ['tile_ground', 'tile_wall', 'tile_destructible', 'tile_platform', 'trigger_icon_touch', 'trigger_icon_attack', 'trigger_icon_touch_active', 'trigger_icon_attack_active'].forEach((key) => {
+        ['tile_ground', 'tile_wall', 'tile_destructible', 'tile_platform', 'trigger_icon_touch', 'trigger_icon_attack', 'trigger_icon_touch_active', 'trigger_icon_attack_active', 'spring_coil'].forEach((key) => {
             if (scene.textures.exists(key)) scene.textures.remove(key);
         });
 
@@ -28,6 +28,7 @@ class TextureFactory {
         TextureFactory.triggerIcon(scene, 'trigger_icon_attack', 'attack', false);
         TextureFactory.triggerIcon(scene, 'trigger_icon_touch_active', 'touch', true);
         TextureFactory.triggerIcon(scene, 'trigger_icon_attack_active', 'attack', true);
+        TextureFactory.springCoil(scene, 'spring_coil');
 
         TextureFactory.bgFar(scene, 'bg_far', 1280, 720);
         TextureFactory.bgMid(scene, 'bg_mid', 1280, 720);
@@ -253,6 +254,55 @@ class TextureFactory {
     }
 
     /** 触发器中心按钮图标：触碰=圆点按钮，攻击=十字准星按钮；active=按下/已触发 */
+    static springCoil(scene, key) {
+        const W = 40;
+        const H = 56;
+        TextureFactory._bake(scene, key, W, H, g => {
+            TextureFactory.drawSpringCoil(g, W, H);
+        });
+    }
+
+    /** 螺旋弹簧：一圈圈向上盘旋的线圈（侧视） */
+    static drawSpringCoil(g, w, h, opts = {}) {
+        const shadow = opts.shadow ?? 0x3a8822;
+        const main = opts.main ?? 0x66dd44;
+        const hi = opts.hi ?? 0xccff99;
+        const cx = w / 2;
+        const turns = opts.turns ?? 3.8;
+        const steps = 96;
+
+        const pts = [];
+        for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const y = h - 5 - t * (h - 10);
+            const angle = t * Math.PI * 2 * turns;
+            const amp = (w * 0.37) * (1 - t * 0.22);
+            pts.push({ x: cx + Math.sin(angle) * amp, y });
+        }
+
+        const strokePts = (points, color, lw, alpha, ox = 0, oy = 0) => {
+            g.lineStyle(lw, color, alpha);
+            g.beginPath();
+            points.forEach((p, i) => {
+                const x = p.x + ox;
+                const y = p.y + oy;
+                if (i === 0) g.moveTo(x, y);
+                else g.lineTo(x, y);
+            });
+            g.strokePath();
+        };
+
+        strokePts(pts, shadow, 5, 0.88, 0.8, 0.8);
+        strokePts(pts, main, 3.5, 1, 0, 0);
+        strokePts(pts, hi, 1.6, 0.8, -1, -0.6);
+
+        g.fillStyle(0x55bb33, 0.92);
+        g.fillEllipse(cx, h - 3, w * 0.58, 7);
+        const top = pts[pts.length - 1];
+        g.fillStyle(main, 1);
+        g.fillEllipse(top.x, top.y, w * 0.26, 6);
+    }
+
     static triggerIcon(scene, key, mode, active = false) {
         TextureFactory._bake(scene, key, 32, 32, g => {
             TextureFactory._drawTriggerButton(g, mode, active);

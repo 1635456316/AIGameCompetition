@@ -55,6 +55,7 @@ class Player {
         this.hurtEndAt = 0;
         this.ultEndAt = 0;
         this.invulnerableUntil = 0;
+        this.pickupInvulnUntil = 0;
         this.platformDropUntil = 0;
         this._leaveGroundFrames = 0;
         this._landFrames = 0;
@@ -306,6 +307,19 @@ class Player {
             );
         }
         this.fsm.update(time, delta);
+        this._updatePickupInvulnVisual(time);
+    }
+
+    /** 道具无敌：金/青两色交替闪烁 */
+    _updatePickupInvulnVisual(time) {
+        if (this.fsm.is('dead') || this.fsm.is('hurt')) return;
+        if (time < this.pickupInvulnUntil) {
+            const phase = Math.floor(time / 90) % 2;
+            this.view.setTint(phase === 0 ? 0xffee44 : 0x44ddff);
+        } else if (this.pickupInvulnUntil > 0) {
+            this.pickupInvulnUntil = 0;
+            this.view.clearTint();
+        }
     }
 
     feedInput(input) {
@@ -411,6 +425,15 @@ class Player {
         }
     }
 
+    /** 弹簧弹起：固定初速度，不受下落速度 / 剩余跳跃次数影响 */
+    launchFromSpring(force) {
+        const vy = Math.max(0, force);
+        if (vy <= 0) return;
+        this.jumpsRemaining = this.hasUnlimitedJumps() ? -1 : this.maxJumps;
+        this._jumpsUsedThisAirborne = 0;
+        this.fsm.change('jump', { fromSpring: true, springVelocity: vy });
+    }
+
     takeDamage(amount, fromX) {
         if (this.fsm.is('dead')) return;
 
@@ -452,6 +475,16 @@ class Player {
         this.hp = Math.min(PlayerConfig.maxHp, this.hp + amount);
     }
 
+    /** 道具无敌：与受击无敌共用 invulnerableUntil，取较长结束时间 */
+    grantInvincibility(durationMs) {
+        if (this.hp <= 0) return;
+        const dur = typeof durationMs === 'number' && !Number.isNaN(durationMs) ? Math.max(0, durationMs) : 3000;
+        if (dur <= 0) return;
+        const now = this.scene.time.now;
+        this.invulnerableUntil = Math.max(this.invulnerableUntil, now + dur);
+        this.pickupInvulnUntil = Math.max(this.pickupInvulnUntil, now + dur);
+    }
+
     /** 在检查点复活：脚点 X/Y 对齐复活点，略抬高后靠重力落下 */
     respawnAt(x, y, respawnHpPercent, respawnEnergyPercent) {
         const lift = PlayerConfig.checkpointRespawnLift;
@@ -487,6 +520,7 @@ class Player {
             : 100;
         this.energy = PlayerConfig.maxEnergy * (energyPct / 100);
         this.view.clearTint();
+        this.pickupInvulnUntil = 0;
         this.resetMeleeCombo();
         this.invulnerableUntil = this.scene.time.now + PlayerConfig.invulnAfterHurt * 3;
 

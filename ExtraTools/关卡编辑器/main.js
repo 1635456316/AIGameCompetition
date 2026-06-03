@@ -565,17 +565,22 @@
             const y = p.y ?? (S.groundY(level) - 4);
             const half = S.PICKUP_SIZE / 2;
             const isEnergy = p.type === 'energy';
-            ctx.fillStyle = sel ? (isEnergy ? '#88ccff' : '#66ffaa') : (isEnergy ? '#44aaff' : '#44dd88');
+            const isInvincible = p.type === 'invincible';
+            ctx.fillStyle = sel
+                ? (isInvincible ? '#ffee88' : isEnergy ? '#88ccff' : '#66ffaa')
+                : (isInvincible ? '#ffdd66' : isEnergy ? '#44aaff' : '#44dd88');
             ctx.beginPath();
             ctx.arc(p.x, y, half - 2, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = sel ? (isEnergy ? '#cceeff' : '#aaffcc') : (isEnergy ? '#2266aa' : '#228855');
+            ctx.strokeStyle = sel
+                ? (isInvincible ? '#fff8cc' : isEnergy ? '#cceeff' : '#aaffcc')
+                : (isInvincible ? '#ccaa44' : isEnergy ? '#2266aa' : '#228855');
             ctx.lineWidth = sel ? 2 : 1;
             ctx.stroke();
             ctx.fillStyle = '#fff';
-            ctx.font = isEnergy ? '13px sans-serif' : 'bold 12px sans-serif';
+            ctx.font = isInvincible ? '12px sans-serif' : isEnergy ? '13px sans-serif' : 'bold 12px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(isEnergy ? '⚡' : '+', p.x, y + 4);
+            ctx.fillText(isInvincible ? '🛡' : isEnergy ? '⚡' : '+', p.x, y + 4);
             ctx.textAlign = 'left';
         });
     }
@@ -765,6 +770,38 @@
                 const enterLabel = h.enterMode === 'move' ? `入${h.enterDuration ?? 800}ms` : '入瞬切';
                 const exitLabel = h.exitMode === 'move' ? `出${h.exitDuration ?? 500}ms` : '出瞬切';
                 ctx.fillText(`→${h.triggerId || '?'} · ${enterLabel} · ${exitLabel}`, h.x, h.y + iconSize * 0.4 + 4);
+                ctx.textAlign = 'left';
+            } else if (h.type === 'spring') {
+                const b = S.getItemBounds('hazards', h, level);
+                const coilW = Math.max(h.w ?? 80, 32);
+                const coilH = Math.max(h.h ?? 24, 28) * 1.35;
+                S.drawSpringCoilCanvas(ctx, h.x, b.y + b.h, coilW, coilH);
+                if (sel) {
+                    ctx.strokeStyle = 'rgba(136,238,85,0.55)';
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeRect(b.x, b.y, b.w, b.h);
+                    ctx.setLineDash([]);
+                }
+                ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`↑${h.force ?? 720}`, h.x, b.y - 4);
+                ctx.textAlign = 'left';
+            } else if (h.type === 'spawn_zone') {
+                const b = S.getItemBounds('hazards', h, level);
+                ctx.fillStyle = sel ? 'rgba(255,119,153,0.22)' : 'rgba(255,85,102,0.12)';
+                ctx.strokeStyle = sel ? '#ff99aa' : '#ff7799';
+                ctx.lineWidth = sel ? 3 : 2;
+                ctx.setLineDash([5, 4]);
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
+                ctx.setLineDash([]);
+                const typeLabels = { melee: '近', ranged: '远', flying: '飞' };
+                ctx.fillStyle = '#ff8899';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`⟳${typeLabels[h.enemyType] || '近'} · ${h.maxAlive ?? 2}`, h.x, h.y - 2);
+                ctx.fillText(`${h.interval ?? 3000}ms`, h.x, h.y + 12);
                 ctx.textAlign = 'left';
             }
             if (sel) {
@@ -1124,6 +1161,12 @@
                     if (selection?.category === 'boss' && key === 'type') {
                         buildPropsForm();
                     }
+                    if (selection?.category === 'pickups' && key === 'type') {
+                        buildPropsForm();
+                    }
+                    if (selection?.category === 'hazards' && key === 'enemyType') {
+                        buildPropsForm();
+                    }
                 });
                 return;
             }
@@ -1206,6 +1249,16 @@
                     else item.id = String(v);
                 } else item[key] = v;
                 level.spawns[selection.index] = item;
+            } else if (selection.category === 'pickups') {
+                const item = { ...level.pickups[selection.index] };
+                if (key === 'x' || key === 'y') item[key] = S.snap(v);
+                else if (key === 'type') item.type = v;
+                else if (key === 'amount') item.amount = Math.max(1, Math.round(v));
+                else if (key === 'duration') {
+                    if (v === '' || v == null || Number.isNaN(v)) delete item.duration;
+                    else item.duration = Math.max(0, Math.round(v));
+                } else item[key] = v;
+                level.pickups[selection.index] = item;
             } else if (selection.category === 'systemWalls') {
                 const item = { ...level.systemWalls[selection.index] };
                 if (key === 'x' || key === 'y' || key === 'w' || key === 'h') item[key] = S.snap(v);
@@ -1223,17 +1276,28 @@
                     else item.bindId = String(v);
                     delete item.bindEnemyId;
                 }
-                else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode' || key === 'enterMode' || key === 'exitMode') {
+                else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode' || key === 'enterMode' || key === 'exitMode' || key === 'enemyType') {
                     item[key] = String(v);
                 }
-                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay', 'enterDuration', 'exitDuration'].includes(key)) {
+                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay', 'enterDuration', 'exitDuration', 'cooldown', 'maxAlive', 'duration'].includes(key)) {
                     item[key] = S.snap(v);
                 }
-                else if (key === 'moveRange' || key === 'moveSpeed' || key === 'maxTriggers' || key === 'returnDelay' || key === 'enterDuration' || key === 'exitDuration') {
+                else if (key === 'moveRange' || key === 'moveSpeed' || key === 'maxTriggers' || key === 'returnDelay' || key === 'enterDuration' || key === 'exitDuration' || key === 'maxAlive') {
+                    item[key] = Number.isNaN(v) ? undefined : Math.max(key === 'maxAlive' ? 1 : 0, v);
+                }
+                else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id' || key === 'cooldown') {
                     item[key] = Number.isNaN(v) ? undefined : Math.max(0, v);
                 }
-                else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id') {
-                    item[key] = Number.isNaN(v) ? undefined : v;
+                else if (key === 'interval') {
+                    item[key] = Number.isNaN(v) ? undefined : Math.max(500, v);
+                }
+                else if (key === 'hp' && getSelectionData()?.type === 'spawn_zone') {
+                    if (v === '' || Number.isNaN(v)) delete item.hp;
+                    else item.hp = Math.max(1, Math.round(v));
+                }
+                else if (key === 'detectRangeX' || key === 'detectRangeY' || key === 'killEnergy') {
+                    if (v === '' || Number.isNaN(v)) delete item[key];
+                    else item[key] = Math.max(0, Math.round(v));
                 }
                 else if (key === 'drainRate') {
                     item[key] = Number.isNaN(v) ? 15 : Math.max(0, v);
@@ -1272,14 +1336,26 @@
                 value: data.type || 'health',
                 options: [
                     { v: 'health', t: '回血' },
-                    { v: 'energy', t: '回能量' }
+                    { v: 'energy', t: '回能量' },
+                    { v: 'invincible', t: '无敌' }
                 ]
             });
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y ?? (S.groundY(level) - 4) });
-            const amountLabel = data.type === 'energy' ? '回能量 amount' : '回血量 amount';
-            const amountDefault = data.type === 'energy' ? 25 : 30;
-            addField(amountLabel, 'amount', 'number', { value: data.amount ?? amountDefault });
+            if (data.type === 'invincible') {
+                addField('无敌时长 duration (ms，留空=3000)', 'duration', 'number', {
+                    value: data.duration ?? '',
+                    placeholder: '默认 3000'
+                });
+                const invHint = document.createElement('p');
+                invHint.className = 'field-hint';
+                invHint.textContent = '拾取后玩家进入无敌状态，期间不受伤害（可与受击无敌叠加取较长者）。';
+                form.appendChild(invHint);
+            } else {
+                const amountLabel = data.type === 'energy' ? '回能量 amount' : '回血量 amount';
+                const amountDefault = data.type === 'energy' ? 25 : 30;
+                addField(amountLabel, 'amount', 'number', { value: data.amount ?? amountDefault });
+            }
         } else if (selection.category === 'spawns') {
             addField('X', 'x', 'number', { value: data.x });
             addField('Y', 'y', 'number', { value: data.y ?? (S.groundY(level) - 4) });
@@ -1490,6 +1566,44 @@
                 ccHint.className = 'field-hint';
                 ccHint.textContent = '绑定触发器触发后，镜头切到焦点 (X,Y)；玩家离开保持区域后按切出方式恢复跟随。切入/切出选「镜头移动」时使用对应移动时间。';
                 form.appendChild(ccHint);
+            } else if (data.type === 'spring') {
+                addField('X', 'x', 'number', { value: data.x });
+                addField('Y', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 80 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 24 });
+                addField('弹起力度 force (px/s)', 'force', 'number', { value: data.force ?? 720 });
+                addField('冷却 cooldown (ms)', 'cooldown', 'number', { value: data.cooldown ?? 350 });
+                const springHint = document.createElement('p');
+                springHint.className = 'field-hint';
+                springHint.textContent = '玩家踩上弹簧垫时向上弹起；冷却时间内同一弹簧不会重复触发。';
+                form.appendChild(springHint);
+            } else if (data.type === 'spawn_zone') {
+                addField('X（区域中心）', 'x', 'number', { value: data.x });
+                addField('Y（区域中心）', 'y', 'number', { value: data.y });
+                addField('宽 w', 'w', 'number', { value: data.w ?? 160 });
+                addField('高 h', 'h', 'number', { value: data.h ?? 120 });
+                addField('敌人类型', 'enemyType', 'select', {
+                    value: data.enemyType || 'melee',
+                    options: [
+                        { v: 'melee', t: '近战' },
+                        { v: 'ranged', t: '远程' },
+                        { v: 'flying', t: '飞行' }
+                    ]
+                });
+                addField('刷怪间隔 interval (ms，默认 3000)', 'interval', 'number', { value: data.interval ?? 3000 });
+                addField('最大同时存活 maxAlive（默认 2）', 'maxAlive', 'number', { value: data.maxAlive ?? 2 });
+                const defaultHp = S.spawnDefaultHp(data.enemyType || 'melee');
+                addField(`血量 hp（默认 ${defaultHp}）`, 'hp', 'number', { value: data.hp ?? '' });
+                const defaultDetectX = S.ENEMY_DEFAULT_DETECT_X[data.enemyType || 'melee'] ?? 360;
+                addField(`检测范围 X（默认 ${defaultDetectX}）`, 'detectRangeX', 'number', { value: data.detectRangeX ?? '' });
+                const defaultDetectY = S.ENEMY_DEFAULT_DETECT_Y[data.enemyType || 'melee'] ?? 72;
+                const detectYLabel = defaultDetectY >= 9999 ? '无限' : String(defaultDetectY);
+                addField(`检测范围 Y（默认 ${detectYLabel}）`, 'detectRangeY', 'number', { value: data.detectRangeY ?? '' });
+                addField(`击杀回能（默认 ${level.enemyKillEnergy ?? 10}）`, 'killEnergy', 'number', { value: data.killEnergy ?? '' });
+                const szHint = document.createElement('p');
+                szHint.className = 'field-hint';
+                szHint.textContent = '区域内按间隔随机位置刷怪；地面敌人在区域底边生成，飞行敌人在区域内随机高度。Boss 触发后停止刷怪。';
+                form.appendChild(szHint);
             }
         } else if (selection.category === 'playerStart') {
             addField('X', 'x', 'number', { value: data.x });

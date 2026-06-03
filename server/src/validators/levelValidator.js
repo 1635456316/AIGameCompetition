@@ -183,6 +183,19 @@ function normalizeLevel(raw) {
                 out.exitDuration = Math.max(0, hazardNumber(out.exitDuration, 500));
                 if (out.triggerId != null && out.triggerId !== '') out.triggerId = String(out.triggerId);
             }
+            if (out.type === 'spring') {
+                out.w = Math.max(16, out.w ?? 80);
+                out.h = Math.max(8, out.h ?? 24);
+                out.force = Math.max(0, hazardNumber(out.force, 720));
+                out.cooldown = Math.max(0, hazardNumber(out.cooldown, 350));
+            }
+            if (out.type === 'spawn_zone') {
+                out.enemyType = ['melee', 'ranged', 'flying'].includes(out.enemyType) ? out.enemyType : 'melee';
+                out.w = Math.max(32, out.w ?? 160);
+                out.h = Math.max(32, out.h ?? 120);
+                out.interval = Math.max(500, hazardNumber(out.interval, 3000));
+                out.maxAlive = Math.max(1, Math.round(hazardNumber(out.maxAlive, 2)));
+            }
             return out;
         })
     };

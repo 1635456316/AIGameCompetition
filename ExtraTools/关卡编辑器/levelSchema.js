@@ -54,7 +54,8 @@ const LevelEditorSchema = (() => {
             category: '道具',
             items: [
                 { kind: 'health_pickup', label: '回血道具', icon: '♥', color: '#44dd88' },
-                { kind: 'energy_pickup', label: '回能量道具', icon: '⚡', color: '#44aaff' }
+                { kind: 'energy_pickup', label: '回能量道具', icon: '⚡', color: '#44aaff' },
+                { kind: 'invincible_pickup', label: '无敌道具', icon: '🛡', color: '#ffdd66' }
             ]
         },
         {
@@ -69,7 +70,8 @@ const LevelEditorSchema = (() => {
                 { kind: 'hint', label: '提示区', icon: '💬', color: '#ffdd44' },
                 { kind: 'trigger', label: '触发器', icon: '🔘', color: '#ff99cc' },
                 { kind: 'moving_platform', label: '移动平台(自动)', icon: '⇔', color: '#55cc88' },
-                { kind: 'triggered_platform', label: '移动平台(触发)', icon: '⇌', color: '#55aacc' }
+                { kind: 'triggered_platform', label: '移动平台(触发)', icon: '⇌', color: '#55aacc' },
+                { kind: 'spring', label: '弹簧', icon: '⤴', color: '#88ee55' }
             ]
         },
         {
@@ -77,7 +79,8 @@ const LevelEditorSchema = (() => {
             items: [
                 { kind: 'spawn_melee', label: '近战敌人', icon: '⚔', color: '#ff5566' },
                 { kind: 'spawn_ranged', label: '远程敌人', icon: '🏹', color: '#ff8866' },
-                { kind: 'spawn_flying', label: '飞行敌人', icon: '🪽', color: '#66bbff' }
+                { kind: 'spawn_flying', label: '飞行敌人', icon: '🪽', color: '#66bbff' },
+                { kind: 'spawn_zone', label: '刷怪区', icon: '⟳', color: '#ff7799' }
             ]
         },
         {
@@ -297,10 +300,21 @@ const LevelEditorSchema = (() => {
         });
         level.pickups = (raw.pickups || []).map(p => {
             const type = p.type || 'health';
-            const defaults = type === 'energy'
-                ? { type: 'energy', amount: 25 }
-                : { type: 'health', amount: 30 };
-            return { ...defaults, ...p, type };
+            let defaults;
+            if (type === 'energy') {
+                defaults = { type: 'energy', amount: 25 };
+            } else if (type === 'invincible') {
+                defaults = { type: 'invincible' };
+            } else {
+                defaults = { type: 'health', amount: 30 };
+            }
+            const out = { ...defaults, ...p, type };
+            if (type === 'invincible' && out.duration != null && !Number.isNaN(out.duration)) {
+                out.duration = Math.max(0, out.duration);
+            } else if (type === 'invincible') {
+                delete out.duration;
+            }
+            return out;
         });
         level.spawns = (raw.spawns || []).map(s => {
             const type = s.type || 'melee';
@@ -319,7 +333,7 @@ const LevelEditorSchema = (() => {
             return out;
         });
         level.hazards = (raw.hazards || []).map(h => {
-            let out = normalizeCheckpoint(normalizeMissile(normalizeCrumble({ ...h }), level));
+            let out = normalizeCheckpoint(normalizeMissile(normalizeCrumble(normalizeSpring(normalizeSpawnZone({ ...h }))), level));
             if (out.type === 'hint') {
                 const bind = resolveBindId(out);
                 if (bind) out.bindId = bind;
@@ -338,6 +352,63 @@ const LevelEditorSchema = (() => {
             return out;
         });
         return level;
+    }
+
+    function drawSpringCoilCanvas(ctx, cx, baseY, width, height, opts = {}) {
+        const w = Math.max(16, width);
+        const h = Math.max(20, height);
+        const shadow = opts.shadow ?? '#3a8822';
+        const main = opts.main ?? '#66dd44';
+        const hi = opts.hi ?? '#ccff99';
+        const turns = opts.turns ?? 3.8;
+        const steps = 96;
+        const tcx = w / 2;
+
+        ctx.save();
+        ctx.translate(cx - w / 2, baseY - h);
+
+        const pts = [];
+        for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const y = h - 5 - t * (h - 10);
+            const angle = t * Math.PI * 2 * turns;
+            const amp = (w * 0.37) * (1 - t * 0.22);
+            pts.push({ x: tcx + Math.sin(angle) * amp, y });
+        }
+
+        const strokePts = (points, color, lw, alpha, ox = 0, oy = 0) => {
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = alpha;
+            ctx.lineWidth = lw;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            points.forEach((p, i) => {
+                const x = p.x + ox;
+                const y = p.y + oy;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        };
+
+        strokePts(pts, shadow, 5, 0.88, 0.8, 0.8);
+        strokePts(pts, main, 3.5, 1, 0, 0);
+        strokePts(pts, hi, 1.6, 0.8, -1, -0.6);
+
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = '#55bb33';
+        ctx.beginPath();
+        ctx.ellipse(tcx, h - 3, w * 0.29, 3.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        const top = pts[pts.length - 1];
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = main;
+        ctx.beginPath();
+        ctx.ellipse(top.x, top.y, w * 0.13, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
     }
 
     /** 触碰=圆点按钮，攻击=十字准星按钮（与运行时 TextureFactory 一致） */
@@ -447,6 +518,41 @@ const LevelEditorSchema = (() => {
         };
     }
 
+    /** 弹簧：踩上后向上弹起 */
+    function normalizeSpring(h) {
+        if (h.type !== 'spring') return h;
+        return {
+            type: 'spring',
+            x: h.x,
+            y: h.y,
+            w: Math.max(16, h.w ?? 80),
+            h: Math.max(8, h.h ?? 24),
+            force: Math.max(0, hazardNumber(h.force, 720)),
+            cooldown: Math.max(0, hazardNumber(h.cooldown, 350))
+        };
+    }
+
+    /** 刷怪区：区域内按间隔刷怪，可限制同时存活数量 */
+    function normalizeSpawnZone(h) {
+        if (h.type !== 'spawn_zone') return h;
+        const enemyType = ['melee', 'ranged', 'flying'].includes(h.enemyType) ? h.enemyType : 'melee';
+        const out = {
+            type: 'spawn_zone',
+            x: h.x,
+            y: h.y,
+            w: Math.max(32, h.w ?? 160),
+            h: Math.max(32, h.h ?? 120),
+            enemyType,
+            interval: Math.max(500, hazardNumber(h.interval, 3000)),
+            maxAlive: Math.max(1, Math.round(hazardNumber(h.maxAlive, 2)))
+        };
+        if (h.hp != null && !Number.isNaN(h.hp)) out.hp = Math.max(1, h.hp);
+        if (h.killEnergy != null && !Number.isNaN(h.killEnergy)) out.killEnergy = Math.max(0, h.killEnergy);
+        if (h.detectRangeX != null && !Number.isNaN(h.detectRangeX)) out.detectRangeX = Math.max(0, h.detectRangeX);
+        if (h.detectRangeY != null && !Number.isNaN(h.detectRangeY)) out.detectRangeY = Math.max(0, h.detectRangeY);
+        return out;
+    }
+
     /** 坍塌平台：x,y 为中心，w/h 可调整 */
     function normalizeCrumble(h) {
         if (h.type !== 'crumble') return h;
@@ -553,6 +659,12 @@ const LevelEditorSchema = (() => {
                 return { category: 'pickups', data: { type: 'health', x: sx, y: sy, amount: 30 } };
             case 'energy_pickup':
                 return { category: 'pickups', data: { type: 'energy', x: sx, y: sy, amount: 25 } };
+            case 'invincible_pickup':
+                return { category: 'pickups', data: { type: 'invincible', x: sx, y: sy } };
+            case 'spring':
+                return { category: 'hazards', data: { type: 'spring', x: sx, y: sy, w: 80, h: 24, force: 720, cooldown: 350 } };
+            case 'spawn_zone':
+                return { category: 'hazards', data: { type: 'spawn_zone', x: sx, y: sy, w: 160, h: 120, enemyType: 'melee', interval: 3000, maxAlive: 2 } };
             case 'electric':
                 return { category: 'hazards', data: { type: 'electric', x: sx, y: sy, w: 140, h: 60, period: 2400, activeDuration: 1000, damage: 6 } };
             case 'wind':
@@ -630,7 +742,7 @@ const LevelEditorSchema = (() => {
                     const h = data.h ?? 60;
                     return checkpointBounds(data.x, data.y, w, h);
                 }
-                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind' || data.type === 'energy_drain' || data.type === 'trigger' || data.type === 'moving_platform' || data.type === 'triggered_platform' || data.type === 'camera_cut') {
+                if (data.type === 'death' || data.type === 'hint' || data.type === 'electric' || data.type === 'wind' || data.type === 'energy_drain' || data.type === 'trigger' || data.type === 'moving_platform' || data.type === 'triggered_platform' || data.type === 'camera_cut' || data.type === 'spring' || data.type === 'spawn_zone') {
                     return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
                 }
                 return { x: data.x - data.w / 2, y: data.y - data.h / 2, w: data.w, h: data.h };
@@ -670,7 +782,9 @@ const LevelEditorSchema = (() => {
             case 'destructibleWalls': return 'destructible_wall';
             case 'systemWalls': return 'system_wall';
             case 'pickups':
-                return data?.type === 'energy' ? 'energy_pickup' : 'health_pickup';
+                if (data?.type === 'energy') return 'energy_pickup';
+                if (data?.type === 'invincible') return 'invincible_pickup';
+                return 'health_pickup';
             case 'spawns': {
                 const map = { melee: 'spawn_melee', ranged: 'spawn_ranged', flying: 'spawn_flying' };
                 return map[data?.type] || 'spawn_melee';
@@ -727,6 +841,11 @@ const LevelEditorSchema = (() => {
             }
             case 'pickups':
                 if (data.type === 'energy') return `回能量 #${index + 1} (+${data.amount ?? 25})`;
+                if (data.type === 'invincible') {
+                    const dur = data.duration;
+                    const durLabel = dur != null && !Number.isNaN(dur) ? `${dur}ms` : '默认 3000ms';
+                    return `无敌道具 #${index + 1} (${durLabel})`;
+                }
                 return data.type === 'health' ? `回血 #${index + 1} (+${data.amount ?? 30})` : `道具 #${index + 1}`;
             case 'spawns': {
                 const labels = { melee: '近战', ranged: '远程', flying: '飞行' };
@@ -743,7 +862,7 @@ const LevelEditorSchema = (() => {
                     missile: '导弹', crumble: '坍塌',
                     checkpoint: '复活点', death: '必死区', hint: '提示区',
                     trigger: '触发器', moving_platform: '移动平台', triggered_platform: '触发平台',
-                    camera_cut: '镜头 Cut'
+                    camera_cut: '镜头 Cut', spring: '弹簧', spawn_zone: '刷怪区'
                 };
                 const name = labels[data.type] || data.type;
                 if (data.type === 'energy_drain') {
@@ -787,6 +906,14 @@ const LevelEditorSchema = (() => {
                         ? `出移${data.exitDuration ?? 500}ms`
                         : '出瞬切';
                     return `${name} #${index + 1} (→${tid} · ${enter} · ${exit})`;
+                }
+                if (data.type === 'spring') {
+                    return `${name} #${index + 1} (↑${data.force ?? 720} · CD ${data.cooldown ?? 350}ms)`;
+                }
+                if (data.type === 'spawn_zone') {
+                    const typeLabels = { melee: '近战', ranged: '远程', flying: '飞行' };
+                    const et = typeLabels[data.enemyType] || data.enemyType || '近战';
+                    return `${name} #${index + 1} (${et} · ${data.interval ?? 3000}ms · 上限 ${data.maxAlive ?? 2})`;
                 }
                 return `${name} #${index + 1}`;
             }
@@ -1048,6 +1175,21 @@ const LevelEditorSchema = (() => {
                 errors.push(`镜头 Cut #${i + 1} 的 exitDuration 无效`);
             }
         });
+        (normalized.pickups || []).forEach((p, i) => {
+            if (p.type !== 'invincible') return;
+            if (p.duration != null && (typeof p.duration !== 'number' || Number.isNaN(p.duration) || p.duration < 0)) {
+                errors.push(`无敌道具 #${i + 1} 的 duration 应为 >= 0 的数值（留空=默认 3000ms）`);
+            }
+        });
+        (normalized.hazards || []).forEach((h, i) => {
+            if (h.type !== 'spring') return;
+            if ((h.force ?? 720) <= 0) errors.push(`弹簧 #${i + 1} 的弹起力度 force 应 > 0`);
+        });
+        (normalized.hazards || []).forEach((h, i) => {
+            if (h.type !== 'spawn_zone') return;
+            if ((h.maxAlive ?? 2) < 1) errors.push(`刷怪区 #${i + 1} 的 maxAlive 应 >= 1`);
+            if ((h.interval ?? 3000) < 500) errors.push(`刷怪区 #${i + 1} 的 interval 应 >= 500ms`);
+        });
 
         return errors;
     }
@@ -1272,10 +1414,13 @@ const LevelEditorSchema = (() => {
         normalizeCheckpoint,
         normalizeMissile,
         normalizeCrumble,
+        normalizeSpring,
+        normalizeSpawnZone,
         normalizeCameraCut,
         normalizeTrigger,
         triggerModeIcon,
         drawTriggerButtonIcon,
+        drawSpringCoilCanvas,
         resolveStandingFeetY,
         electricIsActive,
         spawnDefaultHp,

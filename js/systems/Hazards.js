@@ -61,6 +61,8 @@ class Hazards {
                 case 'moving_platform': return new MovingPlatform(scene, cfg);
                 case 'triggered_platform': return new TriggeredPlatform(scene, cfg);
                 case 'camera_cut': return new CameraCutZone(scene, cfg);
+                case 'spring': return new SpringZone(scene, cfg);
+                case 'spawn_zone': return new SpawnZone(scene, cfg);
                 default: return null;
             }
         }).filter(Boolean);
@@ -1012,5 +1014,126 @@ class CameraCutZone {
         if (!playerOverlapsRect(player, this.x, this.y, this.w, this.h)) {
             this._exitCameraCut();
         }
+    }
+}
+
+class SpringZone {
+    static TEX_W = 40;
+    static TEX_H = 56;
+
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 80;
+        this.h = cfg.h || 24;
+        this.force = hazardNumber(cfg.force, 720);
+        this.cooldown = hazardNumber(cfg.cooldown, 350);
+        this._lastBounceAt = 0;
+
+        if (!scene.textures.exists('spring_coil') && typeof TextureFactory !== 'undefined') {
+            TextureFactory.springCoil(scene, 'spring_coil');
+        }
+
+        const baseY = this.y + this.h / 2;
+        this._baseScaleX = Math.max(0.65, this.w / SpringZone.TEX_W);
+        this._baseScaleY = Math.max(0.75, (this.h * 1.35) / SpringZone.TEX_H);
+
+        this.marker = scene.add.sprite(this.x, baseY, 'spring_coil')
+            .setOrigin(0.5, 1)
+            .setDepth(46)
+            .setScale(this._baseScaleX, this._baseScaleY);
+    }
+
+    update(time, delta, player) {
+        if (!player || player.fsm?.is('dead')) return;
+        const body = player.body;
+        if (!body) return;
+
+        const top = this.y - this.h / 2;
+        const left = this.x - this.w / 2;
+        const right = this.x + this.w / 2;
+        const feetY = body.bottom;
+        const centerX = body.center.x;
+
+        const onPad = centerX >= left && centerX <= right
+            && feetY >= top - 6 && feetY <= top + this.h + 4;
+        if (!onPad) return;
+        if (body.velocity.y < -40) return;
+        if (time - this._lastBounceAt < this.cooldown) return;
+
+        this._lastBounceAt = time;
+        player.launchFromSpring(this.force);
+        player.syncView?.();
+        Effects.hitFlash(this.scene, this.x, top - 4);
+        if (this.marker?.active) {
+            this.marker.setScale(this._baseScaleX * 1.08, this._baseScaleY * 0.82);
+            this.marker.setTint(0xccffaa);
+            this.scene.time.delayedCall(120, () => {
+                if (this.marker?.active) {
+                    this.marker.setScale(this._baseScaleX, this._baseScaleY);
+                    this.marker.clearTint();
+                }
+            });
+        }
+    }
+}
+
+class SpawnZone {
+    constructor(scene, cfg) {
+        this.scene = scene;
+        this.x = cfg.x;
+        this.y = cfg.y;
+        this.w = cfg.w || 160;
+        this.h = cfg.h || 120;
+        this.enemyType = ['melee', 'ranged', 'flying'].includes(cfg.enemyType) ? cfg.enemyType : 'melee';
+        this.interval = Math.max(500, hazardNumber(cfg.interval, 3000));
+        this.maxAlive = Math.max(1, Math.round(hazardNumber(cfg.maxAlive, 2)));
+        this.spawnCfg = {
+            type: this.enemyType,
+            hp: cfg.hp,
+            killEnergy: cfg.killEnergy,
+            detectRangeX: cfg.detectRangeX,
+            detectRangeY: cfg.detectRangeY
+        };
+        this._spawned = [];
+        this._lastSpawnAt = -this.interval;
+
+        this.visual = scene.add.rectangle(this.x, this.y, this.w, this.h, 0xff7799, 0.08)
+            .setStrokeStyle(2, 0xff7799, 0.35).setDepth(40);
+        this.marker = scene.add.text(this.x, this.y, '⟳', {
+            font: `${Math.min(22, Math.max(12, Math.min(this.w, this.h) * 0.18))}px Arial`,
+            color: '#ff99aa'
+        }).setOrigin(0.5).setDepth(41).setAlpha(0.6);
+    }
+
+    _aliveCount() {
+        this._spawned = this._spawned.filter(e => e && e.alive);
+        return this._spawned.length;
+    }
+
+    update(time, delta, player) {
+        if (this.scene.bossTriggered || this.scene.gameOver) return;
+        if (this._aliveCount() >= this.maxAlive) return;
+        if (time - this._lastSpawnAt < this.interval) return;
+
+        const margin = 14;
+        const minX = this.x - this.w / 2 + margin;
+        const maxX = this.x + this.w / 2 - margin;
+        const sx = Phaser.Math.Between(Math.round(minX), Math.round(maxX));
+        let sy;
+        if (this.enemyType === 'flying') {
+            const minY = this.y - this.h / 2 + margin;
+            const maxY = this.y + this.h / 2 - margin;
+            sy = Phaser.Math.Between(Math.round(minY), Math.round(maxY));
+        } else {
+            sy = this.y + this.h / 2 - margin;
+        }
+
+        const enemy = this.scene._spawnEnemyAt?.(sx, sy, this.spawnCfg);
+        if (!enemy) return;
+        this._spawned.push(enemy);
+        this._lastSpawnAt = time;
+        Effects.hitFlash(this.scene, sx, sy - 16);
     }
 }
