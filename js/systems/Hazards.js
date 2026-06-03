@@ -1034,7 +1034,7 @@ class SpringZone {
         this.horizontalMove = cfg.horizontalMove === true;
         this.moveRange = hazardNumber(cfg.moveRange, 200);
         this.moveSpeed = hazardNumber(cfg.moveSpeed, 80);
-        this.maxUses = Math.max(0, Math.round(hazardNumber(cfg.maxUses, 1)));
+        this.maxUses = Math.max(0, Math.round(hazardNumber(cfg.maxUses, 0)));
         this._usesLeft = this.maxUses === 0 ? Infinity : this.maxUses;
         this._lastBounceAt = 0;
         this._progress = 0;

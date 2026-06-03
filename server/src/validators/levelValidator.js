@@ -188,7 +188,7 @@ function normalizeLevel(raw) {
                 out.h = Math.max(8, out.h ?? 24);
                 out.force = Math.max(0, hazardNumber(out.force, 720));
                 out.cooldown = Math.max(0, hazardNumber(out.cooldown, 350));
-                out.maxUses = Math.max(0, Math.round(hazardNumber(out.maxUses, 1)));
+                out.maxUses = Math.max(0, Math.round(hazardNumber(out.maxUses, 0)));
                 if (out.horizontalMove === true) {
                     out.horizontalMove = true;
                     out.moveRange = Math.max(0, hazardNumber(out.moveRange, 200));

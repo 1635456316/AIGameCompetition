@@ -892,7 +892,7 @@
                 ctx.fillStyle = 'rgba(255,255,255,0.75)';
                 ctx.font = '10px sans-serif';
                 ctx.textAlign = 'center';
-                const uses = h.maxUses ?? 1;
+                const uses = h.maxUses ?? 0;
                 const usesLabel = uses === 0 ? '∞' : String(uses);
                 const moveLabel = h.horizontalMove ? ` ⇔${h.moveRange ?? 200}` : '';
                 ctx.fillText(`↑${h.force ?? 720} · ${usesLabel}次${moveLabel}`, h.x, b.y - 4);
@@ -1728,7 +1728,7 @@
                     addField('左右移动范围 (px)', 'moveRange', 'number', { value: data.moveRange ?? 200 });
                     addField('移动速度 (px/s)', 'moveSpeed', 'number', { value: data.moveSpeed ?? 80 });
                 }
-                addField('可踩次数（0=无限，默认 1）', 'maxUses', 'number', { value: data.maxUses ?? 1 });
+                addField('可踩次数（0=无限，默认 0）', 'maxUses', 'number', { value: data.maxUses ?? 0 });
                 const springHint = document.createElement('p');
                 springHint.className = 'field-hint';
                 springHint.textContent = '玩家踩上弹簧垫时向上弹起；冷却时间内同一弹簧不会重复触发。开启左右移动后弹簧在范围内往复移动，选中时虚框显示移动终点。可踩次数用完后弹簧销毁（0=无限次）。';
