@@ -340,6 +340,40 @@ h2 {
     padding: 8px 0;
 }
 
+.props-type-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #262c35;
+}
+
+.props-type-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.props-type-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6e8eb;
+    line-height: 1.3;
+}
+
+.props-type-meta {
+    font-size: 11px;
+    color: #6a7380;
+    margin-top: 2px;
+}
+
 .field-row {
     margin-bottom: 10px;
 }

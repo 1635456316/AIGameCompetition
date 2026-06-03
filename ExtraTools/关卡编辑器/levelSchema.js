@@ -663,6 +663,52 @@ const LevelEditorSchema = (() => {
         }
     }
 
+    function resolvePaletteKind(category, data) {
+        switch (category) {
+            case 'platforms': return 'platform';
+            case 'walls': return 'wall';
+            case 'destructibleWalls': return 'destructible_wall';
+            case 'systemWalls': return 'system_wall';
+            case 'pickups':
+                return data?.type === 'energy' ? 'energy_pickup' : 'health_pickup';
+            case 'spawns': {
+                const map = { melee: 'spawn_melee', ranged: 'spawn_ranged', flying: 'spawn_flying' };
+                return map[data?.type] || 'spawn_melee';
+            }
+            case 'hazards':
+                return data?.type || 'hint';
+            case 'playerStart': return 'player_start';
+            case 'boss': return 'boss';
+            case 'bossTriggerZone': return 'boss_trigger';
+            case 'finish': return 'finish';
+            default:
+                return null;
+        }
+    }
+
+    function getPaletteItemMeta(category, data) {
+        const kind = resolvePaletteKind(category, data);
+        for (const group of PALETTE) {
+            const item = group.items.find(i => i.kind === kind);
+            if (item) {
+                return {
+                    kind: item.kind,
+                    label: item.label,
+                    icon: item.icon,
+                    color: item.color,
+                    paletteCategory: group.category
+                };
+            }
+        }
+        return {
+            kind: kind || category,
+            label: category,
+            icon: '▪',
+            color: '#5a6470',
+            paletteCategory: ''
+        };
+    }
+
     function getItemLabel(category, data, index) {
         switch (category) {
             case 'platforms': {
@@ -1211,6 +1257,7 @@ const LevelEditorSchema = (() => {
         setGridSize,
         getGridSize,
         getItemBounds,
+        getPaletteItemMeta,
         getItemLabel,
         listAllItems,
         exportLevel,

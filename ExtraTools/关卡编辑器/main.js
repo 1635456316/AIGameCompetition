@@ -1098,6 +1098,19 @@
         form.innerHTML = '';
         form.onsubmit = e => e.preventDefault();
 
+        const meta = S.getPaletteItemMeta(selection.category, data);
+        const indexLabel = selection.index != null ? `#${selection.index + 1}` : '';
+        const subParts = [meta.paletteCategory, indexLabel].filter(Boolean);
+        const typeHeader = document.createElement('div');
+        typeHeader.className = 'props-type-header';
+        typeHeader.innerHTML = `
+            <span class="props-type-icon" style="background:${meta.color}22;border-color:${meta.color}55;color:${meta.color}">${meta.icon}</span>
+            <div class="props-type-text">
+                <div class="props-type-name">${meta.label}</div>
+                ${subParts.length ? `<div class="props-type-meta">${subParts.join(' · ')}</div>` : ''}
+            </div>`;
+        form.appendChild(typeHeader);
+
         const addField = (label, key, type = 'number', opts = {}) => {
             const row = document.createElement('div');
             row.className = 'field-row';
