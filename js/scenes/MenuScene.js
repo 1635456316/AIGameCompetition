@@ -110,6 +110,23 @@ class MenuScene extends Phaser.Scene {
             return btn;
         });
 
+        const workshopY = gridY0 - btnRowGap;
+        const workshopBtn = this._createImageButton(
+            gridX0,
+            workshopY + enterOffset,
+            'ui_btn_continue',
+            '创意工坊',
+            true,
+            () => this._goWorkshop(),
+            btnTargetWidth
+        );
+        workshopBtn.setAlpha(0);
+        const workshopEnterIndex = this._menuCornerBottom.length;
+        this._menuCornerBottom.push({ target: workshopBtn, y: workshopY });
+        const menuEnterDuration = 420;
+        const workshopFxDelay = workshopEnterIndex * 60 + menuEnterDuration + 180;
+        WorkshopButtonFx.attachPrompt(this, workshopBtn, btnTargetWidth, workshopFxDelay);
+
         // 全屏按钮是第 4 个，引用住它的 text 节点，全屏状态变化时实时刷新文字。
         const fsButton = this.menuButtons[3];
         this._fsButtonText = fsButton && fsButton.list && fsButton.list[1];
@@ -200,6 +217,16 @@ class MenuScene extends Phaser.Scene {
         });
 
         this.time.delayedCall(duration, onComplete);
+    }
+
+    _goWorkshop() {
+        if (this._menuExiting) return;
+        this._menuExiting = true;
+        this.input.enabled = false;
+
+        this._playMenuCornerExit(() => {
+            this.scene.start('WorkshopScene');
+        });
     }
 
     _startGame() {
@@ -294,6 +321,10 @@ class MenuScene extends Phaser.Scene {
                 onComplete: action
             });
         });
+
+        container.bg = bg;
+        container.text = text;
+        container.hitZone = hitZone;
 
         return container;
     }
