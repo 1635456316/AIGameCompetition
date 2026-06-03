@@ -262,6 +262,14 @@ h2 {
     font-size: 13px;
 }
 
+.palette-hint-top {
+    font-size: 14px;
+    font-weight: 500;
+    color: #ffd966;
+    margin: -4px 0 12px;
+    line-height: 1.45;
+}
+
 .palette-hint {
     font-size: 11px;
     color: #5a6470;

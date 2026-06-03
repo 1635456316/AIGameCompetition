@@ -17,6 +17,9 @@
     let dragState = null;
     let resizeState = null;
     let paletteKind = null;
+    let multiSelection = [];
+    let marqueeState = null;
+    let multiDragState = null;
     let bgImage = null;
     let animTime = 0;
     let lastCursorX = 0;
@@ -162,7 +165,7 @@
         if (!undoStack.length) return;
         redoStack.push(JSON.stringify(level));
         level = S.normalizeLevel(JSON.parse(undoStack.pop()));
-        selection = null;
+        clearMapSelection();
         refreshAll();
     }
 
@@ -170,7 +173,7 @@
         if (!redoStack.length) return;
         undoStack.push(JSON.stringify(level));
         level = S.normalizeLevel(JSON.parse(redoStack.pop()));
-        selection = null;
+        clearMapSelection();
         refreshAll();
     }
 
@@ -214,6 +217,84 @@
             return;
         }
         level[category][index] = data;
+    }
+
+    function getItemData(category, index) {
+        if (category === 'playerStart') return level.playerStart;
+        if (category === 'boss') return level.boss;
+        if (category === 'bossTriggerZone') return level.bossTriggerZone;
+        if (category === 'finish') return level.finish;
+        const arr = level[category];
+        if (!arr || index < 0 || index >= arr.length) return null;
+        return arr[index];
+    }
+
+    function setItemData(category, index, data) {
+        if (category === 'playerStart') {
+            level.playerStart = { ...level.playerStart, ...data };
+            return;
+        }
+        if (category === 'boss') {
+            level.boss = { ...level.boss, ...data };
+            return;
+        }
+        if (category === 'bossTriggerZone') {
+            level.bossTriggerZone = { ...level.bossTriggerZone, ...data };
+            return;
+        }
+        if (category === 'finish') {
+            level.finish = { ...level.finish, ...data };
+            return;
+        }
+        level[category][index] = data;
+    }
+
+    function isMapItemSelected(category, index) {
+        if (multiSelection.length) {
+            return multiSelection.some(s => s.category === category && s.index === index);
+        }
+        return selection?.category === category && selection?.index === index;
+    }
+
+    function selectMapItems(items) {
+        if (!items?.length) {
+            selection = null;
+            multiSelection = [];
+            return;
+        }
+        multiSelection = items.map(it => ({ category: it.category, index: it.index }));
+        selection = multiSelection[0];
+    }
+
+    function clearMapSelection() {
+        selection = null;
+        multiSelection = [];
+    }
+
+    function rectsIntersect(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function getMarqueeRect(state) {
+        return {
+            x: Math.min(state.startX, state.endX),
+            y: Math.min(state.startY, state.endY),
+            w: Math.abs(state.endX - state.startX),
+            h: Math.abs(state.endY - state.startY)
+        };
+    }
+
+    function itemsInMarquee(state) {
+        const rect = getMarqueeRect(state);
+        if (rect.w < 4 && rect.h < 4) return [];
+        const items = [];
+        for (const item of S.listAllItems(level)) {
+            const b = S.getItemBounds(item.category, item.data, level);
+            if (rectsIntersect(rect, b)) {
+                items.push({ category: item.category, index: item.index });
+            }
+        }
+        return items;
     }
 
     function hitTestAll(worldX, worldY) {
@@ -305,19 +386,19 @@
     function insertPastedCopy(category, copy) {
         if (category === 'playerStart') {
             level.playerStart = copy;
-            selection = { category, index: 0 };
+            selectMapItems([{ category, index: 0 }]);
         } else if (category === 'boss') {
             level.boss = copy;
-            selection = { category, index: 0 };
+            selectMapItems([{ category, index: 0 }]);
         } else if (category === 'bossTriggerZone') {
             level.bossTriggerZone = copy;
-            selection = { category, index: 0 };
+            selectMapItems([{ category, index: 0 }]);
         } else if (category === 'finish') {
             level.finish = copy;
-            selection = { category, index: 0 };
+            selectMapItems([{ category, index: 0 }]);
         } else {
             level[category].push(copy);
-            selection = { category, index: level[category].length - 1 };
+            selectMapItems([{ category, index: level[category].length - 1 }]);
         }
         refreshAll();
         return true;
@@ -452,7 +533,7 @@
         const h = getLevelH();
         if (S.hasBossTriggerZone(level)) {
             const z = level.bossTriggerZone;
-            const sel = selection?.category === 'bossTriggerZone';
+            const sel = isMapItemSelected('bossTriggerZone', 0);
             ctx.fillStyle = sel ? 'rgba(255,100,100,0.35)' : 'rgba(255,100,100,0.18)';
             ctx.strokeStyle = sel ? '#ff8888' : '#ff6644';
             ctx.lineWidth = sel ? 3 : 2;
@@ -483,7 +564,7 @@
 
     function drawPlatforms() {
         level.platforms.forEach(([x, y, count, ph], i) => {
-            const sel = selection?.category === 'platforms' && selection.index === i;
+            const sel = isMapItemSelected('platforms', i);
             const h = ph ?? S.PLATFORM_H;
             for (let n = 0; n < count; n++) {
                 const px = x + n * S.PLATFORM_W;
@@ -497,7 +578,7 @@
 
     function drawWalls() {
         level.walls.forEach((w, i) => {
-            const sel = selection?.category === 'walls' && selection.index === i;
+            const sel = isMapItemSelected('walls', i);
             ctx.fillStyle = sel ? '#728498' : '#566578';
             ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
             ctx.strokeStyle = sel ? '#9ab0c4' : '#3e4a5a';
@@ -509,7 +590,7 @@
 
     function drawDestructibleWalls() {
         level.destructibleWalls.forEach((w, i) => {
-            const sel = selection?.category === 'destructibleWalls' && selection.index === i;
+            const sel = isMapItemSelected('destructibleWalls', i);
             ctx.fillStyle = sel ? '#a89880' : '#8a7a62';
             ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
             ctx.strokeStyle = sel ? '#c4b498' : '#5c5042';
@@ -539,7 +620,7 @@
 
     function drawSystemWalls() {
         level.systemWalls.forEach((w, i) => {
-            const sel = selection?.category === 'systemWalls' && selection.index === i;
+            const sel = isMapItemSelected('systemWalls', i);
             ctx.fillStyle = sel ? '#88aacc' : '#6688aa';
             ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
             ctx.strokeStyle = sel ? '#aaccee' : '#446688';
@@ -561,7 +642,7 @@
 
     function drawPickups() {
         level.pickups.forEach((p, i) => {
-            const sel = selection?.category === 'pickups' && selection.index === i;
+            const sel = isMapItemSelected('pickups', i);
             const y = p.y ?? (S.groundY(level) - 4);
             const half = S.PICKUP_SIZE / 2;
             const isEnergy = p.type === 'energy';
@@ -587,7 +668,7 @@
 
     function drawHazards() {
         level.hazards.forEach((h, i) => {
-            const sel = selection?.category === 'hazards' && selection.index === i;
+            const sel = isMapItemSelected('hazards', i);
             if (h.type === 'electric') {
                 const active = S.electricIsActive(animTime, h.period, h.activeDuration);
                 ctx.fillStyle = active ? 'rgba(0,229,255,0.35)' : 'rgba(0,229,255,0.08)';
@@ -829,7 +910,7 @@
     function drawSpawns() {
         const r = S.SPAWN_RADIUS;
         level.spawns.forEach((s, i) => {
-            const sel = selection?.category === 'spawns' && selection.index === i;
+            const sel = isMapItemSelected('spawns', i);
             const y = S.getSpawnFeetY(level, s);
             ctx.fillStyle = spawnColor(s.type, sel);
             ctx.beginPath();
@@ -920,7 +1001,7 @@
     function drawMarkers() {
         const px = level.playerStart.x;
         const py = S.playerY(level);
-        const pSel = selection?.category === 'playerStart';
+        const pSel = isMapItemSelected('playerStart', 0);
         ctx.fillStyle = pSel ? '#66ffaa' : '#44ff88';
         ctx.beginPath();
         ctx.moveTo(px, py - 20);
@@ -935,7 +1016,7 @@
         if (S.isBossLevel(level)) {
             const bx = level.width - (level.boss.xOffset || 240);
             const by = getLevelH() - (level.boss.yOffset || 80);
-            const bSel = selection?.category === 'boss';
+            const bSel = isMapItemSelected('boss', 0);
             ctx.fillStyle = bSel ? '#dd66ff' : '#cc44ff';
             ctx.fillRect(bx - 20, by - 20, 40, 40);
             ctx.fillStyle = '#fff';
@@ -947,7 +1028,7 @@
 
         if (S.isFinishLevel(level)) {
             const f = level.finish;
-            const fSel = selection?.category === 'finish';
+            const fSel = isMapItemSelected('finish', 0);
             ctx.fillStyle = fSel ? 'rgba(255,204,68,0.35)' : 'rgba(255,204,68,0.18)';
             ctx.strokeStyle = fSel ? '#ffee88' : '#ffcc44';
             ctx.lineWidth = fSel ? 3 : 2;
@@ -966,26 +1047,42 @@
     }
 
     function drawSelectionHandles() {
-        if (!selection) return;
-        const data = getSelectionData();
-        if (!data) return;
-        const b = S.getItemBounds(selection.category, data, level);
-        ctx.strokeStyle = '#5a9fd4';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
-        ctx.strokeRect(b.x, b.y, b.w, b.h);
-        ctx.setLineDash([]);
-
-        const handles = [{ x: b.x + b.w, y: b.y + b.h / 2 }];
-        if (selection.category === 'platforms') {
-            handles.push({ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w / 2, y: b.y + b.h });
-        } else if (selection.category !== 'pickups') {
-            handles.push({ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w / 2, y: b.y + b.h });
-        }
-        ctx.fillStyle = '#5a9fd4';
-        handles.forEach(h => {
-            ctx.fillRect(h.x - 4, h.y - 4, 8, 8);
+        const items = multiSelection.length ? multiSelection : (selection ? [selection] : []);
+        if (!items.length) return;
+        const showResize = items.length === 1 && selection;
+        items.forEach(({ category, index }) => {
+            const data = getItemData(category, index);
+            if (!data) return;
+            const b = S.getItemBounds(category, data, level);
+            ctx.strokeStyle = '#5a9fd4';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 3]);
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+            ctx.setLineDash([]);
+            if (!showResize || category !== selection.category || index !== selection.index) return;
+            const handles = [{ x: b.x + b.w, y: b.y + b.h / 2 }];
+            if (category === 'platforms') {
+                handles.push({ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w / 2, y: b.y + b.h });
+            } else if (category !== 'pickups') {
+                handles.push({ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w / 2, y: b.y + b.h });
+            }
+            ctx.fillStyle = '#5a9fd4';
+            handles.forEach(h => {
+                ctx.fillRect(h.x - 4, h.y - 4, 8, 8);
+            });
         });
+    }
+
+    function drawMarquee() {
+        if (!marqueeState) return;
+        const r = getMarqueeRect(marqueeState);
+        ctx.fillStyle = 'rgba(90, 159, 212, 0.12)';
+        ctx.strokeStyle = '#5a9fd4';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+        ctx.setLineDash([]);
     }
 
     function render() {
@@ -1005,6 +1102,7 @@
         drawSpawnDetectRange();
         drawMarkers();
         drawSelectionHandles();
+        drawMarquee();
     }
 
     function clearPaletteSelection() {
@@ -1053,7 +1151,7 @@
             pushUndo();
             level.playerStart.x = S.snap(wx);
             level.playerStart.yOffset = getLevelH() - S.snap(wy);
-            selection = { category: 'playerStart', index: 0 };
+            selectMapItems([{ category: 'playerStart', index: 0 }]);
             refreshAll();
             return;
         }
@@ -1065,7 +1163,7 @@
             }
             level.boss.xOffset = level.width - S.snap(wx);
             level.boss.yOffset = getLevelH() - S.snap(wy);
-            selection = { category: 'boss', index: 0 };
+            selectMapItems([{ category: 'boss', index: 0 }]);
             refreshAll();
             return;
         }
@@ -1076,7 +1174,7 @@
             }
             pushUndo();
             level.bossTriggerZone = { x: S.snap(wx), y: S.snap(wy), w: 160, h: 120 };
-            selection = { category: 'bossTriggerZone', index: 0 };
+            selectMapItems([{ category: 'bossTriggerZone', index: 0 }]);
             refreshAll();
             return;
         }
@@ -1085,7 +1183,7 @@
             level.boss = null;
             level.bossTriggerZone = null;
             level.finish = { x: S.snap(wx), y: S.snap(wy), w: 80, h: 80 };
-            selection = { category: 'finish', index: 0 };
+            selectMapItems([{ category: 'finish', index: 0 }]);
             refreshAll();
             return;
         }
@@ -1094,7 +1192,7 @@
             const sx = S.snap(wx);
             const sy = S.snap(wy);
             level.hazards.push({ type: 'checkpoint', x: sx, y: sy, w: 80, h: 60, feetAnchor: true, respawnHpPercent: 100, respawnEnergyPercent: 100 });
-            selection = { category: 'hazards', index: level.hazards.length - 1 };
+            selectMapItems([{ category: 'hazards', index: level.hazards.length - 1 }]);
             refreshAll();
             return;
         }
@@ -1103,7 +1201,7 @@
         pushUndo();
         const arr = level[created.category];
         arr.push(created.data);
-        selection = { category: created.category, index: arr.length - 1 };
+        selectMapItems([{ category: created.category, index: arr.length - 1 }]);
         refreshAll();
     }
 
@@ -1119,9 +1217,16 @@
     function buildPropsForm() {
         const form = document.getElementById('props-form');
         const empty = document.getElementById('props-empty');
+        if (multiSelection.length > 1) {
+            form.hidden = true;
+            empty.hidden = false;
+            empty.textContent = `已选中 ${multiSelection.length} 个元素，可拖拽一起移动`;
+            return;
+        }
         if (!selection) {
             form.hidden = true;
             empty.hidden = false;
+            empty.textContent = '选中地图上的元素以编辑属性';
             return;
         }
         const data = getSelectionData();
@@ -1671,7 +1776,7 @@
                 } else {
                     level[selection.category].splice(selection.index, 1);
                 }
-                selection = null;
+                clearMapSelection();
                 refreshAll();
             });
             form.appendChild(del);
@@ -2057,7 +2162,7 @@
             }
             pushUndo();
             S.insertBlankSpace(level, atX, len);
-            selection = null;
+            clearMapSelection();
             refreshAll();
             closeSceneToolsModal();
         });
@@ -2089,7 +2194,7 @@
             }
             pushUndo();
             S.insertBlankSpaceVertical(level, atY, len);
-            selection = null;
+            clearMapSelection();
             refreshAll();
             closeSceneToolsModal();
         });
@@ -2122,11 +2227,11 @@
         list.innerHTML = '';
         S.listAllItems(level).forEach(item => {
             const li = document.createElement('li');
-            const sel = selection?.category === item.category && selection?.index === item.index;
+            const sel = isMapItemSelected(item.category, item.index);
             if (sel) li.classList.add('selected');
             li.innerHTML = `<span>${S.getItemLabel(item.category, item.data, item.index)}</span><span class="tag">${item.category}</span>`;
             li.addEventListener('click', () => {
-                selection = { category: item.category, index: item.index };
+                selectMapItems([{ category: item.category, index: item.index }]);
                 document.querySelector('.tab[data-tab="props"]').click();
                 refreshAll(false);
             });
@@ -2196,7 +2301,7 @@
 
     async function loadLevel(data, options = {}) {
         level = S.normalizeLevel(data);
-        selection = null;
+        clearMapSelection();
         undoStack = [];
         redoStack = [];
         currentFileHandle = options.fileHandle || null;
@@ -2443,19 +2548,48 @@
         viewport.classList.add('panning');
     }
 
+    function applyMultiDrag(dx, dy) {
+        if (!multiDragState) return;
+        for (const snap of multiDragState.snapshots) {
+            const updated = applyOffsetToData(snap.data, snap.category, dx, dy);
+            setItemData(snap.category, snap.index, updated);
+        }
+    }
+
     function endInteraction(e) {
-        if (dragState?.moved && selection) {
+        if (marqueeState) {
+            const picked = itemsInMarquee(marqueeState);
+            if (picked.length) {
+                selectMapItems(picked);
+            } else {
+                clearMapSelection();
+            }
+            marqueeState = null;
+            refreshAll(false);
+            buildPropsForm();
+            buildHierarchy();
+        } else if (multiDragState?.moved && multiSelection.length) {
+            const saved = selection;
+            for (const item of multiSelection) {
+                selection = item;
+                snapSelection();
+            }
+            selection = saved;
+            render();
+            buildPropsForm();
+            buildHierarchy();
+        } else if (dragState?.moved && selection) {
             const w = screenToWorld(e.clientX, e.clientY);
             applyDragAtCursor(w.x, w.y);
             snapSelection();
             render();
             buildPropsForm();
             buildHierarchy();
-        } else if (stackClickState && selection && !dragState?.moved) {
+        } else if (stackClickState && selection && !dragState?.moved && !multiDragState?.moved) {
             const { hits } = stackClickState;
             const idx = hits.findIndex(h => h.category === selection.category && h.index === selection.index);
             if (idx >= 0) {
-                selection = hits[(idx + 1) % hits.length];
+                selectMapItems([hits[(idx + 1) % hits.length]]);
                 render();
                 buildPropsForm();
                 buildHierarchy();
@@ -2469,6 +2603,7 @@
         panning = false;
         panStart = null;
         dragState = null;
+        multiDragState = null;
         resizeState = null;
         viewport.classList.remove('panning');
     }
@@ -2547,31 +2682,46 @@
         const hits = hitTestAll(w.x, w.y);
         if (hits.length) {
             stackClickState = null;
-            if (selection && hits.length > 1) {
-                const idx = hits.findIndex(h => h.category === selection.category && h.index === selection.index);
-                if (idx >= 0) {
-                    stackClickState = { hits };
+            const picked = pickSelectionFromHits(hits, false);
+            const clickedInMulti = multiSelection.length > 1
+                && multiSelection.some(s => s.category === picked.category && s.index === picked.index);
+            if (!clickedInMulti) {
+                if (selection && hits.length > 1) {
+                    const idx = hits.findIndex(h => h.category === selection.category && h.index === selection.index);
+                    if (idx >= 0) {
+                        stackClickState = { hits };
+                        selectMapItems([pickSelectionFromHits(hits, true)]);
+                    } else {
+                        selectMapItems([picked]);
+                    }
+                } else {
+                    selectMapItems([picked]);
                 }
             }
-            selection = pickSelectionFromHits(hits, !!stackClickState);
-            const hitData = selection.category === 'playerStart'
-                ? level.playerStart
-                : selection.category === 'boss'
-                    ? level.boss
-                    : selection.category === 'bossTriggerZone'
-                        ? level.bossTriggerZone
-                    : selection.category === 'finish'
-                        ? level.finish
-                    : level[selection.category]?.[selection.index];
-            const grab = getDragGrabOffset(selection.category, hitData, w.x, w.y);
-            dragState = {
-                startX: w.x,
-                startY: w.y,
-                grabOffsetX: grab.x,
-                grabOffsetY: grab.y,
-                moved: false,
-                undoSaved: false
-            };
+            if (multiSelection.length > 1) {
+                multiDragState = {
+                    startX: w.x,
+                    startY: w.y,
+                    snapshots: multiSelection.map(({ category, index }) => ({
+                        category,
+                        index,
+                        data: cloneSelectionData(getItemData(category, index), category)
+                    })),
+                    moved: false,
+                    undoSaved: false
+                };
+            } else {
+                const hitData = getItemData(selection.category, selection.index);
+                const grab = getDragGrabOffset(selection.category, hitData, w.x, w.y);
+                dragState = {
+                    startX: w.x,
+                    startY: w.y,
+                    grabOffsetX: grab.x,
+                    grabOffsetY: grab.y,
+                    moved: false,
+                    undoSaved: false
+                };
+            }
             refreshAll(false);
             buildPropsForm();
             buildHierarchy();
@@ -2583,7 +2733,16 @@
             return;
         }
 
-        selection = null;
+        if (!paletteKind && tool === 'select') {
+            marqueeState = { startX: w.x, startY: w.y, endX: w.x, endY: w.y };
+            clearMapSelection();
+            refreshAll(false);
+            buildPropsForm();
+            buildHierarchy();
+            return;
+        }
+
+        clearMapSelection();
         stackClickState = null;
         refreshAll(false);
         buildPropsForm();
@@ -2610,6 +2769,26 @@
         if (resizeState) {
             applyResize(resizeState.handle, w.x, w.y);
             render();
+            return;
+        }
+        if (marqueeState) {
+            marqueeState.endX = w.x;
+            marqueeState.endY = w.y;
+            render();
+            return;
+        }
+        if (multiDragState && multiSelection.length > 1) {
+            const dx = w.x - multiDragState.startX;
+            const dy = w.y - multiDragState.startY;
+            if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+                if (!multiDragState.undoSaved) {
+                    pushUndo();
+                    multiDragState.undoSaved = true;
+                }
+                applyMultiDrag(dx, dy);
+                multiDragState.moved = true;
+                render();
+            }
             return;
         }
         if (dragState && selection) {
@@ -2688,7 +2867,7 @@
         if (!confirm('清空场景？\n将删除所有平台、墙、敌人、道具、机关等。\n关卡 ID、宽度、高度、Boss 与媒体设置会保留。')) return;
         pushUndo();
         S.clearLevelContent(level);
-        selection = null;
+        clearMapSelection();
         refreshAll();
     });
 
@@ -2736,14 +2915,14 @@
             if (selection && selection.category === 'finish') {
                 pushUndo();
                 level.finish = null;
-                selection = null;
+                clearMapSelection();
                 refreshAll();
                 return;
             }
             if (selection && selection.category !== 'playerStart' && selection.category !== 'boss') {
                 pushUndo();
                 level[selection.category].splice(selection.index, 1);
-                selection = null;
+                clearMapSelection();
                 refreshAll();
             }
         }
