@@ -883,12 +883,19 @@
                     ctx.strokeStyle = 'rgba(136,238,85,0.55)';
                     ctx.setLineDash([4, 4]);
                     ctx.strokeRect(b.x, b.y, b.w, b.h);
+                    if (h.horizontalMove && (h.moveRange ?? 0) > 0) {
+                        ctx.strokeStyle = 'rgba(136,238,85,0.45)';
+                        ctx.strokeRect(b.x + (h.moveRange ?? 200), b.y, b.w, b.h);
+                    }
                     ctx.setLineDash([]);
                 }
                 ctx.fillStyle = 'rgba(255,255,255,0.75)';
                 ctx.font = '10px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(`↑${h.force ?? 720}`, h.x, b.y - 4);
+                const uses = h.maxUses ?? 1;
+                const usesLabel = uses === 0 ? '∞' : String(uses);
+                const moveLabel = h.horizontalMove ? ` ⇔${h.moveRange ?? 200}` : '';
+                ctx.fillText(`↑${h.force ?? 720} · ${usesLabel}次${moveLabel}`, h.x, b.y - 4);
                 ctx.textAlign = 'left';
             } else if (h.type === 'spawn_zone') {
                 const b = S.getItemBounds('hazards', h, level);
@@ -1294,6 +1301,9 @@
                     if (selection?.category === 'hazards' && key === 'enemyType') {
                         buildPropsForm();
                     }
+                    if (selection?.category === 'hazards' && key === 'horizontalMove') {
+                        buildPropsForm();
+                    }
                 });
                 return;
             }
@@ -1397,7 +1407,17 @@
             } else {
                 const item = { ...getSelectionData() };
                 if (key === 'dir') item[key] = v;
-                else if (key === 'once' || key === 'autoReturn' || key === 'showVisual') item[key] = v === '1' || v === 1 || v === true;
+                else if (key === 'once' || key === 'autoReturn' || key === 'showVisual' || key === 'horizontalMove') {
+                    item[key] = v === '1' || v === 1 || v === true;
+                    if (key === 'horizontalMove') {
+                        if (!item[key]) {
+                            delete item.moveRange;
+                            delete item.moveSpeed;
+                        } else if (item.moveRange == null) {
+                            item.moveRange = 200;
+                        }
+                    }
+                }
                 else if (key === 'bindId') {
                     if (v === '' || v == null) delete item.bindId;
                     else item.bindId = String(v);
@@ -1406,10 +1426,10 @@
                 else if (key === 'triggerId' || key === 'triggerMode' || key === 'moveAxis' || key === 'returnMode' || key === 'enterMode' || key === 'exitMode' || key === 'enemyType') {
                     item[key] = String(v);
                 }
-                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay', 'enterDuration', 'exitDuration', 'cooldown', 'maxAlive', 'duration'].includes(key)) {
+                else if (typeof v === 'number' && key !== 'type' && !['hp', 'amount', 'period', 'activeDuration', 'damage', 'delay', 'respawn', 'interval', 'startDelay', 'force', 'id', 'moveRange', 'moveSpeed', 'maxTriggers', 'returnDelay', 'enterDuration', 'exitDuration', 'cooldown', 'maxAlive', 'maxUses', 'duration'].includes(key)) {
                     item[key] = S.snap(v);
                 }
-                else if (key === 'moveRange' || key === 'moveSpeed' || key === 'maxTriggers' || key === 'returnDelay' || key === 'enterDuration' || key === 'exitDuration' || key === 'maxAlive') {
+                else if (key === 'moveRange' || key === 'moveSpeed' || key === 'maxTriggers' || key === 'returnDelay' || key === 'enterDuration' || key === 'exitDuration' || key === 'maxAlive' || key === 'maxUses') {
                     item[key] = Number.isNaN(v) ? undefined : Math.max(key === 'maxAlive' ? 1 : 0, v);
                 }
                 else if (key === 'period' || key === 'activeDuration' || key === 'damage' || key === 'id' || key === 'cooldown') {
@@ -1700,9 +1720,18 @@
                 addField('高 h', 'h', 'number', { value: data.h ?? 24 });
                 addField('弹起力度 force (px/s)', 'force', 'number', { value: data.force ?? 720 });
                 addField('冷却 cooldown (ms)', 'cooldown', 'number', { value: data.cooldown ?? 350 });
+                addField('左右移动', 'horizontalMove', 'select', {
+                    value: data.horizontalMove ? '1' : '0',
+                    options: [{ v: '0', t: '否' }, { v: '1', t: '是' }]
+                });
+                if (data.horizontalMove) {
+                    addField('左右移动范围 (px)', 'moveRange', 'number', { value: data.moveRange ?? 200 });
+                    addField('移动速度 (px/s)', 'moveSpeed', 'number', { value: data.moveSpeed ?? 80 });
+                }
+                addField('可踩次数（0=无限，默认 1）', 'maxUses', 'number', { value: data.maxUses ?? 1 });
                 const springHint = document.createElement('p');
                 springHint.className = 'field-hint';
-                springHint.textContent = '玩家踩上弹簧垫时向上弹起；冷却时间内同一弹簧不会重复触发。';
+                springHint.textContent = '玩家踩上弹簧垫时向上弹起；冷却时间内同一弹簧不会重复触发。开启左右移动后弹簧在范围内往复移动，选中时虚框显示移动终点。可踩次数用完后弹簧销毁（0=无限次）。';
                 form.appendChild(springHint);
             } else if (data.type === 'spawn_zone') {
                 addField('X（区域中心）', 'x', 'number', { value: data.x });

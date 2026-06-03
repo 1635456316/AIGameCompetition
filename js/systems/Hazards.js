@@ -1023,30 +1023,70 @@ class SpringZone {
 
     constructor(scene, cfg) {
         this.scene = scene;
+        this.originX = cfg.x;
+        this.originY = cfg.y;
         this.x = cfg.x;
         this.y = cfg.y;
         this.w = cfg.w || 80;
         this.h = cfg.h || 24;
         this.force = hazardNumber(cfg.force, 720);
         this.cooldown = hazardNumber(cfg.cooldown, 350);
+        this.horizontalMove = cfg.horizontalMove === true;
+        this.moveRange = hazardNumber(cfg.moveRange, 200);
+        this.moveSpeed = hazardNumber(cfg.moveSpeed, 80);
+        this.maxUses = Math.max(0, Math.round(hazardNumber(cfg.maxUses, 1)));
+        this._usesLeft = this.maxUses === 0 ? Infinity : this.maxUses;
         this._lastBounceAt = 0;
+        this._progress = 0;
+        this._direction = 1;
+        this._destroyed = false;
 
         if (!scene.textures.exists('spring_coil') && typeof TextureFactory !== 'undefined') {
             TextureFactory.springCoil(scene, 'spring_coil');
         }
 
-        const baseY = this.y + this.h / 2;
         this._baseScaleX = Math.max(0.65, this.w / SpringZone.TEX_W);
         this._baseScaleY = Math.max(0.75, (this.h * 1.35) / SpringZone.TEX_H);
 
-        this.marker = scene.add.sprite(this.x, baseY, 'spring_coil')
+        this.marker = scene.add.sprite(this.x, this.y + this.h / 2, 'spring_coil')
             .setOrigin(0.5, 1)
             .setDepth(46)
             .setScale(this._baseScaleX, this._baseScaleY);
     }
 
+    _syncMarkerPosition() {
+        if (this.marker?.active) {
+            this.marker.setPosition(this.x, this.y + this.h / 2);
+        }
+    }
+
+    _destroy() {
+        this._destroyed = true;
+        this._usesLeft = 0;
+        if (this.marker?.active) {
+            this.marker.destroy();
+        }
+        this.marker = null;
+    }
+
     update(time, delta, player) {
+        if (this._destroyed) return;
+        if (this.horizontalMove && this.moveRange > 0) {
+            const step = this.moveSpeed * (delta / 1000);
+            this._progress += step * this._direction;
+            if (this._progress >= this.moveRange) {
+                this._progress = this.moveRange;
+                this._direction = -1;
+            } else if (this._progress <= 0) {
+                this._progress = 0;
+                this._direction = 1;
+            }
+            this.x = this.originX + this._progress;
+            this._syncMarkerPosition();
+        }
+
         if (!player || player.fsm?.is('dead')) return;
+        if (this._usesLeft <= 0) return;
         const body = player.body;
         if (!body) return;
 
@@ -1063,6 +1103,7 @@ class SpringZone {
         if (time - this._lastBounceAt < this.cooldown) return;
 
         this._lastBounceAt = time;
+        const depleted = this.maxUses > 0 && --this._usesLeft <= 0;
         player.launchFromSpring(this.force);
         player.syncView?.();
         Effects.hitFlash(this.scene, this.x, top - 4);
@@ -1070,11 +1111,15 @@ class SpringZone {
             this.marker.setScale(this._baseScaleX * 1.08, this._baseScaleY * 0.82);
             this.marker.setTint(0xccffaa);
             this.scene.time.delayedCall(120, () => {
-                if (this.marker?.active) {
+                if (depleted) {
+                    this._destroy();
+                } else if (this.marker?.active) {
                     this.marker.setScale(this._baseScaleX, this._baseScaleY);
                     this.marker.clearTint();
                 }
             });
+        } else if (depleted) {
+            this._destroy();
         }
     }
 }

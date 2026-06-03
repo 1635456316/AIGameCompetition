@@ -188,6 +188,16 @@ function normalizeLevel(raw) {
                 out.h = Math.max(8, out.h ?? 24);
                 out.force = Math.max(0, hazardNumber(out.force, 720));
                 out.cooldown = Math.max(0, hazardNumber(out.cooldown, 350));
+                out.maxUses = Math.max(0, Math.round(hazardNumber(out.maxUses, 1)));
+                if (out.horizontalMove === true) {
+                    out.horizontalMove = true;
+                    out.moveRange = Math.max(0, hazardNumber(out.moveRange, 200));
+                    out.moveSpeed = Math.max(1, hazardNumber(out.moveSpeed, 80));
+                } else {
+                    delete out.horizontalMove;
+                    delete out.moveRange;
+                    delete out.moveSpeed;
+                }
             }
             if (out.type === 'spawn_zone') {
                 out.enemyType = ['melee', 'ranged', 'flying'].includes(out.enemyType) ? out.enemyType : 'melee';

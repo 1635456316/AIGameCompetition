@@ -518,18 +518,26 @@ const LevelEditorSchema = (() => {
         };
     }
 
-    /** 弹簧：踩上后向上弹起 */
+    /** 弹簧：踩上后向上弹起；可选左右往复移动；maxUses=0 表示无限次 */
     function normalizeSpring(h) {
         if (h.type !== 'spring') return h;
-        return {
+        const horizontalMove = h.horizontalMove === true;
+        const out = {
             type: 'spring',
             x: h.x,
             y: h.y,
             w: Math.max(16, h.w ?? 80),
             h: Math.max(8, h.h ?? 24),
             force: Math.max(0, hazardNumber(h.force, 720)),
-            cooldown: Math.max(0, hazardNumber(h.cooldown, 350))
+            cooldown: Math.max(0, hazardNumber(h.cooldown, 350)),
+            maxUses: Math.max(0, Math.round(hazardNumber(h.maxUses, 1)))
         };
+        if (horizontalMove) {
+            out.horizontalMove = true;
+            out.moveRange = Math.max(0, hazardNumber(h.moveRange, 200));
+            out.moveSpeed = Math.max(1, hazardNumber(h.moveSpeed, 80));
+        }
+        return out;
     }
 
     /** 刷怪区：区域内按间隔刷怪，可限制同时存活数量 */
@@ -662,7 +670,7 @@ const LevelEditorSchema = (() => {
             case 'invincible_pickup':
                 return { category: 'pickups', data: { type: 'invincible', x: sx, y: sy } };
             case 'spring':
-                return { category: 'hazards', data: { type: 'spring', x: sx, y: sy, w: 80, h: 24, force: 720, cooldown: 350 } };
+                return { category: 'hazards', data: { type: 'spring', x: sx, y: sy, w: 80, h: 24, force: 720, cooldown: 350, maxUses: 1 } };
             case 'spawn_zone':
                 return { category: 'hazards', data: { type: 'spawn_zone', x: sx, y: sy, w: 160, h: 120, enemyType: 'melee', interval: 3000, maxAlive: 2 } };
             case 'electric':
@@ -908,7 +916,11 @@ const LevelEditorSchema = (() => {
                     return `${name} #${index + 1} (→${tid} · ${enter} · ${exit})`;
                 }
                 if (data.type === 'spring') {
-                    return `${name} #${index + 1} (↑${data.force ?? 720} · CD ${data.cooldown ?? 350}ms)`;
+                    const parts = [`↑${data.force ?? 720}`, `CD ${data.cooldown ?? 350}ms`];
+                    if (data.horizontalMove) parts.push(`⇔${data.moveRange ?? 200}px`);
+                    const uses = data.maxUses ?? 1;
+                    parts.push(uses === 0 ? '∞次' : `${uses}次`);
+                    return `${name} #${index + 1} (${parts.join(' · ')})`;
                 }
                 if (data.type === 'spawn_zone') {
                     const typeLabels = { melee: '近战', ranged: '远程', flying: '飞行' };
@@ -1184,6 +1196,10 @@ const LevelEditorSchema = (() => {
         (normalized.hazards || []).forEach((h, i) => {
             if (h.type !== 'spring') return;
             if ((h.force ?? 720) <= 0) errors.push(`弹簧 #${i + 1} 的弹起力度 force 应 > 0`);
+            if (h.horizontalMove && (h.moveRange ?? 0) <= 0) {
+                errors.push(`弹簧 #${i + 1} 开启左右移动时，moveRange 应 > 0`);
+            }
+            if ((h.maxUses ?? 1) < 0) errors.push(`弹簧 #${i + 1} 的 maxUses 应 >= 0（0=无限）`);
         });
         (normalized.hazards || []).forEach((h, i) => {
             if (h.type !== 'spawn_zone') return;
