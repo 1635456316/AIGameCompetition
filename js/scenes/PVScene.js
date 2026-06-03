@@ -3,7 +3,7 @@
  *
  * pvId：用于在 SaveSystem 中标记该 PV 已观看过。
  * holdOnEnd：播放自然结束后停留在最后一帧；continueButtonText 按钮从一开始显示，点击后跳转。
- * 跳过：普通 PV 从一开始显示跳过按钮，同时空格 / 回车 / ESC 生效。
+ * 跳过：普通 PV 从一开始显示右上角跳过按钮；ESC 仍可跳过。
  *
  * 注意：不用 Phaser 的 Video GameObject，改用 DOM <video> 覆盖在 canvas 上。
  * 这样可以避免部分浏览器/显卡/视频编码组合出现"有声音但画面黑"的问题。
@@ -55,11 +55,9 @@ class PVScene extends Phaser.Scene {
             this._showContinueButton();
         } else {
             this._createSkipButton(finish);
-            this.input.keyboard.once('keydown-SPACE', finish);
-            this.input.keyboard.once('keydown-ENTER', finish);
             this.input.keyboard.once('keydown-ESC', finish);
             if (this.domHint) {
-                this.domHint.textContent = '空格 / 回车 / ESC：跳过    ↑↓：音量';
+                this.domHint.textContent = 'ESC：跳过    ↑↓：音量';
             }
         }
 
@@ -228,7 +226,7 @@ class PVScene extends Phaser.Scene {
             this._skipBtn.style.pointerEvents = 'none';
         }
         if (this.domHint) {
-            this.domHint.textContent = '点击按钮进入关卡    Enter / 空格：开始';
+            this.domHint.textContent = '点击按钮进入关卡';
         }
 
         const btn = document.createElement('button');
@@ -269,9 +267,6 @@ class PVScene extends Phaser.Scene {
         btn.onclick = () => this._finish();
         this._continueBtn = btn;
         document.body.appendChild(btn);
-
-        this.input.keyboard.once('keydown-SPACE', () => this._finish());
-        this.input.keyboard.once('keydown-ENTER', () => this._finish());
     }
 
     /** 防止 PV 的 DOM 按钮残留在 canvas 上方挡住游戏内鼠标点击 */
