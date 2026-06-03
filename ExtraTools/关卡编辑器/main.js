@@ -464,6 +464,28 @@
         return null;
     }
 
+    function setZoom(newZoom, anchorClientX, anchorClientY) {
+        const oldZoom = zoom;
+        newZoom = Math.min(2, Math.max(0.25, newZoom));
+        if (newZoom === oldZoom) return;
+
+        if (anchorClientX != null && anchorClientY != null) {
+            const vr = viewport.getBoundingClientRect();
+            const mouseVX = anchorClientX - vr.left;
+            const mouseVY = anchorClientY - vr.top;
+            const worldX = (viewport.scrollLeft + mouseVX) / oldZoom;
+            const worldY = (viewport.scrollTop + mouseVY) / oldZoom;
+            zoom = newZoom;
+            render();
+            viewport.scrollLeft = worldX * newZoom - mouseVX;
+            viewport.scrollTop = worldY * newZoom - mouseVY;
+        } else {
+            zoom = newZoom;
+            render();
+        }
+        document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
+    }
+
     function resizeCanvas() {
         const h = getLevelH();
         const w = Math.max(level.width, 1280);
@@ -2811,9 +2833,7 @@
     viewport.addEventListener('wheel', e => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        zoom = Math.min(2, Math.max(0.25, zoom + delta));
-        document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
-        render();
+        setZoom(zoom + delta, e.clientX, e.clientY);
     }, { passive: false });
 
     viewport.addEventListener('dragover', e => e.preventDefault());
@@ -2848,19 +2868,15 @@
     });
 
     document.getElementById('btn-zoom-in').addEventListener('click', () => {
-        zoom = Math.min(2, zoom + 0.1);
-        document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
-        render();
+        const vr = viewport.getBoundingClientRect();
+        setZoom(zoom + 0.1, vr.left + vr.width / 2, vr.top + vr.height / 2);
     });
     document.getElementById('btn-zoom-out').addEventListener('click', () => {
-        zoom = Math.max(0.25, zoom - 0.1);
-        document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
-        render();
+        const vr = viewport.getBoundingClientRect();
+        setZoom(zoom - 0.1, vr.left + vr.width / 2, vr.top + vr.height / 2);
     });
     document.getElementById('btn-zoom-fit').addEventListener('click', () => {
-        zoom = Math.min(1, viewport.clientWidth / level.width, viewport.clientHeight / getLevelH());
-        document.getElementById('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
-        render();
+        setZoom(Math.min(1, viewport.clientWidth / level.width, viewport.clientHeight / getLevelH()));
     });
 
     document.getElementById('btn-clear-scene').addEventListener('click', () => {
