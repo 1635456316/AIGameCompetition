@@ -92,7 +92,9 @@ class LevelSelectScene extends Phaser.Scene {
             ease: 'Cubic.easeOut'
         });
 
-        this._attachWorkshopButtonPrompt(workshopBtn, btnW, bottomBtnDelay + bottomBtnDuration + 180);
+        const workshopFxDelay = bottomBtnDelay + bottomBtnDuration + 180;
+        this._attachWorkshopButtonPrompt(workshopBtn, btnW, workshopFxDelay);
+        this._attachWorkshopButtonShake(workshopBtn, workshopFxDelay);
 
         const hintText = this.add.text(w / 2, h - 18 + bottomEnterOffset, 'ESC 返回主菜单    R 重置存档    ←→ 切换关卡    ENTER 进入', {
             font: 'bold 11px Microsoft YaHei, Arial',
@@ -572,6 +574,68 @@ class LevelSelectScene extends Phaser.Scene {
         }
 
         this.events.once('shutdown', () => promptTweens.forEach(t => t.stop()));
+    }
+
+    _attachWorkshopButtonShake(container, startDelay) {
+        const pauseMs = 2600;
+        const shakeDeg = 3.2;
+        let shakeTween = null;
+        let nextShakeTimer = null;
+        let paused = false;
+
+        const clearNext = () => {
+            if (nextShakeTimer) {
+                nextShakeTimer.remove(false);
+                nextShakeTimer = null;
+            }
+        };
+
+        const scheduleNext = (delay = pauseMs) => {
+            clearNext();
+            if (paused) return;
+            nextShakeTimer = this.time.delayedCall(delay, runBurst);
+        };
+
+        const runBurst = () => {
+            if (paused) return;
+            clearNext();
+            if (shakeTween) shakeTween.stop();
+            shakeTween = this.tweens.add({
+                targets: container,
+                angle: { from: -shakeDeg, to: shakeDeg },
+                duration: 88,
+                yoyo: true,
+                repeat: 2,
+                ease: 'Sine.easeInOut',
+                onComplete: () => {
+                    container.setAngle(0);
+                    shakeTween = null;
+                    scheduleNext(pauseMs);
+                }
+            });
+        };
+
+        const pauseShake = () => {
+            paused = true;
+            if (shakeTween) shakeTween.stop();
+            shakeTween = null;
+            container.setAngle(0);
+            clearNext();
+        };
+
+        const resumeShake = () => {
+            paused = false;
+            scheduleNext(420);
+        };
+
+        this.time.delayedCall(startDelay, runBurst);
+
+        if (container.hitZone) {
+            container.hitZone.on('pointerover', pauseShake);
+            container.hitZone.on('pointerout', resumeShake);
+        }
+
+        this.events.once('shutdown', pauseShake);
     }
 
     _createPVButton(parent, x, y, width, height, label, action) {
